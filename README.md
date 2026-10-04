@@ -101,9 +101,15 @@ SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                  
 Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
 após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
-`supabase/tests/prioridade_laudo.sql` e `supabase/tests/vida_familia.sql` (os dois últimos rodam numa transação revertida).
+`supabase/tests/prioridade_laudo.sql` e `supabase/tests/vida_familia.sql` (os três últimos rodam numa transação revertida e não
+deixam resíduo na demonstração; para ver o resultado completo, use `SQL_OUT_LIMIT=200000`).
 Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
 `node scripts/teste-iara.mjs maria` (família já cadastrada) — cria dados de demonstração.
+
+Limpeza do que visitantes e testes criaram pelo app (famílias, crianças, protocolos, conversas, ofertas, matrículas,
+notificações) — o que as sessões alteraram no cenário gerado volta ao valor original pela trilha de auditoria, que não é
+tocada: `SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_purge_session_data()"`.
+O botão "Reiniciar demonstração" faz o mesmo só para a família da Maria.
 
 ## Estrutura
 

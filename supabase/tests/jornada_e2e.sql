@@ -1,5 +1,7 @@
 -- Jornada ponta a ponta (spec §74.14 / §73): oferta → aceite → documentos → matrícula → auditoria → reinício do cenário.
 -- Executar: node scripts/sql.mjs supabase/tests/jornada_e2e.sql
+-- Roda numa transação revertida (o resultado volta na mensagem RESULTADO): não deixa ofertas, matrículas
+-- nem eventos de teste na família da demonstração.
 create or replace function pg_temp.as_call(p_hash text, p_fn text, p_args jsonb) returns jsonb language plpgsql as $f$
 declare
   v_uid uuid := (select user_id from iara.app_sessions where token_hash = p_hash);
@@ -83,4 +85,6 @@ begin
   insert into e2e values (15, 'Vagas ofertáveis da rede após o reinício', to_jsonb((select sum(offerable_vacancies_count) from iara.classes)));
 end $$;
 
-select passo, descricao, resultado from e2e order by passo;
+do $$ begin
+  raise exception 'RESULTADO: %', (select jsonb_agg(jsonb_build_object('passo', passo, 'descricao', descricao, 'resultado', resultado) order by passo) from e2e);
+end $$;  -- reverte tudo

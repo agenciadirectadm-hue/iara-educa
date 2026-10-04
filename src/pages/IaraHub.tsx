@@ -305,7 +305,9 @@ function ResolutionStats() {
         {conv > 0 && (
           <div className="flex items-start gap-2"><Bot className="mt-0.5 size-4 shrink-0 text-purple-600" /><span><b className="text-slate-800">{convPct}% das conversas</b> terminaram sem precisar de servidor ({fmtInt(d.conversations_without_staff)} de {fmtInt(conv)}).</span></div>
         )}
-        <div className="flex items-start gap-2"><Zap className="mt-0.5 size-4 shrink-0 text-green-600" /><span><b className="text-slate-800">{fmtInt(d.resolved_by_iara)} pedidos</b> executados e encerrados pela própria IARA na hora.</span></div>
+        {(d.resolved_by_iara ?? 0) > 0 && (
+          <div className="flex items-start gap-2"><Zap className="mt-0.5 size-4 shrink-0 text-green-600" /><span><b className="text-slate-800">{fmtInt(d.resolved_by_iara)} pedidos</b> executados e encerrados pela própria IARA na hora.</span></div>
+        )}
       </div>
     </Card>
   );

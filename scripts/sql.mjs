@@ -30,7 +30,8 @@ for (const job of jobs) {
   const text = await res.text();
   const ms = Date.now() - started;
   if (!res.ok) {
-    console.error(`✗ ${job.name} (${res.status}, ${ms} ms)\n${text.slice(0, 4000)}`);
+    // testes revertidos devolvem o resultado no erro (RESULTADO: ...): SQL_OUT_LIMIT amplia a saída
+    console.error(`✗ ${job.name} (${res.status}, ${ms} ms)\n${text.slice(0, Number(process.env.SQL_OUT_LIMIT || 4000))}`);
     process.exitCode = 2;
     break;
   }
