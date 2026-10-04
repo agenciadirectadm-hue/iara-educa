@@ -23,6 +23,7 @@ export default function GuardianPage() {
           <h1 className="font-display text-[24px] font-extrabold leading-tight">{g.full_name}</h1>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {g.cadunico && <Badge tone="purple">CadÚnico</Badge>}
+            {g.single_mother && <Badge tone="purple">Mãe solo</Badge>}
             <Badge tone="gray">Prefere {CHANNEL[g.preferred_channel] ?? g.preferred_channel}</Badge>
             {g.is_demo && <Badge tone="amber">Fictício</Badge>}
           </div>

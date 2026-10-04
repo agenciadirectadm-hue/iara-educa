@@ -516,11 +516,14 @@ export class Agent {
     const cards: Card[] = [];
     for (const kid of home?.children ?? []) {
       for (const q of kid.queue ?? []) {
-        const applied = ((q.breakdown ?? []) as any[]).filter((b) => b.applied && b.weight > 0).map((b) => "✓ " + b.name);
+        const bd = (q.breakdown ?? []) as any[];
+        const applied = bd.filter((b) => b.applied && b.weight > 0 && !b.analysis).map((b) => `✓ ${b.name} (+${b.weight})`);
+        const analysis = bd.filter((b) => b.applied && b.analysis).map((b) => `◆ ${b.name}: prioridade sob análise mediante laudo (fora da soma)`);
         if (q.status === "WAITING") {
           cards.push({
             title: `${kid.first_name} · ${q.position}º na fila`, subtitle: `${q.grade} · ${q.unit}`,
-            lines: [`${q.queue_size} criança(s) nesta fila`, ...applied, `Regras ${q.rule_version ?? ""} · entrada em ${new Date(q.entered_at).toLocaleDateString("pt-BR")}`],
+            lines: [`${q.queue_size} criança(s) nesta fila · ${Number(q.score ?? 0)} de 100 pontos`, ...applied, ...analysis,
+              `Critérios da IN nº 025/2025-SEDUC · regras ${q.rule_version ?? ""} · entrada em ${new Date(q.entered_at).toLocaleDateString("pt-BR")}`],
             unit_id: q.unit_id, badge: `${q.position}º`, tone: "purple",
           });
         } else {
@@ -534,7 +537,7 @@ export class Agent {
       return;
     }
     if (cards.length) {
-      this.say("Situação na fila:", { cards, notice: "A posição muda com novas entradas que tenham mais critérios e com ofertas realizadas. Não há previsão de data sem fonte oficial." });
+      this.say("Situação na fila:", { cards, notice: "Pontuação oficial: irmão na mesma unidade 55, CadÚnico 25, até 2 km 15, mãe solo 5. A posição muda com novas entradas e com ofertas realizadas; não há previsão de data sem fonte oficial." });
     }
     for (const l of lines) this.say(l, { quick_replies: [MENU[2]] });
     this.done("Consultou posição na fila.");

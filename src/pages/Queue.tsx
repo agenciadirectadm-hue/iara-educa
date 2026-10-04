@@ -16,9 +16,10 @@ export default function Queue() {
   const unit = sp.get('unidade');
   const serie = sp.get('serie');
   const cat = sp.get('categoria');
+  const flag = sp.get('criterio');
   const status = sp.get('status') ?? 'WAITING';
   const page = Number(sp.get('pagina') ?? 1);
-  const res = useRpc<any>('queue_list', { unit_id: unit ? Number(unit) : null, grade_level_id: serie ? Number(serie) : null, category: cat, status, q: dq || null, page, page_size: 40 });
+  const res = useRpc<any>('queue_list', { unit_id: unit ? Number(unit) : null, grade_level_id: serie ? Number(serie) : null, category: cat, flag, status, q: dq || null, page, page_size: 40 });
   const set = (k: string, v: string | null) => {
     const n = new URLSearchParams(sp);
     if (!v) n.delete(k);
@@ -33,7 +34,7 @@ export default function Queue() {
       <PageHeader
         eyebrow="Fila de espera"
         title={unit && unitName ? `Fila · ${unitName}` : 'Fila de espera'}
-        subtitle="Ordem por regras públicas e versionadas — território, irmão, CadÚnico, deficiência/TEA, rede de proteção e data. Separando quem não tem atendimento de quem pede transferência ou integral."
+        subtitle="Ordem pela IN nº 025/2025-SEDUC (Anexo I): irmão na mesma unidade 55, CadÚnico 25, até 2 km 15, mãe solo 5 — máximo 100; empate pela data. Laudo PCD/TEA/TGD/AH-SD: prioridade sob análise, fora da soma."
       />
       <div className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-subtle" />
@@ -41,6 +42,9 @@ export default function Queue() {
         {q && <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setQ('')} aria-label="Limpar"><X className="size-5 text-subtle" /></button>}
       </div>
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
+        <Chip active={flag === 'PCD_TEA_AEE'} onClick={() => set('criterio', flag === 'PCD_TEA_AEE' ? null : 'PCD_TEA_AEE')}>
+          Laudo · prioridade sob análise {res.data?.by_flag?.PCD_TEA_AEE ? `· ${fmtInt(res.data.by_flag.PCD_TEA_AEE)}` : ''}
+        </Chip>
         <Chip active={!cat} onClick={() => set('categoria', null)}>Todas as categorias</Chip>
         {Object.entries(QUEUE_CATEGORY).map(([k, v]) => (
           <Chip key={k} active={cat === k} onClick={() => set('categoria', cat === k ? null : k)}>{v.short} {res.data?.by_category?.[k] ? `· ${fmtInt(res.data.by_category[k])}` : ''}</Chip>

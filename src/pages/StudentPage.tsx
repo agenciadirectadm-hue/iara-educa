@@ -118,6 +118,7 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
             <DataPair label="Contato" value={<span className="inline-flex items-center gap-1"><Phone className="size-3.5" />{primary?.whatsapp ?? primary?.phone ?? '—'}{primary?.contacts_masked && <Lock className="size-3 text-subtle" />}</span>} />
             <DataPair label="Renda familiar" value={primary?.income_bracket ?? '—'} />
             <DataPair label="CadÚnico" value={primary?.cadunico ? 'Sim' : 'Não'} />
+            <DataPair label="Mãe solo" value={primary?.single_mother ? 'Sim (declarado)' : 'Não'} />
             <DataPair label="Irmãos na rede" value={d.siblings.length ? d.siblings.map((x: any) => <Link key={x.id} className="block text-purple-700 underline" to={`/alunos/${x.id}`}>{x.name.split(' ')[0]} ({x.unit ?? 'sem matrícula'})</Link>) : 'Nenhum'} />
             <DataPair label="Faixa pela regra" value={d.grade_rule?.grade_name ?? '—'} />
           </dl>

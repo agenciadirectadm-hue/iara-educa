@@ -10,6 +10,7 @@ import { Badge, Card, EmptyState, PageHeader, Section, SkeletonList, SourceChip,
 import { IaraMascot } from '@/components/iara';
 
 const SOURCES: { name: string; detail: string; kind: SourceKind }[] = [
+  { name: 'IN nº 025/2025-SEDUC — Anexo I', detail: 'Critérios da fila de espera: pontuação (irmão, CadÚnico, até 2 km, mãe solo) e prioridade sob análise por laudo.', kind: 'oficial' },
   { name: 'Censo Escolar 2025 — INEP (microdados)', detail: 'Unidades, turmas, matrículas e funções docentes da rede municipal de Maringá.', kind: 'oficial' },
   { name: 'Consulta Escolas — SEED-PR (2026)', detail: 'Cadastro, endereço, etapas e situação das unidades.', kind: 'oficial' },
   { name: 'Prefeitura de Maringá / SEDUC (páginas públicas)', detail: 'Lista de CMEIs e escolas, contatos e serviços divulgados.', kind: 'publico' },
@@ -65,6 +66,11 @@ export default function Help() {
             <b>Bloqueadas</b>: indisponíveis por inclusão, decisão judicial, adaptação de sala, obra ou ausência de profissional — sempre com justificativa auditada.
             <b> Reservadas</b>: seguram a vaga enquanto uma oferta aguarda a resposta da família (48 h). Só vagas ofertáveis podem ser oferecidas, sempre seguindo a ordem da fila.
           </p>
+          <div className="rounded-2xl bg-green-50 p-3 text-ink-2 ring-1 ring-green-100">
+            <b>Ordem da fila (IN nº 025/2025-SEDUC, Anexo I):</b> irmão(ã) matriculado(a) na mesma unidade <b>55</b> · família de baixa renda no CadÚnico <b>25</b> ·
+            reside até 2 km da unidade <b>15</b> · filho(a) de mãe solo <b>5</b> — no máximo 100 pontos; empate pela data da solicitação.
+            Estudantes com deficiência (PCD), TEA, TGD e/ou altas habilidades/superdotação têm <b>prioridade sob análise</b>, mediante laudo médico com CID, fora da soma de pontos.
+          </div>
           <p className="text-ink-2">Aceite não é matrícula: a unidade confere os documentos e confirma. Silêncio não é aceite nem recusa — no fim do prazo a vaga é liberada.</p>
           <Link to="/regras" className="inline-block font-semibold text-blue-700 underline">Ver todas as regras e simular a pontuação</Link>
         </Card>

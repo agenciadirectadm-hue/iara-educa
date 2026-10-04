@@ -41,11 +41,12 @@ export const QUEUE_STATUS: Record<string, { label: string; tone: Tone }> = {
 };
 
 export const FLAG: Record<string, { label: string; short: string }> = {
-  TERRITORIO: { label: 'Território prioritário (até 2 km)', short: 'Território' },
-  IRMAO_NA_UNIDADE: { label: 'Irmão(ã) na unidade', short: 'Irmão' },
-  CADUNICO: { label: 'Família no CadÚnico', short: 'CadÚnico' },
-  PCD_TEA_AEE: { label: 'Deficiência/TEA (AEE)', short: 'AEE' },
-  VULNERABILIDADE: { label: 'Rede de proteção', short: 'Proteção' },
+  IRMAO_NA_UNIDADE: { label: 'Irmão(ã) matriculado(a) na mesma unidade', short: 'Irmão' },
+  CADUNICO: { label: 'Família de baixa renda no CadÚnico', short: 'CadÚnico' },
+  TERRITORIO: { label: 'Reside até 2 km da unidade', short: 'Até 2 km' },
+  MAE_SOLO: { label: 'Filho(a) de mãe solo', short: 'Mãe solo' },
+  PCD_TEA_AEE: { label: 'PCD/TEA/TGD/AH-SD com laudo — prioridade sob análise', short: 'Laudo · análise' },
+  VULNERABILIDADE: { label: 'Rede de proteção (regra anterior)', short: 'Proteção' },
 };
 
 export const OFFER_STATUS: Record<string, { label: string; tone: Tone }> = {
@@ -103,7 +104,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   INSERT: 'Inclusão', UPDATE: 'Alteração', DELETE: 'Exclusão', OFFER_CREATED: 'Oferta registrada', OFFER_ACCEPTED: 'Aceite registrado',
   OFFER_DECLINED: 'Recusa registrada', OFFER_EXPIRED: 'Oferta expirada', ENROLLMENT_CONFIRMED: 'Matrícula confirmada', CASE_CREATED: 'Protocolo aberto',
   QUEUE_RECALCULATED: 'Fila recalculada', PRIORITY_FLAG: 'Critério de prioridade', VIEW_SENSITIVE: 'Consulta a dado sensível', EXPORT: 'Exportação',
-  LOGIN_DEMO: 'Entrada no sistema', DEMO_SEED: 'Base de demonstração', DEMO_RESET: 'Reinício do cenário', DEMO_TIMESHIFT: 'Atualização temporal (demo)',
+  LOGIN_DEMO: 'Entrada no sistema', RULE_VERSION: 'Nova versão de regras', PRIORITY_DECISION: 'Prioridade sob análise (laudo)', DEMO_SEED: 'Base de demonstração', DEMO_RESET: 'Reinício do cenário', DEMO_TIMESHIFT: 'Atualização temporal (demo)',
 };
 export const ENTITY: Record<string, string> = {
   students: 'Aluno', guardians: 'Responsável', addresses: 'Endereço', student_guardians: 'Vínculo', enrollments: 'Matrícula', classes: 'Turma',

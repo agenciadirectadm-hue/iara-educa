@@ -119,7 +119,7 @@ export default function CasePage() {
               <div className="min-w-0 flex-1">
                 <div className="text-[11.5px] font-bold uppercase tracking-wide text-subtle">Responsável</div>
                 <div className="truncate font-semibold">{d.guardian.full_name}</div>
-                <div className="truncate text-[12.5px] text-muted">{d.guardian.whatsapp ?? d.guardian.phone} {d.guardian.cadunico ? '· CadÚnico' : ''}</div>
+                <div className="truncate text-[12.5px] text-muted">{d.guardian.whatsapp ?? d.guardian.phone} {d.guardian.cadunico ? '· CadÚnico' : ''}{d.guardian.single_mother ? ' · Mãe solo' : ''}</div>
               </div>
               <ChevronRight className="size-5 text-subtle" />
             </Link>

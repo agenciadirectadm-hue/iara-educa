@@ -19,7 +19,7 @@ import { OfferSheet } from '@/components/OfferSheet';
 import MapView from '@/components/map/MapView';
 
 const RULE_LABEL: Record<string, string> = {
-  VAGA_OFERTAVEL: 'Vaga ofertável', TERRITORIO_2KM: 'Território (até 2 km)', DISTANCIA: 'Distância', IRMAO_NA_UNIDADE: 'Irmão(ã) na unidade',
+  VAGA_OFERTAVEL: 'Vaga ofertável', TERRITORIO_2KM: 'Reside até 2 km', DISTANCIA: 'Distância', IRMAO_NA_UNIDADE: 'Irmão(ã) na unidade',
   AEE_UNIDADE: 'AEE na unidade', TURNO_PREFERIDO: 'Turno preferido', FILA_PRESSAO: 'Crianças à frente na fila',
 };
 
@@ -95,7 +95,7 @@ export default function VacancySearch() {
     if (!kid) return;
     const ok = await confirm({
       title: `Inserir na fila ${r.unit_type === 'CMEI' ? 'do' : 'da'} ${r.name}?`,
-      body: <>A posição será calculada pelas regras {res?.rule_version} (território, irmão, CadÚnico, AEE e data). {caseId ? 'O protocolo será encerrado como "inserido na fila".' : ''}</>,
+      body: <>A posição será calculada pelas regras {res?.rule_version} da IN nº 025/2025 (irmão na mesma unidade, CadÚnico, até 2 km e mãe solo; laudo em análise à parte; empate pela data). {caseId ? 'O protocolo será encerrado como "inserido na fila".' : ''}</>,
       confirm: 'Inserir na fila', tone: 'purple',
     });
     if (!ok) return;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Circle, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { CheckCircle2, Circle, FileCheck2, RefreshCw, ShieldCheck, Sparkles, Stethoscope } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
@@ -19,11 +19,28 @@ export default function QueueEntry() {
   const qc = useQueryClient();
   const toast = useToast();
   const [offer, setOffer] = useState(false);
+  const [priority, setPriority] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyLaudo, setBusyLaudo] = useState(false);
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const d = res.data;
   const e = d.entry;
+  const laudoItem = (e.breakdown as any[]).find((b) => b.code === 'PCD_TEA_AEE');
+  const laudo: string | undefined = laudoItem?.laudo_status;
+  const maxScore = (e.breakdown as any[]).reduce((a, b) => a + (b.analysis ? 0 : Number(b.weight) || 0), 0);
+  const validateLaudo = async () => {
+    setBusyLaudo(true);
+    try {
+      await rpc('document_set', { student_id: d.student.id, doc_type: 'LAUDO', status: 'VALIDADO' });
+      toast({ title: 'Laudo validado', description: 'A prioridade sob análise pode ser decidida pela Central de Vagas.', tone: 'success' });
+      qc.invalidateQueries({ queryKey: ['queue_entry_detail'] });
+    } catch (err) {
+      toast({ title: 'Não foi possível validar', description: (err as Error).message, tone: 'error' });
+    } finally {
+      setBusyLaudo(false);
+    }
+  };
   const recalc = async () => {
     setBusy(true);
     try {
@@ -57,7 +74,7 @@ export default function QueueEntry() {
             )}
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Badge tone={QUEUE_STATUS[e.status]?.tone} solid>{QUEUE_STATUS[e.status]?.label}</Badge>
-              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">Pontuação {fmtInt(e.score)}</span>
+              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">Pontuação {fmtInt(e.score)} de {fmtInt(maxScore)}</span>
               <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">Regras {e.rule_version}</span>
             </div>
           </div>
@@ -65,16 +82,21 @@ export default function QueueEntry() {
             <div className="mb-2 flex items-center justify-between text-[12px] font-bold uppercase tracking-wide text-subtle">Critérios aplicados <SourceChip kind="calculado" /></div>
             <ul className="space-y-2">
               {(e.breakdown as any[]).map((b) => (
-                <li key={b.code} className="flex items-start gap-2">
-                  {b.applied ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-green-700" /> : <Circle className="mt-0.5 size-5 shrink-0 text-slate-300" />}
+                <li key={b.code} className={b.analysis && b.applied ? '-mx-2 flex items-start gap-2 rounded-2xl bg-purple-50 p-2 ring-1 ring-purple-100' : 'flex items-start gap-2'}>
+                  {b.analysis ? (
+                    <Stethoscope className={b.applied ? 'mt-0.5 size-5 shrink-0 text-purple-700' : 'mt-0.5 size-5 shrink-0 text-slate-300'} />
+                  ) : b.applied ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-green-700" /> : <Circle className="mt-0.5 size-5 shrink-0 text-slate-300" />}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2 text-[14px] font-semibold"><span className={b.applied ? '' : 'text-muted'}>{b.name}</span>{b.weight > 0 && <span className={b.applied ? 'text-green-700' : 'text-muted'}>+{b.weight}</span>}</div>
+                    <div className="flex items-center justify-between gap-2 text-[14px] font-semibold">
+                      <span className={b.applied ? '' : 'text-muted'}>{b.name}</span>
+                      {b.analysis ? <Badge tone={b.applied ? 'purple' : 'gray'}>sob análise · fora da soma</Badge> : b.weight > 0 && <span className={b.applied ? 'text-green-700' : 'text-muted'}>+{b.weight}</span>}
+                    </div>
                     <div className="text-[12.5px] text-muted">{b.evidence} · v{b.version}</div>
                   </div>
                 </li>
               ))}
             </ul>
-            <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-[12.5px] text-muted"><ShieldCheck className="mr-1 inline size-4 text-purple-700" />Empate: vale a data de entrada. Recalculada em {fmtDateTime(e.last_recalculated_at)}. O responsável vê exatamente estes critérios — nunca dados de outras crianças.</p>
+            <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-[12.5px] text-muted"><ShieldCheck className="mr-1 inline size-4 text-purple-700" />Critérios da IN nº 025/2025-SEDUC, Anexo I. Empate: vale a data de entrada. Recalculada em {fmtDateTime(e.last_recalculated_at)}. O responsável vê exatamente estes critérios — nunca dados de outras crianças.</p>
           </div>
         </Card>
         <div className="space-y-4">
@@ -85,6 +107,14 @@ export default function QueueEntry() {
             </div>
             <div className="flex flex-wrap gap-2">
               {can('offers.create') && <Button variant="purple" icon={Sparkles} disabled={!d.can_offer_now} onClick={() => setOffer(true)}>{d.can_offer_now ? 'Ofertar vaga' : e.status === 'OFFERED' ? 'Oferta aguardando a família' : e.status === 'ACCEPTED' ? 'Aceita — aguardando matrícula' : e.status === 'MATRICULATED' ? 'Matrícula concluída' : e.position === 1 ? 'Sem vaga ofertável agora' : 'Oferta segue a ordem da fila'}</Button>}
+              {can('offers.create') && d.can_offer_priority && (
+                <Button variant="soft" icon={Stethoscope} disabled={laudo !== 'VALIDADO'} onClick={() => setPriority(true)}>
+                  {laudo === 'VALIDADO' ? 'Ofertar por prioridade (laudo)' : 'Prioridade exige laudo validado'}
+                </Button>
+              )}
+              {can('documents.manage') && laudoItem?.applied && laudo === 'RECEBIDO' && (
+                <Button variant="secondary" icon={FileCheck2} loading={busyLaudo} onClick={validateLaudo}>Validar laudo</Button>
+              )}
               {can('queue.recalculate') && <Button variant="secondary" icon={RefreshCw} loading={busy} onClick={recalc}>Recalcular fila</Button>}
               {e.case_id && <ButtonLink to={`/atendimentos/${e.case_id}`} variant="ghost">Protocolo de origem</ButtonLink>}
             </div>
@@ -115,6 +145,7 @@ export default function QueueEntry() {
         </div>
       </div>
       <OfferSheet open={offer} entryId={e.id} onClose={() => setOffer(false)} onDone={() => qc.invalidateQueries({ queryKey: ['queue_entry_detail'] })} />
+      <OfferSheet open={priority} priority entryId={e.id} onClose={() => setPriority(false)} onDone={() => qc.invalidateQueries({ queryKey: ['queue_entry_detail'] })} />
     </div>
   );
 }

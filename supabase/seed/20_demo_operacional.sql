@@ -530,6 +530,7 @@ begin
   -- =========================================================================
   -- 7. CENÁRIO DO CIDADÃO (Maria + Ana Luísa matriculada + Davi 1º da fila de creche)
   -- =========================================================================
+  perform iara.demo_family_criteria(); -- mães solo e laudos fictícios (critérios da IN nº 025/2025)
   perform iara.compute_queue_priority(id) from iara.waiting_list_entries;
 
   select u.id into v_unit_maria
@@ -537,7 +538,7 @@ begin
   where u.unit_type = 'CMEI' and u.status = 'ATIVA' and u.macro_territory_id in (2, 4)
     and exists (select 1 from iara.classes c where c.unit_id = u.id and c.grade_level_id = 1 and c.offerable_vacancies_count >= 2)
     and exists (select 1 from iara.classes c where c.unit_id = u.id and c.grade_level_id = 2)
-    and not exists (select 1 from iara.waiting_list_entries w where w.preferred_unit_id = u.id and w.grade_level_id = 1 and w.priority_score >= 180)
+    and not exists (select 1 from iara.waiting_list_entries w where w.preferred_unit_id = u.id and w.grade_level_id = 1 and w.priority_score >= 95)
   order by (u.neighborhood ilike '%alvorada%') desc, (select count(*) from iara.waiting_list_entries w where w.preferred_unit_id = u.id and w.grade_level_id = 1) desc
   limit 1;
   if v_unit_maria is null then
@@ -550,7 +551,7 @@ begin
     -- garante Davi como 1º: quem tiver pontuação igual ou maior é remanejado para outra unidade com creche
     update iara.waiting_list_entries w set preferred_unit_id = (
       select ug.unit_id from tmp_ug ug where ug.grade_level_id = 1 and ug.unit_id <> v_unit_maria and w.id is not null order by random() limit 1)
-    where w.preferred_unit_id = v_unit_maria and w.grade_level_id = 1 and w.priority_score >= 180;
+    where w.preferred_unit_id = v_unit_maria and w.grade_level_id = 1 and w.priority_score >= 95;
   end if;
 
   select id into v_class_ana from iara.classes where unit_id = v_unit_maria and grade_level_id = 2 order by class_code limit 1;

@@ -168,7 +168,7 @@ function PeopleStep({ student, setStudent, guardian, setGuardian }: any) {
   const search = useRpc<any>('global_search', { q: dq }, { enabled: dq.length >= 3 });
   const [newKid, setNewKid] = useState(false);
   const [newGuardian, setNewGuardian] = useState(false);
-  const [form, setForm] = useState({ kid: '', birth: '', gender: '', gname: '', phone: '', cpf: '', bairro: '', cad: false });
+  const [form, setForm] = useState({ kid: '', birth: '', gender: '', gname: '', phone: '', cpf: '', bairro: '', cad: false, solo: false });
   const geo = useRpc<any>('geo_search', { q: form.bairro }, { enabled: form.bairro.length >= 3 && newGuardian });
   const [busy, setBusy] = useState(false);
   const [dups, setDups] = useState<any[] | null>(null);
@@ -178,7 +178,7 @@ function PeopleStep({ student, setStudent, guardian, setGuardian }: any) {
     try {
       const hit = (geo.data?.items ?? []).find((i: any) => i.kind === 'BAIRRO');
       const r = await rpc<any>('guardian_create', {
-        full_name: form.gname, phone: form.phone, cpf: form.cpf || null, cadunico: form.cad, force,
+        full_name: form.gname, phone: form.phone, cpf: form.cpf || null, cadunico: form.cad, single_mother: form.solo, force,
         address: hit ? { street: 'Endereço informado no atendimento', neighborhood: hit.label, lat: hit.lat, lng: hit.lng, precision: 'BAIRRO_CENTROIDE' } : undefined,
       });
       if (r.ok === false) { setDups(r.duplicates); return; }
@@ -252,6 +252,7 @@ function PeopleStep({ student, setStudent, guardian, setGuardian }: any) {
             <div className="relative"><MapPin className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-subtle" /><input value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className={clsx(inputCls, 'pl-10')} /></div>
           </Field>
           <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={form.cad} onChange={(e) => setForm({ ...form, cad: e.target.checked })} className="size-5 accent-purple-700" />Família inscrita no CadÚnico</label>
+          <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={form.solo} onChange={(e) => setForm({ ...form, solo: e.target.checked })} className="size-5 accent-purple-700" />Mãe solo (declaração do responsável)</label>
           <Button block loading={busy} disabled={form.gname.trim().length < 5} onClick={() => createGuardian(false)}>Cadastrar responsável</Button>
         </Card>
       )}

@@ -26,8 +26,13 @@ a secretaria escolar valida os documentos → a matrícula é confirmada. Tudo a
 - **Dado oficial prevalece; nada é inventado** — lacunas aparecem como `PENDENTE SEDUC`. Cada número tem selo de origem
   (oficial, público, calculado, demonstração, projetado, pendente) que explica de onde vem.
 - **Regras determinísticas, versionadas e auditáveis** — `vagas físicas = capacidade − matrículas`;
-  `ofertáveis = físicas − bloqueadas − reservadas`. Prioridade de fila por pesos públicos (território 2 km, irmão, CadÚnico,
-  deficiência/TEA, rede de proteção; desempate por data). Simulador de pontuação em `/regras`.
+  `ofertáveis = físicas − bloqueadas − reservadas`.
+- **Fila pela norma oficial** — [IN nº 025/2025-SEDUC, Anexo I](http://www3.maringa.pr.gov.br/sistema/arquivos/5e336fc8c680.pdf)
+  (regras versão 2026.02): irmão(ã) matriculado(a) na mesma unidade **55**, família de baixa renda no CadÚnico **25**,
+  reside até 2 km da unidade **15**, filho(a) de mãe solo **5** — máximo 100; empate pela data da solicitação.
+  PCD, TEA, TGD e/ou altas habilidades/superdotação têm **prioridade sob análise** mediante laudo médico com CID, fora da soma:
+  a Central de Vagas só oferta fora da ordem com laudo validado e justificativa, registrada na auditoria.
+  Simulador de pontuação e histórico de versões em `/regras`.
 - **Aceite não é matrícula; silêncio não é aceite.** Ofertas reservam a vaga por 48 h e expiram sozinhas.
 - **Tudo clicável**, alvos de toque ≥ 44 px, alternativa em lista para mapas e gráficos, respeito a "reduzir movimento".
 
@@ -59,6 +64,9 @@ npm run dev          # http://localhost:5173
 npm run build        # typecheck + build de produção em dist/ (base relativa: funciona em qualquer subcaminho)
 ```
 
+**Publicado:** https://agenciadirectadm-hue.github.io/iara-educa/ (GitHub Pages, atualizado a cada push na `main`
+pelo workflow `.github/workflows/pages.yml`).
+
 O frontend usa o gateway publicado por padrão (`https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api`).
 Para outro ambiente, defina `VITE_API_URL` (veja `.env.example`).
 
@@ -73,9 +81,10 @@ SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_generate()" 
 SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                     # publica o gateway
 ```
 
-Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21` (funções de demo)
+Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
-após criar funções novas). Testes: `supabase/tests/rls_smoke.sql` e `supabase/tests/jornada_e2e.sql`.
+após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql` e `supabase/tests/prioridade_laudo.sql`
+(este último roda numa transação revertida).
 
 ## Estrutura
 
@@ -98,7 +107,8 @@ scripts/          SQL/deploy via API de gerenciamento, gerador do seed público,
 - Camada operacional fictícia: capacidades autorizadas, fila, protocolos e pessoas aguardam extração oficial da SEDUC.
 - Autenticação real (gov.br/SSO da Prefeitura) não implementada — a entrada é por seleção de perfil de demonstração.
 - WhatsApp é simulado (nenhuma mensagem real é enviada); a verificação de identidade usa código simulado.
-- Pesos e prazos das regras são parametrização de referência, a validar contra a norma municipal vigente.
+- A pontuação da fila segue a IN nº 025/2025; ordenação das unidades na busca, desempate e prazos ainda são parametrização
+  de referência, a validar com a SEDUC (a mesma IN fixa 72 h para efetivar a matrícula após a contemplação; a demo usa 48 h).
 
 ---
 Desenvolvido para a SEDUC Maringá. Dados pessoais exibidos na demonstração são fictícios.
