@@ -236,16 +236,18 @@ function ChildCard({ c }: { c: any }) {
           </div>
           <div className="mt-3 text-[12px] font-bold uppercase tracking-wide text-subtle">Critérios aplicados</div>
           <ul className="mt-1.5 space-y-1">
-            {(q.breakdown ?? []).filter((b: any) => b.weight > 0 || b.code === 'DATA_SOLICITACAO').map((b: any) => (
+            {(q.breakdown ?? []).filter((b: any) => b.weight > 0 || b.code === 'DATA_SOLICITACAO' || (b.analysis && b.applied)).map((b: any) => (
               <li key={b.code} className="flex items-start gap-2 text-[13.5px]">
                 {b.applied ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-700" /> : <Circle className="mt-0.5 size-4 shrink-0 text-subtle" />}
-                <span className={b.applied ? 'text-ink' : 'text-muted'}>{b.name}<span className="block text-[12px] text-muted">{b.evidence}</span></span>
+                <span className={b.applied ? 'flex-1 text-ink' : 'flex-1 text-muted'}>{b.name}<span className="block text-[12px] text-muted">{b.evidence}</span></span>
+                {b.analysis ? <span className="shrink-0 text-[11.5px] font-bold text-purple-700">sob análise</span>
+                  : b.weight > 0 && <span className={b.applied ? 'shrink-0 font-bold text-green-700' : 'shrink-0 text-muted'}>+{b.weight}</span>}
               </li>
             ))}
           </ul>
           <div className="mt-3 flex items-start gap-2 rounded-2xl bg-white p-2.5 text-[12px] text-muted ring-1 ring-line">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-purple-700" />
-            Entrada em {fmtDate(q.entered_at)} · regras {q.rule_version}. Você vê só os seus critérios — nunca dados de outras crianças. Não há previsão de data sem fonte oficial.
+            Pontuação {Number(q.score ?? 0)} de 100 (IN nº 025/2025-SEDUC). Entrada em {fmtDate(q.entered_at)} · regras {q.rule_version}. Você vê só os seus critérios — nunca dados de outras crianças. Não há previsão de data sem fonte oficial.
           </div>
         </div>
       )}
