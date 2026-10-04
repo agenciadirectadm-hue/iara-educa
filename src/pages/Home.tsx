@@ -18,7 +18,7 @@ export default function Home() {
       : role === 'SECRETARIO' || role === 'SUPERINTENDENCIA' || role === 'GERENCIA_EI' ? <HomeSecretario />
         : role === 'ANALISTA_CENTRAL' || role === 'ATENDIMENTO' ? <HomeAnalista />
           : role === 'DIRETOR_UNIDADE' || role === 'SECRETARIA_ESCOLAR' ? <HomeUnidade />
-            : role === 'CIDADAO' ? <HomeCidadao />
+            : role === 'CIDADAO' || role === 'CIDADAO_NOVO' ? <HomeCidadao />
               : role === 'INOVACAO' ? <HomeInovacao />
                 : <HomeSecretario />;
   return <Suspense fallback={<SkeletonList rows={5} />}>{el}</Suspense>;

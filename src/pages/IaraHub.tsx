@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { Bot, Headset, MessageCirclePlus, Search, SendHorizontal, ShieldCheck, Sparkles, Wrench, X } from 'lucide-react';
+import { Bot, Headset, MessageCirclePlus, Search, SendHorizontal, ShieldCheck, Sparkles, Wrench, X, Zap } from 'lucide-react';
 import { iaraMessage, rpc, type ApiError } from '@/lib/api';
 import { useDebounced, useNow, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
@@ -16,7 +16,7 @@ import { useConfirm, useToast } from '@/components/overlays';
 
 export default function IaraHub() {
   const { me } = useSession();
-  return me?.role === 'CIDADAO' ? <CitizenChat /> : <StaffInbox />;
+  return me?.scope === 'GUARDIAN' ? <CitizenChat /> : <StaffInbox />;
 }
 
 // ============================================================================ Cidadão: WhatsApp simulado
@@ -26,6 +26,8 @@ const DEFAULT_MENU: QuickReply[] = [
   { label: 'Ofertas de vaga', action: 'intent:oferta' },
   { label: 'Acompanhar solicitação', action: 'intent:acompanhar' },
   { label: 'Documentos', action: 'intent:documentos' },
+  { label: 'Minha família', action: 'intent:familia' },
+  { label: 'Outros serviços', action: 'intent:servicos' },
   { label: 'Falar com atendente', action: 'intent:atendente' },
 ];
 type ConvData = { conversation: any; messages: ChatMessage[]; bot_paused?: boolean };
@@ -201,6 +203,7 @@ function StaffInbox() {
       <IaraBubble compact className="mb-4">
         Quando não consigo resolver com segurança — exceção, reclamação, dado divergente ou pedido de atendente — eu <b>pauso</b> e passo para vocês com o resumo e o protocolo. Nunca prometo vaga, prazo ou posição sem confirmação do sistema.
       </IaraBubble>
+      <ResolutionStats />
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(['HUMAN_PENDING', 'HUMAN_ACTIVE', 'FOLLOWUP_PENDING', 'BOT_ACTIVE'] as const).map((s) => (
           <button key={s} onClick={() => setState(state === s ? 'ALL' : s)} className={clsx('rounded-3xl p-3 text-left ring-1 transition active:scale-[0.98]', state === s ? 'bg-purple-700 text-white ring-purple-700' : 'bg-white ring-line hover:ring-purple-200')}>
@@ -262,5 +265,48 @@ function StaffInbox() {
         </ul>
       </Card>
     </div>
+  );
+}
+
+/** Princípio da IARA resolutiva: quanto sai resolvido na hora × encaminhado para a unidade ou para a SEDUC. */
+function ResolutionStats() {
+  const res = useRpc<any>('iara_resolution_stats', { days: 30 }, { staleTime: 60_000 });
+  const d = res.data;
+  if (!d) return null;
+  const levels = [
+    { key: 'IARA', n: d.level_iara ?? 0, label: 'a IARA resolve na hora', bar: 'bg-green-500', box: 'bg-green-50 ring-green-100', text: 'text-green-800' },
+    { key: 'UNIDADE', n: d.level_unit ?? 0, label: 'vão para a unidade', bar: 'bg-blue-500', box: 'bg-blue-50 ring-blue-100', text: 'text-blue-800' },
+    { key: 'SECRETARIA', n: d.level_secretaria ?? 0, label: 'vão para a SEDUC', bar: 'bg-purple-500', box: 'bg-purple-50 ring-purple-100', text: 'text-purple-800' },
+  ];
+  const total = levels.reduce((s, l) => s + l.n, 0);
+  const pct = (n: number) => (total ? Math.round((100 * n) / total) : 0);
+  const conv = d.conversations ?? 0;
+  const convPct = conv ? Math.round((100 * (d.conversations_without_staff ?? 0)) / conv) : 0;
+  return (
+    <Card className="mb-4 p-4">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="font-display font-extrabold">Quem resolve os pedidos · 30 dias</div>
+        <SourceChip kind="demo" detail="Pedidos feitos pelo WhatsApp e pelo portal, classificados pela matriz de alçadas: a IARA executa na hora o que é dela (cadastro, fila, endereço, dados, desistência); o que exige decisão humana vai para a secretaria da unidade ou para a SEDUC, com protocolo e prazo." />
+      </div>
+      <p className="mb-3 text-[12.5px] text-slate-500">De {fmtInt(total)} pedidos pelo WhatsApp e pelo portal, pela matriz de alçadas.</p>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+        {levels.map((l) => l.n > 0 && <div key={l.key} className={l.bar} style={{ width: `${(100 * l.n) / total}%` }} />)}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        {levels.map((l) => (
+          <div key={l.key} className={clsx('rounded-2xl p-2.5 ring-1', l.box)}>
+            <div className={clsx('font-display text-2xl font-black tabular', l.text)}>{pct(l.n)}%</div>
+            <div className="text-[11.5px] font-semibold leading-tight text-slate-800">{l.label}</div>
+            <div className="mt-0.5 text-[11px] tabular text-slate-500">{fmtInt(l.n)} pedidos</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 space-y-1.5 text-[12.5px] text-slate-600">
+        {conv > 0 && (
+          <div className="flex items-start gap-2"><Bot className="mt-0.5 size-4 shrink-0 text-purple-600" /><span><b className="text-slate-800">{convPct}% das conversas</b> terminaram sem precisar de servidor ({fmtInt(d.conversations_without_staff)} de {fmtInt(conv)}).</span></div>
+        )}
+        <div className="flex items-start gap-2"><Zap className="mt-0.5 size-4 shrink-0 text-green-600" /><span><b className="text-slate-800">{fmtInt(d.resolved_by_iara)} pedidos</b> executados e encerrados pela própria IARA na hora.</span></div>
+      </div>
+    </Card>
   );
 }

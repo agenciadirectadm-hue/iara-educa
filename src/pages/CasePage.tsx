@@ -9,12 +9,35 @@ import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtDate, fmtDateTime, timeLeft } from '@/lib/format';
-import { CASE_STATUS, CHANNEL, DOC, DOC_STATUS, OFFER_STATUS, QUEUE_STATUS } from '@/lib/labels';
+import { CASE_STATUS, CHANNEL, DOC, DOC_STATUS, OFFER_STATUS, QUEUE_STATUS, LEVEL_LABEL, TEAM } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Field, PageHeader, Section, SkeletonList, SourceChip, inputCls } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
 import { Sheet, useToast } from '@/components/overlays';
 
 const MANUAL = ['NOVO', 'EM_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'AGUARDANDO_FAMILIA', 'VAGA_ENCONTRADA', 'RECURSO', 'NAO_ATENDIDO', 'ENCERRADO'];
+
+const DETAIL_LABEL: Record<string, string> = {
+  evento: 'Evento', canal: 'Canal', origem: 'Vinda de', bairro: 'Bairro', de: 'Endereço anterior', para: 'Novo endereço', criancas: 'Crianças',
+  impactos: 'Impacto na fila', alteracoes: 'Alterações', cadunico: 'CadÚnico', mae_solo: 'Mãe solo', nome: 'Nome', nascimento: 'Nascimento',
+  parentesco: 'Parentesco', aee: 'Indicação de AEE', mora_junto: 'Mora com a família', unidade: 'Unidade', faixa: 'Faixa', posicao: 'Posição',
+  pontos: 'Pontos', alternativas: 'Unidades alternativas', turno: 'Turno', motivo: 'Motivo', posicao_anterior: 'Posição anterior',
+  verificacao: 'Verificação da IARA', verificacao_iara: 'Verificação da IARA', possivel_duplicidade: 'Possível duplicidade',
+};
+function fmtDetail(v: unknown): string {
+  if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
+  if (Array.isArray(v)) {
+    return v.map((x) => {
+      if (x && typeof x === 'object' && 'child' in (x as any)) {
+        const i = x as any;
+        return `${i.child} · ${i.unit}: ${i.position_before ?? '—'}º → ${i.position_after ?? '—'}º · ${Number(i.score_before ?? 0)} → ${Number(i.score_after ?? 0)} pts`;
+      }
+      if (x && typeof x === 'object') return Object.values(x as object).join(' · ');
+      return String(x);
+    }).join('; ');
+  }
+  if (v && typeof v === 'object') return Object.entries(v as object).filter(([, x]) => x != null && x !== '').map(([k, x]) => `${DETAIL_LABEL[k] ?? k}: ${typeof x === 'boolean' ? (x ? 'sim' : 'não') : x}`).join(' · ');
+  return String(v);
+}
 
 export default function CasePage() {
   const { id } = useParams();
@@ -63,6 +86,8 @@ export default function CasePage() {
         {c.priority !== 'NORMAL' && <Badge tone="red">{c.priority === 'URGENTE' ? 'Urgente' : 'Prioridade alta'}</Badge>}
         <Badge tone={c.overdue ? 'red' : 'gray'} icon={AlarmClock}>{c.open ? (c.overdue ? 'Prazo vencido' : `SLA ${timeLeft(c.sla_due_at, now)}`) : `Encerrado ${fmtDate(c.closed_at)}`}</Badge>
         <Badge tone="blue" icon={UserCheck}>{c.assigned ?? 'Sem responsável'}</Badge>
+        {c.level && <Badge tone={c.resolution_code === 'RESOLVIDO_IARA' ? 'green' : LEVEL_LABEL[c.level]?.tone ?? 'gray'}>{c.resolution_code === 'RESOLVIDO_IARA' ? 'Resolvido na hora pela IARA' : LEVEL_LABEL[c.level]?.label ?? c.level}</Badge>}
+        <Badge tone="gray">{c.level === 'UNIDADE' && c.unit_name ? `Secretaria · ${c.unit_name}` : TEAM[c.team] ?? c.team}</Badge>
         <SourceChip kind="demo" />
       </div>
 
@@ -102,6 +127,16 @@ export default function CasePage() {
           </Section>
         </div>
         <div className="space-y-4">
+          {c.details && Object.keys(c.details).length > 0 && (
+            <Card className="p-4">
+              <div className="mb-2 text-[11.5px] font-bold uppercase tracking-wide text-subtle">Detalhes do pedido</div>
+              <dl className="grid grid-cols-1 gap-2 text-[13px]">
+                {Object.entries(c.details as Record<string, unknown>).filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length)).map(([k, v]) => (
+                  <div key={k}><dt className="text-[11.5px] font-semibold text-subtle">{DETAIL_LABEL[k] ?? k}</dt><dd className="break-words">{fmtDetail(v)}</dd></div>
+                ))}
+              </dl>
+            </Card>
+          )}
           {d.student && (
             <Link to={`/alunos/${d.student.id}`} className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:shadow-lift">
               <Avatar name={d.student.name} seed={d.student.avatar_seed} size={46} />

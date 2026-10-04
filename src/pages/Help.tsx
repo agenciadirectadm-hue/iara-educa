@@ -5,7 +5,7 @@ import { Accessibility, BookOpen, ChevronDown, Database, FileText, Search, Shiel
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useBootstrap } from '@/lib/data';
 import { fmtDate, fmtInt } from '@/lib/format';
-import { DOC } from '@/lib/labels';
+import { DOC, LEVEL_LABEL } from '@/lib/labels';
 import { Badge, Card, EmptyState, PageHeader, Section, SkeletonList, SourceChip, inputCls, type SourceKind } from '@/components/ui';
 import { IaraMascot } from '@/components/iara';
 
@@ -64,7 +64,7 @@ export default function Help() {
           <div className="rounded-2xl bg-purple-50 p-3 font-mono text-[13px] text-purple-900">vagas ofertáveis = vagas físicas − vagas bloqueadas − vagas reservadas</div>
           <p className="text-ink-2">
             <b>Bloqueadas</b>: indisponíveis por inclusão, decisão judicial, adaptação de sala, obra ou ausência de profissional — sempre com justificativa auditada.
-            <b> Reservadas</b>: seguram a vaga enquanto uma oferta aguarda a resposta da família (48 h). Só vagas ofertáveis podem ser oferecidas, sempre seguindo a ordem da fila.
+            <b> Reservadas</b>: seguram a vaga enquanto a família efetiva a matrícula — 72 h desde a oferta (IN nº 025/2025, Anexo II). Só vagas ofertáveis podem ser oferecidas, sempre seguindo a ordem da fila.
           </p>
           <div className="rounded-2xl bg-green-50 p-3 text-ink-2 ring-1 ring-green-100">
             <b>Ordem da fila (IN nº 025/2025-SEDUC, Anexo I):</b> irmão(ã) matriculado(a) na mesma unidade <b>55</b> · família de baixa renda no CadÚnico <b>25</b> ·
@@ -117,6 +117,13 @@ export default function Help() {
                   {sv.sla_days != null && <Badge tone="blue">{sv.sla_days} dia(s)</Badge>}
                 </div>
                 {sv.description && <p className="mt-1 text-[13.5px] text-ink-2">{sv.description}</p>}
+                {sv.level && (
+                  <div className="mt-2 space-y-1 rounded-2xl bg-slate-50 p-2.5 text-[12.5px] text-ink-2">
+                    <Badge tone={LEVEL_LABEL[sv.level]?.tone ?? 'gray'}>{LEVEL_LABEL[sv.level]?.label ?? sv.level}</Badge>
+                    {sv.iara_action && <div><b>A IARA faz na hora:</b> {sv.iara_action}</div>}
+                    {sv.escalation && <div><b>Quem decide:</b> {sv.escalation}</div>}
+                  </div>
+                )}
                 {(sv.documents ?? []).length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {(sv.documents as string[]).map((d) => <Badge key={d} tone="gray">{DOC[d] ?? d}</Badge>)}

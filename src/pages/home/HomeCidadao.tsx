@@ -12,9 +12,17 @@ import { fmtDate, fmtKm, timeAgo, timeLeft } from '@/lib/format';
 import { CASE_STATUS, DOC, DOC_STATUS, SHIFT } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Section, SkeletonList } from '@/components/ui';
 import { IaraMascot } from '@/components/iara';
+import { useSession } from '@/lib/session';
+import { FamilyOnboarding } from '@/pages/Family';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 
 export default function HomeCidadao() {
+  const { me } = useSession();
+  if (!me?.guardian) return <FamilyOnboarding />;
+  return <CitizenHome />;
+}
+
+function CitizenHome() {
   const home = useRpc<any>('citizen_home', {}, { refetchInterval: 20_000 });
   const now = useNow(30_000);
   const navigate = useNavigate();
@@ -30,7 +38,7 @@ export default function HomeCidadao() {
     { icon: Sparkles, label: 'Minha fila', to: '#fila', tone: 'from-fuchsia-500 to-purple-600' },
     { icon: School, label: 'Minhas matrículas', to: '#criancas', tone: 'from-teal-500 to-green-700' },
     { icon: MapPin, label: 'Unidades próximas', to: '/mapa?perto=1', tone: 'from-sky-500 to-blue-700' },
-    { icon: FilePen, label: 'Atualizar meus dados', to: '/iara?assunto=atualizar', tone: 'from-orange-400 to-rose-500' },
+    { icon: FilePen, label: 'Minha família', to: '/familia', tone: 'from-orange-400 to-rose-500' },
   ];
 
   return (

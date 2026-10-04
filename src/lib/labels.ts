@@ -104,7 +104,9 @@ export const AUDIT_ACTION: Record<string, string> = {
   INSERT: 'Inclusão', UPDATE: 'Alteração', DELETE: 'Exclusão', OFFER_CREATED: 'Oferta registrada', OFFER_ACCEPTED: 'Aceite registrado',
   OFFER_DECLINED: 'Recusa registrada', OFFER_EXPIRED: 'Oferta expirada', ENROLLMENT_CONFIRMED: 'Matrícula confirmada', CASE_CREATED: 'Protocolo aberto',
   QUEUE_RECALCULATED: 'Fila recalculada', PRIORITY_FLAG: 'Critério de prioridade', VIEW_SENSITIVE: 'Consulta a dado sensível', EXPORT: 'Exportação',
-  LOGIN_DEMO: 'Entrada no sistema', RULE_VERSION: 'Nova versão de regras', PRIORITY_DECISION: 'Prioridade sob análise (laudo)', DEMO_SEED: 'Base de demonstração', DEMO_RESET: 'Reinício do cenário', DEMO_TIMESHIFT: 'Atualização temporal (demo)',
+  LOGIN_DEMO: 'Entrada no sistema', RULE_VERSION: 'Nova versão de regras', PRIORITY_DECISION: 'Prioridade sob análise (laudo)',
+  FAMILY_REGISTERED: 'Cadastro de família', FAMILY_MEMBER_ADDED: 'Novo membro da família', FAMILY_UPDATED: 'Atualização de dados da família',
+  ADDRESS_CHANGED: 'Mudança de endereço', QUEUE_SELF_REGISTER: 'Inscrição na fila on-line', QUEUE_WITHDRAWN: 'Desistência da fila', DEMO_SEED: 'Base de demonstração', DEMO_RESET: 'Reinício do cenário', DEMO_TIMESHIFT: 'Atualização temporal (demo)',
 };
 export const ENTITY: Record<string, string> = {
   students: 'Aluno', guardians: 'Responsável', addresses: 'Endereço', student_guardians: 'Vínculo', enrollments: 'Matrícula', classes: 'Turma',
@@ -120,4 +122,17 @@ export const TONE_CLASSES: Record<Tone, { bg: string; text: string; ring: string
   red: { bg: 'bg-red-100', text: 'text-red-800', ring: 'ring-red-200', dot: 'bg-red-500', solid: 'bg-red-600 text-white' },
   gray: { bg: 'bg-slate-100', text: 'text-slate-700', ring: 'ring-slate-200', dot: 'bg-slate-400', solid: 'bg-slate-600 text-white' },
   teal: { bg: 'bg-teal-50', text: 'text-teal-800', ring: 'ring-teal-200', dot: 'bg-teal-500', solid: 'bg-teal-600 text-white' },
+};
+
+/** Equipe responsável por um protocolo (roteamento por alçada). */
+export const TEAM: Record<string, string> = {
+  CENTRAL_VAGAS: 'Central de Vagas (SEDUC)', SECRETARIA_ESCOLAR: 'Secretaria da unidade', TRANSPORTE: 'Gerência de Transporte Escolar',
+  AEE: 'Inclusão e AEE', INTEGRAL: 'Gerência de Educação Integral', ALIMENTACAO: 'Merenda Escolar', OUVIDORIA: 'Ouvidoria',
+  GESTAO: 'Diretoria de Gestão Educacional', ATENDIMENTO: 'Atendimento ao Cidadão',
+};
+/** Alçada de resolução: o que a IARA resolve na hora, o que a unidade decide e o que a SEDUC decide. */
+export const LEVEL_LABEL: Record<string, { label: string; tone: Tone }> = {
+  IARA: { label: 'Alçada da IARA (na hora)', tone: 'green' },
+  UNIDADE: { label: 'Alçada da unidade', tone: 'blue' },
+  SECRETARIA: { label: 'Alçada da SEDUC', tone: 'purple' },
 };

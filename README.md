@@ -17,10 +17,26 @@ Feita primeiro para o celular: interativa, clicável e com visões diferentes pa
 | Analista da Central de Vagas | Qual vaga posso oferecer agora? | Busca inteligente de vaga, fila com critérios, oferta transacional, caixa da IARA |
 | Direção / Secretaria escolar | Como está minha unidade? / O que falta para a matrícula? | Turmas com ocupação, checklist de documentos, confirmação de matrícula |
 | Inovação | A base está confiável? | Qualidade de dados, auditoria, indicadores |
-| Cidadão / Responsável | Onde meu filho será atendido e o que preciso fazer? | Chat com a IARA (WhatsApp simulado), protocolos, unidades próximas |
+| Cidadão / Responsável | Onde meu filho será atendido e o que preciso fazer? | Chat com a IARA (WhatsApp simulado), Minha família, protocolos, unidades próximas |
+| Família recém-chegada a Maringá | Como garanto a vaga das crianças? | Cadastro da família, inclusão das crianças e inscrição na fila por transferência de outro município |
 
 **Fluxo completo validado ponta a ponta:** a Central de Vagas oferta a vaga ao 1º da fila → a família aceita pela IARA →
 a secretaria escolar valida os documentos → a matrícula é confirmada. Tudo auditado.
+
+### IARA resolutiva: WhatsApp e portal com o mesmo resultado
+O munícipe não precisa abrir o portal: tudo o que a família faz em **Minha família** a IARA faz na conversa do WhatsApp,
+com as mesmas funções, regras e protocolos — experiências diferentes, mesmo resultado.
+
+- **A IARA resolve na hora** (protocolo encerrado como *resolvido pela IARA*): cadastro da família, chegada de outra cidade
+  (transferência externa), nova criança ou novo responsável, mudança de endereço (a fila é recalculada e a família vê o impacto),
+  atualização de dados e declarações, inscrição e desistência da fila, posição, ofertas, documentos e dúvidas.
+- **Só o que exige decisão humana é encaminhado**, pela **alçada** de cada serviço (`service_catalog.resolution_level`):
+  - **Unidade** (secretaria da escola/CMEI onde a criança está matriculada): troca de turno, declarações, matrícula,
+    alteração de responsável, documentos;
+  - **SEDUC** (equipe responsável): transporte escolar, educação integral, AEE, alimentação especial, recursos e reclamações;
+    responsável que não é pai nem mãe vai para a Central de Vagas conferir a guarda.
+- Em todos os casos a família recebe protocolo, equipe responsável e prazo. A caixa da IARA mostra *quem resolve os pedidos*
+  (alçada da demanda), as conversas concluídas sem servidor e as execuções da própria IARA.
 
 ### Princípios aplicados
 - **Dado oficial prevalece; nada é inventado** — lacunas aparecem como `PENDENTE SEDUC`. Cada número tem selo de origem
@@ -33,7 +49,8 @@ a secretaria escolar valida os documentos → a matrícula é confirmada. Tudo a
   PCD, TEA, TGD e/ou altas habilidades/superdotação têm **prioridade sob análise** mediante laudo médico com CID, fora da soma:
   a Central de Vagas só oferta fora da ordem com laudo validado e justificativa, registrada na auditoria.
   Simulador de pontuação e histórico de versões em `/regras`.
-- **Aceite não é matrícula; silêncio não é aceite.** Ofertas reservam a vaga por 48 h e expiram sozinhas.
+- **Aceite não é matrícula; silêncio não é aceite.** Ofertas reservam a vaga por **72 h** — prazo do Anexo II da
+  IN nº 025/2025 para efetivar a matrícula após a contemplação — e expiram sozinhas.
 - **Tudo clicável**, alvos de toque ≥ 44 px, alternativa em lista para mapas e gráficos, respeito a "reduzir movimento".
 
 ## Arquitetura
@@ -83,8 +100,10 @@ SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                  
 
 Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
-após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql` e `supabase/tests/prioridade_laudo.sql`
-(este último roda numa transação revertida).
+após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
+`supabase/tests/prioridade_laudo.sql` e `supabase/tests/vida_familia.sql` (os dois últimos rodam numa transação revertida).
+Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
+`node scripts/teste-iara.mjs maria` (família já cadastrada) — cria dados de demonstração.
 
 ## Estrutura
 
@@ -107,8 +126,8 @@ scripts/          SQL/deploy via API de gerenciamento, gerador do seed público,
 - Camada operacional fictícia: capacidades autorizadas, fila, protocolos e pessoas aguardam extração oficial da SEDUC.
 - Autenticação real (gov.br/SSO da Prefeitura) não implementada — a entrada é por seleção de perfil de demonstração.
 - WhatsApp é simulado (nenhuma mensagem real é enviada); a verificação de identidade usa código simulado.
-- A pontuação da fila segue a IN nº 025/2025; ordenação das unidades na busca, desempate e prazos ainda são parametrização
-  de referência, a validar com a SEDUC (a mesma IN fixa 72 h para efetivar a matrícula após a contemplação; a demo usa 48 h).
+- A pontuação da fila e o prazo de 72 h seguem a IN nº 025/2025; ordenação das unidades na busca, desempate, matriz de
+  alçadas e prazos de atendimento por serviço são parametrização de referência, a validar com a SEDUC.
 
 ---
 Desenvolvido para a SEDUC Maringá. Dados pessoais exibidos na demonstração são fictícios.

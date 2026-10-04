@@ -65,9 +65,10 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [{ to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda],
       };
     case 'CIDADAO':
+    case 'CIDADAO_NOVO':
       return {
-        primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { ...I.mapa, label: 'Unidades' }, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList }],
-        more: [{ ...I.vagas, label: 'Consultar vagas' }, I.regras, I.ajuda],
+        primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList }],
+        more: [{ ...I.mapa, label: 'Unidades no mapa' }, { ...I.vagas, label: 'Consultar vagas' }, I.regras, I.ajuda],
       };
     default:
       return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.regras, I.qualidade] };

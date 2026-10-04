@@ -66,7 +66,7 @@ export function OfferSheet({ entryId, open, onClose, onDone, priority }: {
       title={result ? 'Oferta registrada ✅' : priority ? 'Ofertar por prioridade sob análise' : 'Ofertar vaga'}
       subtitle={result ? undefined : priority
         ? 'IN nº 025/2025, Anexo I: PCD/TEA/TGD/AH-SD com laudo — fora da ordem de pontuação, com justificativa auditada.'
-        : 'A oferta segue a ordem da fila e reserva a vaga por 48 horas.'}
+        : 'A oferta segue a ordem da fila e reserva a vaga por 72 horas (IN nº 025/2025, Anexo II).'}
       footer={
         result ? (
           <Button block onClick={onClose} variant="secondary">Fechar</Button>
@@ -158,7 +158,7 @@ export function OfferSheet({ entryId, open, onClose, onDone, priority }: {
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-[13px] text-muted">
-            <Clock className="size-4 shrink-0" /> Prazo de resposta: 48 h (regra PRAZO_RESPOSTA_OFERTA). Aceite não é matrícula: a unidade confirma depois de validar os documentos.
+            <Clock className="size-4 shrink-0" /> Prazo: 72 h desde a oferta para efetivar a matrícula (IN nº 025/2025, Anexo II). Aceite não é matrícula: a unidade confirma depois de validar os documentos.
           </div>
         </div>
       )}

@@ -25,6 +25,7 @@ const Offers = lazy(() => import('./pages/Offers'));
 const IaraHub = lazy(() => import('./pages/IaraHub'));
 const Conversation = lazy(() => import('./pages/Conversation'));
 const CitizenCases = lazy(() => import('./pages/CitizenCases'));
+const Family = lazy(() => import('./pages/Family'));
 const Indicators = lazy(() => import('./pages/Indicators'));
 const Audit = lazy(() => import('./pages/Audit'));
 const Quality = lazy(() => import('./pages/Quality'));
@@ -109,6 +110,7 @@ export const router = createHashRouter([
       { path: '/iara', element: <RequireSession>{S(<IaraHub />)}</RequireSession>, handle: { full: true } },
       { path: '/conversas/:id', element: <RequireSession>{S(<Conversation />)}</RequireSession> },
       { path: '/protocolos', element: <RequireSession>{S(<CitizenCases />)}</RequireSession> },
+      { path: '/familia', element: <RequireSession>{S(<Family />)}</RequireSession> },
       { path: '/indicadores', element: <RequireSession>{S(<Indicators />)}</RequireSession> },
       { path: '/auditoria', element: <RequireSession>{S(<Audit />)}</RequireSession> },
       { path: '/qualidade', element: S(<Quality />) },

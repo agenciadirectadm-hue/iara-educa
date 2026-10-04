@@ -1,7 +1,7 @@
 // Tipos das respostas do gateway (formas principais; blobs secundários ficam como `any`).
 export type Role =
   | 'PREFEITO' | 'SECRETARIO' | 'SUPERINTENDENCIA' | 'ANALISTA_CENTRAL' | 'GERENCIA_EI'
-  | 'DIRETOR_UNIDADE' | 'SECRETARIA_ESCOLAR' | 'ATENDIMENTO' | 'INOVACAO' | 'CIDADAO';
+  | 'DIRETOR_UNIDADE' | 'SECRETARIA_ESCOLAR' | 'ATENDIMENTO' | 'INOVACAO' | 'CIDADAO' | 'CIDADAO_NOVO';
 
 export type Me = {
   user_id: string;

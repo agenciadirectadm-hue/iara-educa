@@ -624,7 +624,7 @@ begin
 
   insert into iara.vacancy_offers (tenant_id, waiting_list_entry_id, student_id, class_id, unit_id, case_id, offered_at, expires_at, channel,
                                    status, accepted_at, response_channel, ranking_snapshot, idempotency_key, created_by, is_demo)
-  select 1, o.entry_id, o.student_id, o.class_id, o.unit_id, o.case_id, t.offered_at, t.offered_at + interval '48 hours',
+  select 1, o.entry_id, o.student_id, o.class_id, o.unit_id, o.case_id, t.offered_at, t.offered_at + interval '72 hours',
          'WHATSAPP', case when o.rn <= 40 then 'OFFERED' else 'ACCEPTED' end,
          case when o.rn > 40 then t.offered_at + ((2 + floor(random() * 20)) || ' hours')::interval end,
          case when o.rn > 40 then 'WHATSAPP' end,
@@ -939,7 +939,7 @@ begin
 
   update iara.tenants set settings = settings || jsonb_build_object('demo_baseline_at', v_now, 'demo_unit_maria', v_unit_maria,
          'demo_guardian_maria', v_maria, 'demo_student_ana', v_ana, 'demo_student_davi', v_davi, 'demo_entry_davi', v_davi_entry,
-         'demo_case_davi', v_davi_case)
+         'demo_case_davi', v_davi_case, 'demo_guardian_jorge', v_jorge, 'demo_address_maria', v_maria_hh)
   where id = 1;
 
   select jsonb_build_object(

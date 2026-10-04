@@ -4,14 +4,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Accessibility, Baby, CheckCircle2, ChevronDown, Info, ListPlus, MapPin, MousePointerClick, Navigation, Search, ShieldCheck, Sparkles, Users, X,
+  Accessibility, Baby, CheckCircle2, ChevronDown, Info, ListPlus, MapPin, MousePointerClick, Navigation, Search, Sparkles, Users, X,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { useUnitsMap } from '@/lib/data';
 import { fmtDate, fmtInt, fmtKm } from '@/lib/format';
-import { SHIFT } from '@/lib/labels';
+import { SHIFT, DOC } from '@/lib/labels';
 import { Badge, Button, ButtonLink, Card, Chip, EmptyState, Field, OccupancyBar, PageHeader, SourceChip, Spinner, inputCls } from '@/components/ui';
 import { useConfirm, useToast } from '@/components/overlays';
 import { IaraBubble } from '@/components/iara';
@@ -29,7 +29,9 @@ export default function VacancySearch() {
   const studentId = sp.get('aluno');
   const caseId = sp.get('protocolo');
   const student = useRpc<any>('student_detail', { student_id: studentId }, { enabled: !!studentId });
-  const citizen = useRpc<any>('citizen_home', {}, { enabled: me?.scope === 'GUARDIAN' });
+  const citizen = useRpc<any>('citizen_home', {}, { enabled: me?.scope === 'GUARDIAN' && !!me?.guardian });
+  const origin = sp.get('origem');
+  const [enrolled, setEnrolled] = useState<any>(null);
   const boot = useRpc<any>('bootstrap', {}, { staleTime: 300_000 });
   const units = useUnitsMap();
   const qc = useQueryClient();
@@ -74,6 +76,13 @@ export default function VacancySearch() {
     const a = citizen.data?.guardian?.address;
     if (a?.lat) setHome({ lat: a.lat, lng: a.lng, label: 'Endereço cadastrado' });
   };
+  // família: a criança indicada no link (ex.: vindo de "Minha família") já vem selecionada
+  useEffect(() => {
+    if (me?.scope !== 'GUARDIAN' || !studentId || kid) return;
+    const c = kids.find((x) => x.id === studentId);
+    if (c) chooseKid(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId, kids.length]);
 
   const search = () => {
     if (!grade || !home) return;
@@ -113,13 +122,21 @@ export default function VacancySearch() {
 
   const citizenRequest = async (r: any) => {
     if (!kid) return;
+    const ok = await confirm({
+      title: `Inscrever ${kid.name.split(' ')[0]} na fila ${r.unit_type === 'CMEI' ? 'do' : 'da'} ${r.name}?`,
+      body: <>É a inscrição na fila de espera on-line{origin ? ' (transferência de outro município)' : ''}. A posição segue a pontuação oficial da IN nº 025/2025; quando a vaga for ofertada, você terá 72 h para efetivar a matrícula na unidade.</>,
+      confirm: 'Inscrever na fila', tone: 'purple',
+    });
+    if (!ok) return;
     setBusyUnit(r.unit_id);
     try {
-      const out = await rpc<any>('case_create', { case_type: 'SOLICITACAO_VAGA', channel: 'WEB', student_id: kid.id, unit_id: r.unit_id, subject: `Solicitação de vaga — ${res.grade.name} (${kid.name.split(' ')[0]})`, description: `Unidade de interesse: ${r.name}.`, idempotency_key: `portal-${kid.id}-${grade}` });
-      toast({ title: `Protocolo ${out.protocol} registrado`, description: 'Acompanhe pelo portal ou pela IARA.', tone: 'success' });
-      qc.invalidateQueries({ queryKey: ['citizen_home'] });
+      const out = await rpc<any>('queue_self_register', { student_id: kid.id, unit_id: r.unit_id, shift: shift || null, channel: 'WEB', origin: origin ? { city: origin } : null });
+      setEnrolled(out);
+      toast({ title: `Inscrição feita — ${out.position}º de ${out.queue_size}`, description: `Protocolo ${out.protocol} · ${Number(out.score)} de 100 pontos.`, tone: 'success' });
+      ['citizen_home', 'family_overview', 'search_vacancies'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      setTimeout(() => document.getElementById('inscricao')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
     } catch (e) {
-      toast({ title: 'Solicitação não registrada', description: (e as Error).message, tone: 'error' });
+      toast({ title: 'Inscrição não realizada', description: (e as Error).message, tone: 'error' });
     } finally {
       setBusyUnit(null);
     }
@@ -270,7 +287,7 @@ export default function VacancySearch() {
                           <Button variant="purple" icon={Sparkles} onClick={() => setOfferEntry(entry.id)}>Ofertar vaga (1º da fila)</Button>
                         )}
                         {kid && me?.scope === 'GUARDIAN' && (
-                          <Button variant="purple" icon={ShieldCheck} loading={busyUnit === r.unit_id} onClick={() => citizenRequest(r)}>Registrar solicitação</Button>
+                          <Button variant="purple" icon={ListPlus} loading={busyUnit === r.unit_id} onClick={() => citizenRequest(r)}>Inscrever na fila</Button>
                         )}
                         <ButtonLink to={`/unidades/${r.unit_id}`} variant="ghost">Ver unidade</ButtonLink>
                       </div>
@@ -279,6 +296,19 @@ export default function VacancySearch() {
                 );
               })}
             </div>
+            {enrolled && (
+              <Card id="inscricao" className="mt-4 bg-green-50 p-4 ring-1 ring-green-200">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-green-700" />
+                  <div className="min-w-0 text-[14px] text-green-950">
+                    <b>{enrolled.child}</b> está na fila de espera on-line de {enrolled.grade} · {enrolled.unit}: <b>{enrolled.position}º de {enrolled.queue_size}</b>, {Number(enrolled.score)} de 100 pontos. Protocolo {enrolled.protocol}.
+                    <div className="mt-1 text-[13px]">{enrolled.message}</div>
+                    {(enrolled.documents ?? []).length > 0 && <div className="mt-1 text-[12.5px]">Leve na matrícula: {(enrolled.documents as string[]).map((x) => DOC[x] ?? x).join(', ')}.</div>}
+                    <ButtonLink to="/familia" size="sm" variant="secondary" className="mt-2">Ver minha família</ButtonLink>
+                  </div>
+                </div>
+              </Card>
+            )}
             <Card className="mt-4 p-4 text-[13px] text-muted">
               <b className="text-ink">Filtro eliminatório:</b> {res.excluded.ELIM_ETAPA_SERIE} unidade(s) não atendem {res.grade.name}; {res.excluded.ELIM_UNIDADE_ATIVA} em situação operacional a validar
               {res.filters.shift_required ? `; ${res.excluded.ELIM_TURNO} sem turma no turno` : ''}; {res.excluded.FORA_DO_RAIO_DE_BUSCA} fora do raio de busca ({res.filters.max_km} km).

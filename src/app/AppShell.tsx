@@ -222,7 +222,7 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
               icon={RotateCcw}
               label={busy ? 'Reiniciando…' : 'Reiniciar cenário do cidadão (Maria · Davi)'}
               onClick={async () => {
-                const ok = await confirm({ title: 'Reiniciar cenário?', body: 'Cancela a oferta/matrícula de demonstração do Davi e o devolve à fila (1º lugar). Tudo fica registrado na auditoria.', confirm: 'Reiniciar', tone: 'purple' });
+                const ok = await confirm({ title: 'Reiniciar cenário?', body: 'Devolve a família fictícia da Maria ao estado original (membros, endereço, declarações) e o Davi à fila em 1º lugar. Tudo fica registrado na auditoria.', confirm: 'Reiniciar', tone: 'purple' });
                 if (!ok) return;
                 setBusy(true);
                 try {

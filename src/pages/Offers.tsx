@@ -48,7 +48,7 @@ export default function Offers() {
           {!pending.length && <EmptyState compact title="Nenhuma oferta aguardando" />}
         </Card>
       </Section>
-      <p className="mt-4 text-center text-[12px] text-muted">{OFFER_STATUS.OFFERED.label}: vaga reservada até a resposta · prazo da regra PRAZO_RESPOSTA_OFERTA (48 h)</p>
+      <p className="mt-4 text-center text-[12px] text-muted">{OFFER_STATUS.OFFERED.label}: vaga reservada até a resposta · prazo de 72 h para efetivar a matrícula (IN nº 025/2025, Anexo II)</p>
     </div>
   );
 }
