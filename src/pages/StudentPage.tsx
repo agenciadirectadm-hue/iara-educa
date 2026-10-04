@@ -132,6 +132,8 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
                 units={(units.data?.units ?? []).filter((u) => u.id === d.school?.unit_id)}
                 home={{ lat: a.lat, lng: a.lng, radius_m: 2000 }}
                 highlight={d.school ? [{ id: d.school.unit_id, label: '★' }] : []}
+                highlightLabel="Unidade onde estuda"
+                homeLabel="Endereço da criança"
                 lines
                 fitKey={s.id}
                 cooperative

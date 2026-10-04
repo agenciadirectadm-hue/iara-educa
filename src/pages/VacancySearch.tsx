@@ -223,7 +223,7 @@ export default function VacancySearch() {
               <SourceChip kind="calculado" detail="Pontuação = soma das regras vigentes (tabela iara.rules). Vagas ofertáveis da camada de demonstração." />
             </div>
             <Card className="overflow-hidden">
-              <MapView className="h-[42vh] min-h-[280px]" units={units.data?.units ?? []} home={{ lat: home!.lat, lng: home!.lng, radius_m: res.territory_radius_m }} highlight={highlight} lines fitKey={JSON.stringify(args)} cooperative colorMode="vacancy" />
+              <MapView className="h-[42vh] min-h-[280px]" units={units.data?.units ?? []} home={{ lat: home!.lat, lng: home!.lng, radius_m: res.territory_radius_m }} highlight={highlight} highlightLabel="Resultado da busca (número = posição)" lines fitKey={JSON.stringify(args)} cooperative colorMode="vacancy" />
             </Card>
             <p className="mt-2 flex items-start gap-2 text-[12.5px] text-muted"><Info className="mt-0.5 size-4 shrink-0" />{res.disclaimer}</p>
 

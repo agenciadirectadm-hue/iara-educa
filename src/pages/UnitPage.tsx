@@ -97,6 +97,7 @@ function Overview({ d }: { d: any }) {
             className="h-64"
             units={units.data?.units ?? []}
             selectedId={u.id}
+            selectedLabel="Esta unidade"
             focus={{ lat: u.lat, lng: u.lng, zoom: 15 }}
             cooperative
             controls={false}

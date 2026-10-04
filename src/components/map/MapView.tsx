@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { LngLatBounds, Map as MLMap, Marker, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import clsx from 'clsx';
 import { Crosshair, Minus, Plus } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
+import { MapLegend } from './MapLegend';
+import {
+  BALANCE_STOPS, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, REGION_OPACITY, ROUTE_LINE,
+  SELECTED_STROKE, UNIT_COLOR, VACANCY_COLOR, interpolate,
+} from './mapStyle';
 
 setWorkerUrl(workerUrl);
 
@@ -42,6 +47,16 @@ export type MapViewProps = {
   className?: string;
   controls?: boolean;
   padding?: { top: number; bottom: number; left: number; right: number };
+  /** Legenda das camadas e marcações: faixa abaixo do mapa (padrão), cartão sobre o mapa ou nenhuma. */
+  legend?: 'strip' | 'overlay' | false;
+  /** Posição do cartão da legenda (modo overlay). */
+  legendClassName?: string;
+  /** Texto extra no fim da legenda (ex.: "toque numa região"). */
+  legendNote?: ReactNode;
+  /** Rótulos das marcações na legenda, conforme o contexto da tela. */
+  homeLabel?: string;
+  highlightLabel?: string;
+  selectedLabel?: string;
 };
 
 function circle(lat: number, lng: number, r: number, n = 72): GeoJSON.Feature<GeoJSON.Polygon> {
@@ -154,8 +169,8 @@ export function MapView(p: MapViewProps) {
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.55 } });
       map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': '#A846E8', 'fill-opacity': 0 } });
       map.addLayer({ id: 'regions-line', type: 'line', source: 'regions', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0 } });
-      map.addLayer({ id: 'areas-line', type: 'line', source: 'areas', layout: { visibility: 'none' }, paint: { 'line-color': '#7A24C5', 'line-width': 1, 'line-opacity': 0.45, 'line-dasharray': [2, 2] } });
-      map.addLayer({ id: 'muni-line', type: 'line', source: 'muni', paint: { 'line-color': '#7A24C5', 'line-width': 2.2, 'line-opacity': 0.7, 'line-dasharray': [3, 2] } });
+      map.addLayer({ id: 'areas-line', type: 'line', source: 'areas', layout: { visibility: 'none' }, paint: { 'line-color': PURPLE, 'line-width': 1, 'line-opacity': 0.45, 'line-dasharray': [2, 2] } });
+      map.addLayer({ id: 'muni-line', type: 'line', source: 'muni', paint: { 'line-color': PURPLE, 'line-width': 2.2, 'line-opacity': 0.7, 'line-dasharray': [3, 2] } });
       map.addLayer({
         id: 'heat', type: 'heatmap', source: 'units', layout: { visibility: 'none' },
         paint: {
@@ -163,12 +178,12 @@ export function MapView(p: MapViewProps) {
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 1, 15, 2.2],
           'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 26, 13, 46, 16, 80],
           'heatmap-opacity': 0.78,
-          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(42,125,225,0)', 0.15, 'rgba(42,125,225,0.55)', 0.35, '#16A36A', 0.55, '#F2B640', 0.75, '#F28C38', 1, '#D94C4C'],
+          'heatmap-color': interpolate(['heatmap-density'], HEAT_STOPS) as never,
         },
       });
-      map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': '#7A24C5', 'fill-opacity': 0.08 } });
-      map.addLayer({ id: 'radius-line', type: 'line', source: 'radius', paint: { 'line-color': '#7A24C5', 'line-width': 2, 'line-dasharray': [2, 1.5] } });
-      map.addLayer({ id: 'lines', type: 'line', source: 'lines', paint: { 'line-color': '#0E1A2B', 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [1, 1.6] } });
+      map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': PURPLE, 'fill-opacity': 0.08 } });
+      map.addLayer({ id: 'radius-line', type: 'line', source: 'radius', paint: { 'line-color': PURPLE, 'line-width': 2, 'line-dasharray': [2, 1.5] } });
+      map.addLayer({ id: 'lines', type: 'line', source: 'lines', paint: { 'line-color': ROUTE_LINE, 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [1, 1.6] } });
       map.addLayer({
         id: 'units-halo', type: 'circle', source: 'units',
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 11, 17, 16], 'circle-color': '#ffffff', 'circle-opacity': 0.95 },
@@ -177,9 +192,9 @@ export function MapView(p: MapViewProps) {
         id: 'units', type: 'circle', source: 'units',
         paint: {
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 8, 17, 12],
-          'circle-color': '#A846E8',
+          'circle-color': UNIT_COLOR.CMEI,
           'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 4, 0],
-          'circle-stroke-color': '#0E1A2B',
+          'circle-stroke-color': SELECTED_STROKE,
         },
       });
       map.addLayer({
@@ -187,7 +202,7 @@ export function MapView(p: MapViewProps) {
         layout: { 'text-field': ['get', 'name'], 'text-size': 11.5, 'text-offset': [0, 1.25], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'], 'text-max-width': 9 },
         paint: { 'text-color': '#23334A', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
       });
-      map.addLayer({ id: 'ranks-circle', type: 'circle', source: 'ranks', paint: { 'circle-radius': 13, 'circle-color': '#7A24C5', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
+      map.addLayer({ id: 'ranks-circle', type: 'circle', source: 'ranks', paint: { 'circle-radius': 13, 'circle-color': PURPLE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
       map.addLayer({
         id: 'ranks-label', type: 'symbol', source: 'ranks',
         layout: { 'text-field': ['get', 'label'], 'text-size': 13, 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true, 'icon-allow-overlap': true },
@@ -236,8 +251,8 @@ export function MapView(p: MapViewProps) {
     map.setPaintProperty(
       'units', 'circle-color',
       p.colorMode === 'vacancy'
-        ? ['match', ['get', 'vacancy_state'], 'vaga', '#16A36A', 'fila', '#D94C4C', '#8A98AB']
-        : ['case', ['!=', ['get', 'status'], 'ATIVA'], '#8A98AB', ['==', ['get', 'type'], 'CMEI'], '#A846E8', '#1594D2'],
+        ? ['match', ['get', 'vacancy_state'], 'vaga', VACANCY_COLOR.vaga, 'fila', VACANCY_COLOR.fila, VACANCY_COLOR.neutro]
+        : ['case', ['!=', ['get', 'status'], 'ATIVA'], UNIT_COLOR.VALIDAR, ['==', ['get', 'type'], 'CMEI'], UNIT_COLOR.CMEI, UNIT_COLOR.ESCOLA],
     );
   }, [ready, unitFC, p.colorMode, p.showUnits]);
 
@@ -252,9 +267,7 @@ export function MapView(p: MapViewProps) {
     const prop = { queue: 'queue', queue_creche: 'queue_creche', enrollments: 'enrollments', offerable: 'offerable' }[p.heat];
     const max = Math.max(1, ...p.units.map((u) => Number((u as any)[prop === 'enrollments' ? 'public_enrollments' : prop]) || 0));
     map.setPaintProperty('heat', 'heatmap-weight', ['interpolate', ['linear'], ['get', prop], 0, 0, max, 1]);
-    map.setPaintProperty('heat', 'heatmap-color', p.heat === 'offerable'
-      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(22,163,106,0)', 0.25, 'rgba(22,163,106,0.5)', 0.6, '#16A36A', 1, '#086DB6']
-      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(42,125,225,0)', 0.15, 'rgba(42,125,225,0.55)', 0.35, '#16A36A', 0.55, '#F2B640', 0.75, '#F28C38', 1, '#D94C4C']);
+    map.setPaintProperty('heat', 'heatmap-color', interpolate(['heatmap-density'], p.heat === 'offerable' ? HEAT_OFFERABLE_STOPS : HEAT_STOPS) as never);
     map.setLayoutProperty('heat', 'visibility', 'visible');
   }, [ready, p.heat, p.units]);
 
@@ -272,12 +285,12 @@ export function MapView(p: MapViewProps) {
     if (p.regionMetric) {
       const m = p.regionMetric;
       const color = m === 'balance_creche' || m === 'balance'
-        ? ['interpolate', ['linear'], ['get', m], -250, '#D94C4C', -120, '#F28C38', -40, '#F2B640', 0, '#9BD9B7', 150, '#7FB7EA', 400, '#2A7DE1']
+        ? interpolate(['get', m], BALANCE_STOPS)
         : m === 'queue'
-          ? ['interpolate', ['linear'], ['get', 'queue'], 0, '#F4E9FC', 150, '#D4A8F5', 450, '#7A24C5']
-          : ['interpolate', ['linear'], ['get', 'offerable'], 0, '#E8F8F2', 250, '#7DD3B0', 600, '#008C72'];
+          ? interpolate(['get', 'queue'], QUEUE_REGION_STOPS)
+          : interpolate(['get', 'offerable'], OFFERABLE_REGION_STOPS);
       map.setPaintProperty('regions-fill', 'fill-color', color as never);
-      map.setPaintProperty('regions-fill', 'fill-opacity', 0.42);
+      map.setPaintProperty('regions-fill', 'fill-opacity', REGION_OPACITY);
       map.setPaintProperty('regions-line', 'line-opacity', 0.9);
     } else {
       map.setPaintProperty('regions-fill', 'fill-opacity', 0);
@@ -323,7 +336,7 @@ export function MapView(p: MapViewProps) {
       map.setFeatureState({ source: 'units', id: u.id }, { selected: true });
       const el = document.createElement('div');
       el.className = 'pointer-events-none relative size-6';
-      el.innerHTML = `<span class="pulse-ring absolute inset-0 rounded-full" style="background:${u.type === 'CMEI' ? '#A846E8' : '#1594D2'}"></span>`;
+      el.innerHTML = `<span class="pulse-ring absolute inset-0 rounded-full" style="background:${u.type === 'CMEI' ? UNIT_COLOR.CMEI : UNIT_COLOR.ESCOLA}"></span>`;
       selMarker.current = new Marker({ element: el }).setLngLat([u.lng, u.lat]).addTo(map);
     }
   }, [ready, p.selectedId, p.units]);
@@ -368,10 +381,19 @@ export function MapView(p: MapViewProps) {
     );
   }
 
-  return (
+  const legendMode = p.legend ?? 'strip';
+  const legendInput = {
+    units: p.units, showUnits: p.showUnits, colorMode: p.colorMode, regionMetric: p.regionMetric, heat: p.heat,
+    hasBoundary: !!p.geo?.municipality, showAreas: p.showAreas && !!p.geo?.areas, home: p.home, homeLabel: p.homeLabel,
+    highlight: p.highlight, highlightLabel: p.highlightLabel, lines: p.lines,
+    selectedUnit: p.selectedId != null ? p.units.find((u) => u.id === p.selectedId) ?? null : null, selectedLabel: p.selectedLabel,
+  };
+
+  const mapArea = (
     <div className={clsx('overflow-hidden', !/\b(absolute|fixed|sticky)\b/.test(p.className ?? '') && 'relative', p.className)}>
       <div ref={ref} className="h-full w-full" role="application" aria-label="Mapa interativo das unidades de Maringá" />
       {!ready && <div className="skeleton absolute inset-0" aria-hidden />}
+      {legendMode === 'overlay' && <MapLegend variant="overlay" className={p.legendClassName ?? 'bottom-3 left-3'} note={p.legendNote} {...legendInput} />}
       {p.controls !== false && (
         <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
           <button className="glass inline-flex size-11 items-center justify-center rounded-2xl shadow-soft ring-1 ring-white/70" onClick={() => mapRef.current?.zoomIn()} aria-label="Aproximar">
@@ -395,6 +417,14 @@ export function MapView(p: MapViewProps) {
           </button>
         </div>
       )}
+    </div>
+  );
+
+  if (legendMode !== 'strip') return mapArea;
+  return (
+    <div>
+      {mapArea}
+      <MapLegend variant="strip" note={p.legendNote} {...legendInput} />
     </div>
   );
 }

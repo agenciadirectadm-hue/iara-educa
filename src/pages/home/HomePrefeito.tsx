@@ -47,6 +47,7 @@ export default function HomePrefeito() {
           fitKey="cidade"
           cooperative
           padding={{ top: 64, bottom: 30, left: 24, right: 64 }}
+          legendNote={<>{layer === 'deficit' ? 'Toque numa região para explorar' : 'Toque numa unidade para abrir'} <SourceChip kind={layer === 'enrollments' ? 'oficial' : 'demo'} /></>}
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-2 p-3">
           <div className="pointer-events-auto no-scrollbar flex gap-2 overflow-x-auto">
@@ -55,26 +56,6 @@ export default function HomePrefeito() {
             <Chip icon={Users} active={layer === 'enrollments'} onClick={() => setLayer('enrollments')}>Calor: matrículas</Chip>
             <Chip icon={Sparkles} active={layer === 'offerable'} onClick={() => setLayer('offerable')}>Vagas ofertáveis</Chip>
           </div>
-        </div>
-        <div className="border-t border-line bg-white px-4 py-3 text-[12px]">
-          {layer === 'deficit' ? (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {Object.entries(PRESSURE).map(([key, v]) => (
-                <span key={key} className="inline-flex items-center gap-1.5 font-semibold text-ink-2">
-                  <span className="size-2.5 rounded-full" style={{ background: v.color }} aria-hidden />
-                  {v.label}
-                </span>
-              ))}
-              <span className="ml-auto text-muted">Toque numa região para explorar</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-2 text-muted">
-              <span>
-                {layer === 'enrollments' ? 'Matrículas por unidade (agregado público)' : layer === 'queue' ? 'Fila de creche por unidade' : 'Verde: com vaga ofertável · vermelho: só fila'}
-              </span>
-              <SourceChip kind={layer === 'enrollments' ? 'oficial' : 'demo'} />
-            </div>
-          )}
         </div>
       </Card>
 

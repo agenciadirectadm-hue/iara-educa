@@ -91,6 +91,9 @@ export default function MapPage() {
           colorMode={layer === 'vagas' || filter === 'vaga' || filter === 'creche' ? 'vacancy' : 'type'}
           showAreas={showAreas}
           home={point ? { lat: point.lat, lng: point.lng, radius_m: 2000 } : null}
+          homeLabel="Ponto pesquisado"
+          legend="overlay"
+          legendClassName={desktop ? 'bottom-3 left-[424px]' : 'left-3 top-[118px]'}
           focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : point ? { lat: point.lat, lng: point.lng, zoom: 13.6 } : null}
           fitKey={`${filter}`}
           padding={{ top: 130, bottom: desktop ? 40 : 170, left: desktop ? 420 : 30, right: 70 }}
