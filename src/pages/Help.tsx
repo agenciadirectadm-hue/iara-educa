@@ -8,6 +8,7 @@ import { fmtDate, fmtInt } from '@/lib/format';
 import { DOC, LEVEL_LABEL } from '@/lib/labels';
 import { Badge, Card, EmptyState, PageHeader, Section, SkeletonList, SourceChip, inputCls, type SourceKind } from '@/components/ui';
 import { IaraMascot } from '@/components/iara';
+import { WhatsAppCard } from '@/components/whatsapp';
 
 const SOURCES: { name: string; detail: string; kind: SourceKind }[] = [
   { name: 'IN nº 025/2025-SEDUC — Anexo I', detail: 'Critérios da fila de espera: pontuação (irmão, CadÚnico, até 2 km, mãe solo) e prioridade sob análise por laudo.', kind: 'oficial' },
@@ -39,6 +40,11 @@ export default function Help() {
         </div>
         <div className="hidden shrink-0 sm:block"><IaraMascot height={150} mood="idle" /></div>
       </div>
+
+      <WhatsAppCard
+        className="mb-6"
+        subtitle="Para divulgar às famílias: QR code, número e link de conversa. Imprima o cartaz para a entrada da escola ou do CMEI."
+      />
 
       <Section title="Como ler os números" subtitle="Toda informação tem um selo. Toque no selo para entender." className="mt-0">
         <Card className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">

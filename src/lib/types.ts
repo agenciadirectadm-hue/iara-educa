@@ -48,6 +48,8 @@ export type Bootstrap = {
     id: number; name: string; state: string; ibge: string; network_name: string; secretariat: string; school_year: number;
     official_reference_date: string; city_center: [number, number]; demo_mode: boolean; demo_unit: number;
   };
+  /** Contato da IARA no WhatsApp. Sem número oficial, o QR code e o link abrem a conversa simulada. */
+  whatsapp?: { numero: string | null; numero_demo: string; mensagem: string; url_publica: string | null };
   flags: Record<string, boolean>;
   personas: Persona[];
   stages: { id: number; code: string; name: string; short_name: string; color: string }[];

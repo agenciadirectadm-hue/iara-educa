@@ -15,6 +15,7 @@ import { IaraMascot } from '@/components/iara';
 import { useSession } from '@/lib/session';
 import { FamilyOnboarding } from '@/pages/Family';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
+import { WhatsAppCard } from '@/components/whatsapp';
 
 export default function HomeCidadao() {
   const { me } = useSession();
@@ -77,6 +78,8 @@ function CitizenHome() {
           </motion.div>
         ))}
       </div>
+
+      <WhatsAppCard className="mt-4" subtitle="Tudo o que você faz aqui, a IARA faz pelo WhatsApp: vaga, fila, documentos e mudanças da família. Compartilhe com quem também cuida das crianças." />
 
       <Section title="Minhas crianças" id="criancas">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">

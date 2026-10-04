@@ -13,6 +13,7 @@ import { Avatar, Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonList, 
 import { IaraAvatar, IaraBubble } from '@/components/iara';
 import { ChatThread, QuickReplies, asQuickReply, type ChatMessage, type QuickReply } from '@/components/chat';
 import { useConfirm, useToast } from '@/components/overlays';
+import { WhatsAppButton } from '@/components/whatsapp';
 
 export default function IaraHub() {
   const { me } = useSession();
@@ -128,6 +129,7 @@ function CitizenChat() {
             {human ? (state === 'HUMAN_ACTIVE' ? `Em atendimento com ${cleanLabel(conv.data?.conversation?.assigned) || 'servidor da SEDUC'}` : 'Aguardando um servidor da SEDUC') : typing ? 'digitando…' : `online · ${CHANNEL[conv.data?.conversation?.channel] ?? 'WhatsApp (simulado)'}`}
           </div>
         </div>
+        <WhatsAppButton />
         <button onClick={restart} className="inline-flex size-11 items-center justify-center rounded-2xl text-purple-700 hover:bg-purple-50" aria-label="Nova conversa" title="Nova conversa">
           <MessageCirclePlus className="size-5" />
         </button>

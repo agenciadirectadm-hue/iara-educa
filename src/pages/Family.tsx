@@ -13,6 +13,7 @@ import { SHIFT } from '@/lib/labels';
 import { Badge, Button, ButtonLink, Card, EmptyState, ErrorState, Field, PageHeader, Section, SkeletonList, inputCls } from '@/components/ui';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { IaraBubble } from '@/components/iara';
+import { WhatsAppCard } from '@/components/whatsapp';
 
 const REL_CHILD = [['MAE', 'Mãe'], ['PAI', 'Pai'], ['AVO', 'Avó / avô'], ['RESPONSAVEL_LEGAL', 'Responsável legal']] as const;
 const REL_ADULT = [['PAI', 'Pai'], ['MAE', 'Mãe'], ['AVO', 'Avó / avô'], ['PADRASTO', 'Padrasto / madrasta'], ['COMPANHEIRO', 'Companheiro(a)'], ['RESPONSAVEL_LEGAL', 'Responsável legal (guarda)'], ['OUTRO', 'Outro']] as const;
@@ -136,6 +137,7 @@ export function FamilyOnboarding() {
       <IaraBubble compact className="mb-4">
         Prefere conversar? No <Link to="/iara" className="font-bold text-purple-700 underline">WhatsApp da IARA</Link> eu faço este cadastro e a inscrição na fila em poucas mensagens.
       </IaraBubble>
+      <WhatsAppCard className="mb-4" title="Prefere fazer pelo WhatsApp?" subtitle="Escaneie o código ou abra a conversa: a IARA faz o cadastro, inclui as crianças e já inscreve na fila." />
       <Card className="space-y-4 p-4">
         <Field label="Seu nome completo (responsável)">
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Nome e sobrenome" autoComplete="name" />
@@ -293,6 +295,7 @@ export default function Family() {
       <IaraBubble compact className="mt-6">
         No WhatsApp é igual: diga “mudei de endereço”, “nasceu meu filho” ou “chegamos de outra cidade” e eu resolvo na hora. <Link to="/iara" className="font-bold text-purple-700 underline">Conversar com a IARA</Link>
       </IaraBubble>
+      <WhatsAppCard className="mt-4" title="Toda a família pode falar com a IARA" subtitle="Pai, mãe, avós ou quem cuida das crianças: compartilhe o número e o link de conversa. Quem não é responsável legal tem a guarda conferida pela unidade ou pela Central." />
 
       <ChildSheet open={sheet === 'child' || sheet === 'origin'} origin={sheet === 'origin'} onClose={() => setSheet(null)} onDone={refresh} />
       <AdultSheet open={sheet === 'adult'} kids={kids} singleMother={!!g.single_mother} onClose={() => setSheet(null)} onDone={refresh} onReviewSolo={() => setSheet('update')} />

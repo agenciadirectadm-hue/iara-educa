@@ -10,6 +10,7 @@ import { Sheet, useToast } from '@/components/overlays';
 import { IaraBubble, IaraMascot } from '@/components/iara';
 import { Badge, Skeleton, inputCls } from '@/components/ui';
 import { fmtInt } from '@/lib/format';
+import { WhatsAppCard } from '@/components/whatsapp';
 
 const ICON: Record<Role, typeof Crown> = {
   PREFEITO: Landmark, SECRETARIO: Crown, SUPERINTENDENCIA: BarChart3, ANALISTA_CENTRAL: Search, GERENCIA_EI: Baby,
@@ -97,6 +98,12 @@ export default function Entrar() {
             </div>
           </>
         )}
+
+        <WhatsAppCard
+          className="mt-8"
+          title="É de uma família? Fale com a IARA pelo WhatsApp"
+          subtitle="Responsáveis e outros membros da família podem procurar vaga, acompanhar a fila e avisar mudanças sem abrir o portal."
+        />
 
         <div className="mt-10 flex items-start gap-3 rounded-3xl bg-white/80 p-4 text-[13px] text-muted ring-1 ring-line">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-green-700" />

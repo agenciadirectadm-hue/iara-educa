@@ -31,6 +31,8 @@ const Audit = lazy(() => import('./pages/Audit'));
 const Quality = lazy(() => import('./pages/Quality'));
 const Rules = lazy(() => import('./pages/Rules'));
 const Help = lazy(() => import('./pages/Help'));
+const WhatsAppEntry = lazy(() => import('./pages/WhatsApp'));
+const WhatsAppPoster = lazy(() => import('./pages/WhatsApp').then((m) => ({ default: m.WhatsAppPoster })));
 
 function Loader() {
   return (
@@ -88,6 +90,9 @@ export const router = createHashRouter([
   { path: '/', element: <RootGate /> },
   { path: '/abertura', element: <Splash /> },
   { path: '/entrar', element: <Entrar /> },
+  // início da conversa pelo WhatsApp (destino do QR code) e cartaz para imprimir — públicos
+  { path: '/whatsapp', element: S(<WhatsAppEntry />) },
+  { path: '/whatsapp/cartaz', element: S(<WhatsAppPoster />) },
   {
     element: <AppShell />,
     errorElement: <RouteError />,

@@ -38,6 +38,14 @@ com as mesmas funções, regras e protocolos — experiências diferentes, mesmo
 - Em todos os casos a família recebe protocolo, equipe responsável e prazo. A caixa da IARA mostra *quem resolve os pedidos*
   (alçada da demanda), as conversas concluídas sem servidor e as execuções da própria IARA.
 
+**Início da conversa pelo WhatsApp** — QR code, número e link de conversa no portal da família (início, cadastro,
+Minha família, chat da IARA), na tela de entrada, na Ajuda, na página pública `#/whatsapp` e no cartaz A4 para imprimir
+(`#/whatsapp/cartaz`), com "Compartilhar com a família" para os demais responsáveis. Enquanto a SEDUC não define o número
+oficial, o número exibido é de demonstração e o QR code/link abrem a conversa simulada da IARA (nunca um `wa.me` para
+número fictício). Para ativar o número oficial, sem novo deploy:
+`update iara.tenants set settings = settings || '{"iara_whatsapp_numero": "55449XXXXXXXX"}' where id = 1;` — a partir daí o
+QR code e o link viram `https://wa.me/<número>?text=<mensagem>` (mensagem em `iara_whatsapp_mensagem`).
+
 ### Princípios aplicados
 - **Dado oficial prevalece; nada é inventado** — lacunas aparecem como `PENDENTE SEDUC`. Cada número tem selo de origem
   (oficial, público, calculado, demonstração, projetado, pendente) que explica de onde vem.
