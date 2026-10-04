@@ -1,0 +1,104 @@
+# IARA Educa — SEDUC Maringá
+
+Plataforma municipal de gestão educacional da **Secretaria Municipal de Educação de Maringá (SEDUC)**: unidades e território,
+turmas e vagas, fila de espera, ofertas e matrícula, atendimento ao cidadão e a **IARA**, agente de atendimento via WhatsApp/portal.
+Feita primeiro para o celular: interativa, clicável e com visões diferentes para cada perfil.
+
+> **Ambiente de demonstração.** A base oficial (118 unidades, 1.359 turmas, 31.497 matrículas — Censo Escolar 2025/INEP e
+> Consulta Escolas SEED-PR 2026) é real. A camada operacional (capacidades, vagas, fila, protocolos, conversas e pessoas) é
+> **fictícia** e identificada como DEMO em todas as telas, até a integração com os sistemas da SEDUC.
+
+## O que tem
+
+| Perfil | Pergunta que a tela responde | Destaques |
+|---|---|---|
+| Prefeito(a) | Onde precisamos investir? | Mapa coroplético por região, déficit de creche, projeção (cenário), distância casa-escola |
+| Secretário(a) / Superintendência / Gerência EI | Onde está o gargalo? | Demanda × oferta por faixa, fila por categoria, funil de ofertas, SLA por equipe |
+| Analista da Central de Vagas | Qual vaga posso oferecer agora? | Busca inteligente de vaga, fila com critérios, oferta transacional, caixa da IARA |
+| Direção / Secretaria escolar | Como está minha unidade? / O que falta para a matrícula? | Turmas com ocupação, checklist de documentos, confirmação de matrícula |
+| Inovação | A base está confiável? | Qualidade de dados, auditoria, indicadores |
+| Cidadão / Responsável | Onde meu filho será atendido e o que preciso fazer? | Chat com a IARA (WhatsApp simulado), protocolos, unidades próximas |
+
+**Fluxo completo validado ponta a ponta:** a Central de Vagas oferta a vaga ao 1º da fila → a família aceita pela IARA →
+a secretaria escolar valida os documentos → a matrícula é confirmada. Tudo auditado.
+
+### Princípios aplicados
+- **Dado oficial prevalece; nada é inventado** — lacunas aparecem como `PENDENTE SEDUC`. Cada número tem selo de origem
+  (oficial, público, calculado, demonstração, projetado, pendente) que explica de onde vem.
+- **Regras determinísticas, versionadas e auditáveis** — `vagas físicas = capacidade − matrículas`;
+  `ofertáveis = físicas − bloqueadas − reservadas`. Prioridade de fila por pesos públicos (território 2 km, irmão, CadÚnico,
+  deficiência/TEA, rede de proteção; desempate por data). Simulador de pontuação em `/regras`.
+- **Aceite não é matrícula; silêncio não é aceite.** Ofertas reservam a vaga por 48 h e expiram sozinhas.
+- **Tudo clicável**, alvos de toque ≥ 44 px, alternativa em lista para mapas e gráficos, respeito a "reduzir movimento".
+
+## Arquitetura
+
+```
+Navegador (React 19 · PWA)  ──HTTPS──▶  Edge Function `api` (Deno, gateway/BFF)  ──SQL──▶  Postgres 17 + PostGIS
+  token de sessão opaco                   sessão → papel + claims por requisição         schema `iara` (domínio, não exposto)
+  nenhuma chave no cliente                 whitelist de funções · agente IARA             schema `api`  (funções JSON)
+                                                                                         RLS (RBAC + ABAC) · auditoria imutável
+```
+
+- **Banco (Supabase):** schema `iara` com o domínio (unidades, territórios, turmas, alunos, responsáveis, matrículas, fila,
+  ofertas, protocolos, documentos, conversas, regras, auditoria). Leituras via funções `api.*` *security invoker* sob RLS;
+  escritas *security definer* com `iara.require_perm(...)`. Trilha de auditoria imutável (append-only) com antes/depois.
+- **Gateway (`supabase/functions/api`):** sessões de demonstração com token opaco (hash SHA-256 guardado), `set local role`
+  + `request.jwt.claims` por requisição, rotinas periódicas (expiração de ofertas, atualização temporal da demo).
+- **IARA (`supabase/functions/api/iara.ts`):** agente determinístico — intenção, preenchimento de dados, verificação de
+  identidade (simulada), ferramentas = funções do próprio sistema com as permissões do cidadão, encaminhamento para humano
+  com resumo e pausa do bot até a devolução. Nunca afirma sucesso antes da confirmação do backend.
+- **Frontend (`src/`):** Vite 8, React 19, React Router 8 (hash), TanStack Query 5, Motion, MapLibre GL + OpenFreeMap,
+  Tailwind CSS 4, TypeScript 7, PWA. Mascote IARA (ipê-roxo) com animações.
+
+## Rodando localmente
+
+```bash
+npm install
+npm run dev          # http://localhost:5173
+npm run build        # typecheck + build de produção em dist/ (base relativa: funciona em qualquer subcaminho)
+```
+
+O frontend usa o gateway publicado por padrão (`https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api`).
+Para outro ambiente, defina `VITE_API_URL` (veja `.env.example`).
+
+### Banco e gateway (manutenção)
+
+Os scripts usam a API de gerenciamento do Supabase com um **token pessoal** passado só pela variável de ambiente
+(nunca gravado em arquivo):
+
+```bash
+SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs supabase/migrations/<arquivo>.sql   # aplica SQL
+SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_generate()"   # recria a base de demonstração (~25 s)
+SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                     # publica o gateway
+```
+
+Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21` (funções de demo)
+→ `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
+após criar funções novas). Testes: `supabase/tests/rls_smoke.sql` e `supabase/tests/jornada_e2e.sql`.
+
+## Estrutura
+
+```
+src/
+  app/            casca (navegação por perfil, barra inferior mobile, trilho lateral desktop)
+  components/     UI, mapa (MapLibre), gráficos SVG clicáveis, chat, mascote, oferta, matrícula
+  pages/          telas (início por perfil, mapa, unidades, turmas, alunos, atendimentos, busca de vaga, fila,
+                  ofertas, IARA, conversas, protocolos, indicadores, auditoria, qualidade, regras, ajuda)
+  lib/            cliente do gateway, sessão, formatação, rótulos
+supabase/
+  migrations/     esquema, regras de negócio, RLS, APIs, privilégios
+  functions/api/  gateway + agente IARA
+  seed/           dados públicos (118 unidades, territórios) e geradores da camada de demonstração
+  tests/          RLS e jornada ponta a ponta em SQL
+scripts/          SQL/deploy via API de gerenciamento, gerador do seed público, tratamento do mascote
+```
+
+## Limitações conhecidas desta versão
+- Camada operacional fictícia: capacidades autorizadas, fila, protocolos e pessoas aguardam extração oficial da SEDUC.
+- Autenticação real (gov.br/SSO da Prefeitura) não implementada — a entrada é por seleção de perfil de demonstração.
+- WhatsApp é simulado (nenhuma mensagem real é enviada); a verificação de identidade usa código simulado.
+- Pesos e prazos das regras são parametrização de referência, a validar contra a norma municipal vigente.
+
+---
+Desenvolvido para a SEDUC Maringá. Dados pessoais exibidos na demonstração são fictícios.

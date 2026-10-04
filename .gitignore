@@ -1,0 +1,28 @@
+# Dependências e build
+node_modules/
+dist/
+dev-dist/
+*.tsbuildinfo
+
+# Ambiente / segredos (nunca versionar tokens)
+.env.local
+.env.*.local
+*.pem
+
+# Claude Code — configurações pessoais e relógio de horas (privados)
+.claude/settings.local.json
+horas-trabalhadas/
+
+# Materiais de referência do proponente (grandes ou privados) — mantidos fora do repositório público
+Tabela_*.csv
+microdados_censo_escolar_2025_v2/
+md5_microdados_ed_basica_2025.txt
+IARA_EDUCA_ARQUITETURA_MESTRA_CLAUDE*.md
+dashoboard-conceito-iara-educa.png
+IARA_Educa_Microdados_2025_Nivel3_REAL.xlsx
+mascote-ipe-roxo.png
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
