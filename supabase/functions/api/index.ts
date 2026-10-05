@@ -9,7 +9,7 @@
 //   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
 import { asSystem, callApi, mapDbError, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot } from "./iara.ts";
-import { handleWhatsApp } from "./whatsapp.ts";
+import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
   try {
     if (path === "/health") {
       const rows = await sql`select now() as now, iara.rule_version() as rules`;
-      return json({ ok: true, ...rows[0] });
+      return json({ ok: true, ...rows[0], audio: audioDisponivel() });
     }
 
     const hk = housekeeping(meta);

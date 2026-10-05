@@ -11,6 +11,10 @@ import { asSystem, callApi, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot, type QuickReply, type Reply } from "./iara.ts";
 
 type Canal = { id: string; numero_e164: string; ativo: boolean; estado: string };
+
+/** Transcrição de áudio: Whisper na Groq — a mesma da IARA Saúde. Sem a chave, a IARA avisa que ainda não ouve. */
+const GROQ = Deno.env.get("GROQ_API_KEY") ?? "";
+export const audioDisponivel = () => GROQ.length > 0;
 type Json = (data: unknown, status?: number) => Response;
 
 const norm = (s: string) => (s ?? "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ").trim();
@@ -47,12 +51,18 @@ export function renderWhatsApp(replies: Reply[]): string[] {
   }).filter(Boolean);
 }
 
-/** "2", "2.", "*2*" ou o texto da opção → a ação da última lista enviada. */
+const POR_EXTENSO: Record<string, number> = {
+  um: 1, uma: 1, primeiro: 1, primeira: 1, dois: 2, duas: 2, segundo: 2, segunda: 2, tres: 3, terceiro: 3, terceira: 3,
+  quatro: 4, quarto: 4, quarta: 4, cinco: 5, quinto: 5, quinta: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+};
+
+/** "2", "2.", "*2*", "dois", "opção 2" (inclusive falado num áudio) ou o texto da opção → a ação da última lista enviada. */
 export function interpretar(texto: string, opcoes: QuickReply[]): { text: string; action: string | null } {
   const t = texto.trim();
-  const n = /^\*?(\d{1,2})\*?\s*[.)-]?$/.exec(t);
-  if (n && opcoes.length) {
-    const q = opcoes[Number(n[1]) - 1];
+  const limpo = norm(t).replace(/[.!?,;:*]+/g, "").replace(/^(a |o )?(opcao|numero|alternativa)\s+/, "").trim();
+  const num = /^(\d{1,2})\s*[)-]?$/.exec(limpo)?.[1] ?? POR_EXTENSO[limpo];
+  if (num && opcoes.length) {
+    const q = opcoes[Number(num) - 1];
     if (q) return { text: q.label, action: q.action ?? null };
   }
   const igual = opcoes.find((q) => norm(q.label) === norm(t));
@@ -74,6 +84,39 @@ async function guardarOpcoes(contactId: string, userId: string, meta: RequestMet
 }
 
 const SEM_AUDIO = "Recebi seu áudio, mas ainda não consigo ouvir. 🙏 Pode escrever em poucas palavras o que precisa?";
+const AUDIO_NAO_ENTENDI = "Recebi seu áudio, mas não consegui entender direito. 🙏 Pode repetir com calma ou escrever em poucas palavras?";
+
+const EXT_AUDIO: Record<string, string> = {
+  "audio/ogg": "ogg", "audio/opus": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/m4a": "m4a", "audio/x-m4a": "m4a",
+  "audio/aac": "m4a", "audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/flac": "flac", "audio/amr": "amr",
+};
+/** Frases que o Whisper "ouve" em áudio vazio ou só com ruído — não são o que a pessoa disse. */
+const ALUCINACAO = /amara\.org|legendas? pela comunidade|obrigad[oa] por assistir|inscreva-se no canal|^\W*$/i;
+
+async function transcrever(base64: string, tipo: string): Promise<string | null> {
+  if (!GROQ || !base64 || base64.length > 12_000_000) return null;
+  try {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type: tipo || "audio/ogg" }), "audio." + (EXT_AUDIO[tipo] ?? "ogg"));
+    form.append("model", "whisper-large-v3");
+    form.append("language", "pt"); // fixado: sem isso o Whisper às vezes decide que um áudio curto é espanhol
+    form.append("temperature", "0");
+    form.append("response_format", "json");
+    const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST", headers: { authorization: `Bearer ${GROQ}` }, body: form, signal: AbortSignal.timeout(25_000),
+    });
+    if (!r.ok) {
+      console.error("transcrição falhou:", r.status, (await r.text()).slice(0, 200));
+      return null;
+    }
+    const texto = String(((await r.json()) as { text?: string }).text ?? "").trim();
+    return texto && !ALUCINACAO.test(texto) ? texto.slice(0, 2000) : null;
+  } catch (e) {
+    console.error("transcrição:", String(e).slice(0, 200));
+    return null;
+  }
+}
 const SEM_MIDIA = "Recebi o arquivo, obrigado! Por aqui eu ainda não consigo abrir anexos — os documentos são conferidos na unidade. Como posso ajudar?";
 
 async function entrada(canal: Canal, body: Record<string, unknown>, meta: RequestMeta, json: Json): Promise<Response> {
@@ -97,30 +140,36 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
   if (!convId) throw new Error("Conversa não encontrada para o contato.");
   const vinc = (await asSystem(userId, meta, (tx) => tx`select iara.whatsapp_vincular(${contato.contact_id}::uuid, ${convId}::uuid) as r`))[0]?.r as { nova: boolean };
 
-  const recebido = tipo === "audio" ? "[áudio]" : tipo === "midia" ? (texto || "[arquivo]") : texto;
+  // áudio: a IARA ouve (transcrição) e responde ao que foi dito; o texto ouvido fica na conversa para a equipe
+  const ouvido = tipo === "audio" ? await transcrever(String(body.audio_base64 ?? ""), String(body.audio_tipo ?? "audio/ogg")) : null;
+  const extra = tipo === "audio" ? { audio: true, transcricao: ouvido, segundos: Number(body.audio_segundos ?? 0) || null } : {};
+  const recebido = tipo === "audio" ? (ouvido ? `🎤 ${ouvido}` : "[áudio]") : tipo === "midia" ? (texto || "[arquivo]") : texto;
   if (!recebido.trim()) return json({ ativo: true, respostas: [] });
 
   // conversa nova: registra a 1ª mensagem e responde com a saudação (o menu já vem nela)
   if (vinc?.nova) {
-    await callApi(userId, meta, "iara_send", { conversation_id: convId, body: recebido, payload: { canal: "whatsapp", wa_id: waId } });
+    await callApi(userId, meta, "iara_send", { conversation_id: convId, body: recebido, payload: { canal: "whatsapp", wa_id: waId, ...extra } });
     const saud = ((await asSystem(userId, meta, (tx) => tx`select iara.whatsapp_saudacao(${convId}::uuid) as r`))[0]?.r ?? []) as Reply[];
     await guardarOpcoes(contato.contact_id, userId, meta, saud);
     return json({ ativo: true, nova: true, respostas: renderWhatsApp(saud) });
   }
 
   const opcoes = ((await sql`select iara.whatsapp_contato_opcoes(${contato.contact_id}::uuid) as o`)[0]?.o ?? []) as QuickReply[];
-  const { text, action } = tipo === "texto" ? interpretar(texto, opcoes) : { text: recebido, action: null };
+  const { text, action } = tipo === "texto" || ouvido ? interpretar(ouvido ?? texto, opcoes) : { text: recebido, action: null };
   const snap = (await callApi(userId, meta, "iara_send", {
-    conversation_id: convId, body: text || action, payload: { canal: "whatsapp", wa_id: waId, ...(action ? { action } : {}) },
+    conversation_id: convId, body: ouvido ? recebido : (text || action), payload: { canal: "whatsapp", wa_id: waId, ...extra, ...(action ? { action } : {}) },
   })) as ConvSnapshot;
 
   // servidor no atendimento: a IARA não responde (a resposta humana sai pela fila de saída)
   if (snap.state === "HUMAN_ACTIVE" || snap.state === "HUMAN_PENDING") return json({ ativo: true, humano: true, respostas: [] });
 
   const agent = new Agent((fn, args) => callApi(userId, meta, fn, args), snap);
-  if (tipo === "audio") agent.messages.push({ body: SEM_AUDIO });
+  if (tipo === "audio" && !ouvido) agent.messages.push({ body: audioDisponivel() ? AUDIO_NAO_ENTENDI : SEM_AUDIO });
   else if (tipo === "midia" && !texto.trim()) agent.messages.push({ body: SEM_MIDIA });
-  else await agent.handle(text, action);
+  else {
+    if (ouvido) agent.messages.push({ body: `🎧 Ouvi: “${ouvido.length > 280 ? ouvido.slice(0, 280) + "…" : ouvido}”` });
+    await agent.handle(text, action);
+  }
   await asSystem(userId, meta, (tx) =>
     tx`select iara.agent_reply(${convId}::uuid, ${sql.json(agent.messages as never)}::jsonb,
                                ${sql.json({ ...agent.patch, context: agent.ctx } as never)}::jsonb, ${sql.json(agent.tools as never)}::jsonb) as r`);

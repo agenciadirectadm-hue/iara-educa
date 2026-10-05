@@ -18,7 +18,7 @@
  * .wa-sessao-educa/ vale o mesmo que o celular: quem tiver a pasta, fala pelo número. Nunca vai para o git.
  */
 import {
-  makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers,
+  makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, downloadMediaMessage,
 } from '@whiskeysockets/baileys'
 import qrcodeTerminal from 'qrcode-terminal'
 import QRImagem from 'qrcode'
@@ -41,6 +41,8 @@ const INICIO = Date.now()
 const TOLERANCIA_ATRASO_MS = 90_000
 const BATIMENTO_MS = 60_000
 const FILA_MS = 5_000
+/** Áudio maior que isto não é transcrito (≈ 10 min de mensagem de voz). */
+const AUDIO_MAX_BYTES = 8 * 1024 * 1024
 
 let sock = null
 let conectado = false
@@ -59,6 +61,12 @@ const log = (...a) => console.log(new Date().toLocaleTimeString('pt-BR'), '·', 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms))
 const soNumero = (jid) => String(jid ?? '').split('@')[0].split(':')[0].replace(/\D/g, '')
 const mascara = (n) => (n.length > 4 ? '…' + n.slice(-4) : n)
+/** Hora da mensagem em ms: o WhatsApp manda segundos, como número ou como Long do protobuf (Number(long) dá NaN). */
+function quandoChegou(m) {
+  const t = m?.messageTimestamp
+  const s = typeof t === 'number' ? t : Number(t?.toNumber?.() ?? t ?? 0)
+  return Number.isFinite(s) ? s * 1000 : 0
+}
 
 async function api(metodo, caminho, corpo) {
   const r = await fetch(`${API}${caminho}`, {
@@ -105,17 +113,34 @@ function extrair(m) {
   const midia = msg.imageMessage ?? msg.documentMessage ?? msg.documentWithCaptionMessage?.message?.documentMessage ?? msg.videoMessage
   const tipo = audio ? 'audio' : texto ? 'texto' : midia ? 'midia' : null
   if (!tipo) return null // figurinha, reação, enquete… não são atendimento
-  const ts = Number(m.messageTimestamp ?? 0) * 1000
   return {
     de: soNumero(jidTelefone ?? jid), jid, wa_id: String(key.id ?? ''), nome: m.pushName ?? null,
-    texto: texto ?? '', tipo, ts, key,
+    texto: texto ?? '', tipo, ts: quandoChegou(m), key,
+    // o áudio só o Baileys sabe descriptografar: a mensagem inteira vai junto para o download
+    audio: audio ? { bruta: m, tipo: String(audio.mimetype ?? 'audio/ogg').split(';')[0].trim(), segundos: Number(audio.seconds ?? 0) } : null,
+  }
+}
+
+async function baixarAudio(e) {
+  try {
+    const buf = await downloadMediaMessage(e.audio.bruta, 'buffer', {}, { logger: P({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage })
+    if (!buf?.length) return null
+    if (buf.length > AUDIO_MAX_BYTES) { log(`  áudio de ${mascara(e.de)} grande demais para transcrever (${Math.round(buf.length / 1024)} KB)`); return null }
+    return buf.toString('base64')
+  } catch (err) {
+    log(`⚠ não baixei o áudio de ${mascara(e.de)}: ${err.message}`)
+    return null
   }
 }
 
 async function responder(e) {
   let r
   try {
-    r = await api('POST', '/whatsapp/entrada', { de: e.de, jid: e.jid, nome: e.nome, texto: e.texto, wa_id: e.wa_id, ts: e.ts, tipo: e.tipo })
+    const audio = e.tipo === 'audio' && e.audio ? await baixarAudio(e) : null
+    r = await api('POST', '/whatsapp/entrada', {
+      de: e.de, jid: e.jid, nome: e.nome, texto: e.texto, wa_id: e.wa_id, ts: e.ts, tipo: e.tipo,
+      ...(audio ? { audio_base64: audio, audio_tipo: e.audio.tipo, audio_segundos: e.audio.segundos } : {}),
+    })
   } catch (err) {
     log(`✗ ${mascara(e.de)}: ${err.message}`)
     return

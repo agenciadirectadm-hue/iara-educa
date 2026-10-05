@@ -42,6 +42,7 @@ ou a cada `npm run configurar -- --novo`, que troca o segredo).
 | `npm run ligar` | conecta e **liga** o canal; `Ctrl+C` desliga e encerra |
 | `npm run conectar` | só conecta; quem manda é o interruptor do painel (**WhatsApp da IARA**) |
 | `node simular.mjs --ligar +5544900001234 "oi" "2"` | testa sem celular: mostra o que a IARA responderia (nada é enviado) |
+| `node simular.mjs --ligar +5544900001234 --audio fala.ogg` | testa a escuta com um arquivo de áudio |
 
 No painel (perfil Secretário ou Inovação): **Mais → WhatsApp da IARA** mostra a situação da ponte e tem o
 botão Ligar/Desligar. Com o canal ligado, o QR code e o link do portal da família passam a abrir este WhatsApp.
@@ -53,7 +54,11 @@ botão Ligar/Desligar. Com o canal ligado, o QR code e o link do portal da famí
   WhatsApp como contato da família (a posse do aparelho vale como verificação).
 - Servidor que assume a conversa na **Caixa da IARA** responde pelo painel e a mensagem sai pelo WhatsApp.
 - Avisos (oferta de vaga, matrícula…) das famílias que já conversaram pelo WhatsApp saem pela fila de saída.
-- Áudio: a IARA avisa com sinceridade que ainda não ouve áudios. Anexos: documentos são conferidos na unidade.
+- **Áudio:** a IARA ouve — transcrição com Whisper (large-v3, na Groq, em português), a mesma da IARA Saúde. Ela mostra o que
+  entendeu ("🎧 Ouvi: …") e responde ao que foi dito; o texto ouvido fica na conversa para a equipe. Dá para responder às opções
+  falando ("dois", "opção três"). Configure a chave uma vez, sem ela aparecer na tela (na raiz do projeto):
+  `powershell -ExecutionPolicy Bypass -File scripts\guardar-chave-groq.ps1`. Sem a chave, a IARA avisa com sinceridade que ainda não ouve.
+- Anexos: documentos são conferidos na unidade.
 
 ## Segurança e cuidados
 

@@ -43,7 +43,8 @@ gateway `/whatsapp/...` → o mesmo agente do portal, com as opções em lista n
 IARA Saúde, **+55 44 99774-8259**: cada sistema tem a sua ponte e liga-se um de cada vez (`npm run whatsapp` liga a da
 Educação; `Ctrl+C` desliga). O painel **WhatsApp da IARA** (Secretário/Inovação) mostra a ponte e tem o interruptor; com o
 canal ligado, o QR code do portal passa a abrir esse WhatsApp. Resposta de servidor na Caixa da IARA e avisos de oferta
-saem pela fila de saída. Teste sem celular: `node whatsapp-ponte/simular.mjs --ligar +5544900001234 "oi" "2"`.
+saem pela fila de saída. A IARA também **ouve áudios** (Whisper na Groq, como na IARA Saúde) depois de gravar a chave com
+`scripts\guardar-chave-groq.ps1`. Teste sem celular: `node whatsapp-ponte/simular.mjs --ligar +5544900001234 "oi" "2"`.
 
 **Início da conversa pelo WhatsApp** — QR code, número e link de conversa no portal da família (início, cadastro,
 Minha família, chat da IARA), na tela de entrada, na Ajuda, na página pública `#/whatsapp` e no cartaz A4 para imprimir

@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertTriangle, CheckCircle2, Link2, MessageCircle, Power, PowerOff, QrCode, RefreshCw, Smartphone, Terminal, Users } from 'lucide-react';
-import { rpc } from '@/lib/api';
+import { AlertTriangle, CheckCircle2, Link2, MessageCircle, Mic, Power, PowerOff, QrCode, RefreshCw, Smartphone, Terminal, Users } from 'lucide-react';
+import { API_URL, rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
 import { fmtInt, timeAgo } from '@/lib/format';
 import { Badge, Button, Card, ErrorState, PageHeader, Section, SkeletonList } from '@/components/ui';
@@ -28,6 +28,8 @@ const PROVEDOR: Record<string, string> = { BAILEYS: 'Ponte local (Baileys)', EVO
 /** WhatsApp da IARA: o número ligado ao agente, a ponte e o interruptor (um sistema de cada vez no mesmo chip). */
 export default function CanalWhatsApp() {
   const q = useRpc<Canal>('whatsapp_canal', {}, { refetchInterval: 10_000 });
+  // ouvir áudios depende da chave da Groq nos segredos do gateway (o banco não enxerga): o /health informa
+  const saude = useQuery({ queryKey: ['gateway-health'], queryFn: () => fetch(`${API_URL}/health`).then((r) => r.json() as Promise<{ audio?: boolean }>), staleTime: 60_000 });
   const now = useNow(10_000);
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -80,6 +82,7 @@ export default function CanalWhatsApp() {
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <Badge tone={c.ativo ? 'green' : 'gray'} dot>{c.ativo ? 'LIGADO — a IARA Educa responde' : 'DESLIGADO nesta plataforma'}</Badge>
               <Badge tone={ponte.tone} dot>{ponte.label}</Badge>
+              {saude.data && <Badge tone={saude.data.audio ? 'green' : 'amber'} icon={Mic}>{saude.data.audio ? 'Ouve áudios (Whisper)' : 'Áudios: falta a chave da Groq'}</Badge>}
               {c.ultimo_sinal_em && <span className="text-[12px] text-muted">último sinal {timeAgo(c.ultimo_sinal_em, now)}</span>}
             </div>
           </div>
@@ -129,6 +132,7 @@ export default function CanalWhatsApp() {
                 ['Pare a ponte da IARA Saúde', <>Na janela da ponte da Saúde, <Code>Ctrl+C</Code>. Ela continua pareada; só deixa de responder.</>],
                 ['Ligue a da Educação', <><Code>npm run ligar</Code> — liga o canal e conecta. Na primeira vez aparece um QR: no celular do chip, <b>WhatsApp → Aparelhos conectados → Conectar aparelho</b> (ou abra <Code>http://localhost:5299</Code>).</>],
                 ['Para voltar à Saúde', <><Code>Ctrl+C</Code> nesta ponte (desliga o canal da Educação) e ligue a ponte da Saúde.</>],
+                ['Ouvir áudios (uma vez)', <>{saude.data?.audio ? <Badge tone="green">já configurado</Badge> : <>Grave a chave da Groq (a mesma da IARA Saúde serve) sem ela aparecer na tela: <Code>powershell -ExecutionPolicy Bypass -File scripts\guardar-chave-groq.ps1</Code></>}</>],
               ].map(([t, d], i) => (
                 <li key={i} className="flex gap-3">
                   <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-green-700 text-[13px] font-black text-white">{i + 1}</span>
