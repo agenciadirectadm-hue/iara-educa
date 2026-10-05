@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  AlertTriangle, Bus, CheckCircle2, ClipboardPlus, FileCheck2, HeartPulse, Home, Lock, MapPin, Phone, School, Search, ShieldCheck, Sparkles, Users,
+  AlertTriangle, Bus, CheckCircle2, ClipboardPlus, FileCheck2, HeartPulse, Home, IdCard, Lock, MapPin, Pencil, Phone, School, Search, ShieldCheck, Sparkles, Users,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
@@ -12,6 +12,8 @@ import { useUnitsMap } from '@/lib/data';
 import { fmtDate, fmtDateTime, fmtInt, fmtKm, timeAgo } from '@/lib/format';
 import { AUDIT_ACTION, CASE_STATUS, CHANNEL, DOC, DOC_STATUS, ENTITY, OFFER_STATUS, QUEUE_CATEGORY, QUEUE_STATUS, SHIFT } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, SkeletonList, SourceChip, Tabs } from '@/components/ui';
+import { Completude } from '@/components/cadastro';
+import { NACIONALIDADE, PARENTESCO, RACA, SITUACAO_ALUNO, SITUACAO_LEGAL, mascaraCertidao, mascaraNis, mascaraSus, mascarado, precisaoRotulo } from '@/lib/cadastro';
 import { Crumbs } from '@/components/Crumbs';
 import { useToast } from '@/components/overlays';
 import MapView from '@/components/map/MapView';
@@ -50,13 +52,17 @@ export default function StudentPage() {
         <div className="min-w-0 flex-1">
           <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-purple-700">Ficha do aluno · 360º</div>
           <h1 className="font-display text-[24px] font-extrabold leading-tight sm:text-3xl">{s.full_name}</h1>
+          {s.social_name && <div className="text-[13px] text-muted">Nome social: <b className="text-ink-2">{s.social_name}</b></div>}
           <div className="mt-1 flex flex-wrap gap-1.5">
             <Badge tone="gray">{s.age}</Badge>
-            <Badge tone="blue">Matrícula {s.registry}</Badge>
-            <Badge tone={s.status === 'MATRICULADO' ? 'green' : s.status === 'AGUARDANDO_VAGA' ? 'purple' : 'gray'}>{s.status.replace('_', ' ').toLowerCase()}</Badge>
+            <Badge tone="blue">Código {s.registry}</Badge>
+            <Badge tone={SITUACAO_ALUNO[s.status]?.tone ?? 'gray'}>{SITUACAO_ALUNO[s.status]?.label ?? s.status}</Badge>
             {s.is_demo && <Badge tone="amber">Fictício</Badge>}
           </div>
         </div>
+        {d.registry?.can_edit && (
+          <ButtonLink to={`/alunos/${s.id}/cadastro`} variant="secondary" icon={Pencil} className="hidden shrink-0 sm:inline-flex">Editar cadastro</ButtonLink>
+        )}
       </div>
       <Tabs value={tab} onChange={(t) => setSp({ aba: t }, { replace: true })} items={tabs} />
       <div className="mt-4">
@@ -82,8 +88,19 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
   if (s.transport_need) alerts.push({ icon: Bus, text: 'Necessita transporte escolar', tone: 'blue' });
   if (d.age_grade_distortion) alerts.push({ icon: AlertTriangle, text: `Distorção idade-série: pela data de nascimento, a faixa seria ${d.grade_rule?.grade_name}`, tone: 'amber' });
   if (s.accessibility) alerts.push({ icon: AlertTriangle, text: s.accessibility, tone: 'amber' });
+  const reg = d.registry;
   return (
     <div className="space-y-4">
+      {reg && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+          <Completude pct={reg.complete_pct} pendencias={reg.pending} className="flex-1" />
+          {reg.can_edit && (
+            <ButtonLink to={`/alunos/${s.id}/cadastro`} variant={reg.pending.length ? 'purple' : 'secondary'} icon={Pencil} className="sm:h-auto">
+              {reg.pending.length ? 'Completar cadastro' : 'Editar cadastro'}
+            </ButtonLink>
+          )}
+        </div>
+      )}
       {d.school ? (
         <Link to={`/turmas/${d.school.class_id}`} className="flex items-center gap-3 rounded-3xl bg-gradient-to-br from-blue-700 to-blue-900 p-4 text-white shadow-lift">
           <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-white/15"><School className="size-6" /></span>
@@ -121,6 +138,7 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
             <DataPair label="Mãe solo" value={primary?.single_mother ? 'Sim (declarado)' : 'Não'} />
             <DataPair label="Irmãos na rede" value={d.siblings.length ? d.siblings.map((x: any) => <Link key={x.id} className="block text-purple-700 underline" to={`/alunos/${x.id}`}>{x.name.split(' ')[0]} ({x.unit ?? 'sem matrícula'})</Link>) : 'Nenhum'} />
             <DataPair label="Faixa pela regra" value={d.grade_rule?.grade_name ?? '—'} />
+            <DataPair label="Situação legal" value={primary ? SITUACAO_LEGAL[primary.legal_status]?.label ?? primary.legal_status : '—'} />
           </dl>
           <p className="mt-3 text-[12px] text-muted">{d.grade_rule?.explanation}</p>
         </Card>
@@ -141,18 +159,49 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
               />
               <div className="p-3 text-[13px]">
                 <div className="flex items-start gap-2"><Home className="mt-0.5 size-4 shrink-0 text-ink-2" /><span>{a.line}</span></div>
-                <div className="mt-1 flex items-center gap-2 text-muted"><MapPin className="size-4" />{a.territory} · {a.precision} <SourceChip kind="demo" detail="Endereço fictício; coordenada aproximada." /></div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted"><MapPin className="size-4" />{a.territory ?? 'fora de Maringá'} · zona {a.zone?.toLowerCase() ?? 'urbana'} · {precisaoRotulo(a.precision)} <SourceChip kind="demo" detail="Endereço fictício; coordenada aproximada." /></div>
+                {a.reference && <div className="mt-1 text-[12.5px] text-muted">Referência: {a.reference}</div>}
               </div>
             </>
           ) : <p className="p-4 text-sm text-muted">Endereço não disponível no seu escopo.</p>}
         </Card>
       </div>
+      <DadosPessoais s={s} />
     </div>
+  );
+}
+
+function DadosPessoais({ s }: { s: any }) {
+  const doc = (v: string | null, f: (x: string) => string) => (v ? (mascarado(v) ? v : f(v)) : '—');
+  return (
+    <Card className="p-4">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-subtle"><IdCard className="size-4" />Dados pessoais e documentos{s.docs_masked && <span className="inline-flex items-center gap-1 font-semibold normal-case tracking-normal"><Lock className="size-3" />mascarados para o seu perfil</span>}</div>
+      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <DataPair label="Cor/raça" value={RACA[s.race_color] ?? '—'} />
+        <DataPair label="Nacionalidade" value={`${NACIONALIDADE[s.nationality] ?? s.nationality}${s.birth_country ? ` · ${s.birth_country}` : ''}`} />
+        <DataPair label="Naturalidade" value={s.birth_city ? `${s.birth_city}/${s.birth_state ?? ''}` : '—'} />
+        <DataPair label="Uso de imagem" value={s.image_consent == null ? 'Não informado' : s.image_consent ? 'Autoriza' : 'Não autoriza'} />
+        <DataPair label="Filiação 1" value={s.parent1 ?? '—'} />
+        <DataPair label="Filiação 2" value={s.parent2 ?? 'Não declarada'} />
+        <DataPair label="CPF" value={s.cpf ?? '—'} />
+        <DataPair label="NIS" value={doc(s.nis, mascaraNis)} />
+        <DataPair label="Certidão de nascimento" value={<span className="break-all text-[13px]">{doc(s.birth_certificate, mascaraCertidao)}</span>} className="col-span-2" />
+        <DataPair label="Cartão SUS" value={doc(s.sus_card, mascaraSus)} />
+        <DataPair label="Código INEP" value={s.inep_id ?? '—'} />
+      </dl>
+    </Card>
   );
 }
 
 function Guardians({ d }: { d: any }) {
   return (
+    <div className="space-y-3">
+    {d.registry?.can_edit && (
+      <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+        <ButtonLink to={`/alunos/${d.student.id}/cadastro`} size="sm" variant="secondary" icon={Pencil}>Gerenciar responsáveis</ButtonLink>
+        vincular, mudar o principal, quem pode buscar, encerrar vínculo
+      </div>
+    )}
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {(d.guardians as any[]).map((g) => (
         <Link key={g.id} to={`/responsaveis/${g.id}`} className="rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:shadow-lift">
@@ -160,7 +209,7 @@ function Guardians({ d }: { d: any }) {
             <Avatar name={g.full_name} seed={g.full_name} size={44} />
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold">{g.full_name}</div>
-              <div className="text-[12.5px] text-muted">{g.relationship?.toLowerCase()} {g.is_primary ? '· principal' : ''} · {g.legal_status?.toLowerCase().replace('_', ' ')}</div>
+              <div className="text-[12.5px] text-muted">{PARENTESCO[g.relationship] ?? g.relationship}{g.is_primary ? ' · principal' : ''} · situação {(SITUACAO_LEGAL[g.legal_status]?.label ?? g.legal_status ?? '').toLowerCase()}{g.can_pick_up ? ' · pode buscar' : ''}</div>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-[13px]">
@@ -170,6 +219,16 @@ function Guardians({ d }: { d: any }) {
           {g.contacts_masked && <p className="mt-2 flex items-center gap-1 text-[12px] text-muted"><Lock className="size-3" />Contatos mascarados para o seu perfil</p>}
         </Link>
       ))}
+    </div>
+    {(d.former_guardians ?? []).length > 0 && (
+      <Card className="divide-y divide-line overflow-hidden">
+        <div className="bg-slate-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-subtle">Vínculos encerrados (histórico)</div>
+        {(d.former_guardians as any[]).map((g) => (
+          <ListRow key={g.id} to={`/responsaveis/${g.id}`} leading={<Avatar name={g.full_name} seed={g.full_name} size={34} />} title={g.full_name}
+            subtitle={`${PARENTESCO[g.relationship] ?? g.relationship} · de ${fmtDate(g.start_date)} a ${fmtDate(g.end_date)}`} />
+        ))}
+      </Card>
+    )}
     </div>
   );
 }

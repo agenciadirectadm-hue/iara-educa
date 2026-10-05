@@ -15,6 +15,10 @@ const ClassPage = lazy(() => import('./pages/ClassPage'));
 const TerritoryPage = lazy(() => import('./pages/TerritoryPage'));
 const StudentPage = lazy(() => import('./pages/StudentPage'));
 const GuardianPage = lazy(() => import('./pages/GuardianPage'));
+const Alunos = lazy(() => import('./pages/Alunos'));
+const Responsaveis = lazy(() => import('./pages/Responsaveis'));
+const CadastroAluno = lazy(() => import('./pages/CadastroAluno'));
+const CadastroResponsavel = lazy(() => import('./pages/CadastroResponsavel'));
 const Cases = lazy(() => import('./pages/Cases'));
 const CaseNew = lazy(() => import('./pages/CaseNew'));
 const CasePage = lazy(() => import('./pages/CasePage'));
@@ -104,8 +108,14 @@ export const router = createHashRouter([
       { path: '/unidades/:id', element: S(<UnitPage />) },
       { path: '/turmas/:id', element: <RequireSession>{S(<ClassPage />)}</RequireSession> },
       { path: '/territorios/:id', element: S(<TerritoryPage />) },
+      { path: '/alunos', element: <RequireSession>{S(<Alunos />)}</RequireSession> },
+      { path: '/alunos/novo', element: <RequireSession>{S(<CadastroAluno />)}</RequireSession> },
       { path: '/alunos/:id', element: <RequireSession>{S(<StudentPage />)}</RequireSession> },
+      { path: '/alunos/:id/cadastro', element: <RequireSession>{S(<CadastroAluno />)}</RequireSession> },
+      { path: '/responsaveis', element: <RequireSession>{S(<Responsaveis />)}</RequireSession> },
+      { path: '/responsaveis/novo', element: <RequireSession>{S(<CadastroResponsavel />)}</RequireSession> },
       { path: '/responsaveis/:id', element: <RequireSession>{S(<GuardianPage />)}</RequireSession> },
+      { path: '/responsaveis/:id/cadastro', element: <RequireSession>{S(<CadastroResponsavel />)}</RequireSession> },
       { path: '/atendimentos', element: <RequireSession>{S(<Cases />)}</RequireSession> },
       { path: '/atendimentos/novo', element: <RequireSession>{S(<CaseNew />)}</RequireSession> },
       { path: '/atendimentos/:id', element: <RequireSession>{S(<CasePage />)}</RequireSession> },

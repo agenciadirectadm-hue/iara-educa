@@ -20,6 +20,12 @@ grant execute on function
   iara.audit_event(text, text, text, integer, text, jsonb, jsonb)
   to authenticated;
 
+-- Cadastro 360º: pendências e máscaras usadas pelas fichas (SECURITY INVOKER)
+grant execute on function
+  iara.aluno_pendencias(iara.students, boolean), iara.responsavel_pendencias(iara.guardians), iara.mascara_doc(text), iara.fmt_cpf(text),
+  iara.digitos(text), iara.endereco_aproximado(text)
+  to authenticated;
+
 -- API pública (sem dados pessoais)
 grant execute on function
   api.bootstrap(jsonb), api.units_map(jsonb), api.geo_layers(jsonb), api.units_list(jsonb), api.unit_detail(jsonb), api.territory_detail(jsonb),

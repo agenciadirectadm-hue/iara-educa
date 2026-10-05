@@ -1,4 +1,4 @@
-import { Building2, ChartColumn, CircleHelp, ClipboardList, Database, FileCheck, GraduationCap, House, Inbox, ListOrdered, Map as MapIcon, MessageCircle, ScrollText, Search, ShieldCheck, Smartphone, Users } from 'lucide-react';
+import { Backpack, Building2, ChartColumn, CircleHelp, ClipboardList, Contact, Database, FileCheck, GraduationCap, House, Inbox, ListOrdered, Map as MapIcon, MessageCircle, ScrollText, Search, ShieldCheck, Smartphone, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -19,6 +19,8 @@ const I = {
   regras: { to: '/regras', label: 'Regras e critérios', icon: ScrollText },
   ajuda: { to: '/ajuda', label: 'Ajuda e fontes', icon: CircleHelp },
   whatsapp: { to: '/canal-whatsapp', label: 'WhatsApp da IARA', icon: Smartphone },
+  alunos: { to: '/alunos', label: 'Alunos', icon: Backpack },
+  responsaveis: { to: '/responsaveis', label: 'Responsáveis', icon: Contact },
 } satisfies Record<string, NavItem>;
 
 export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
@@ -32,7 +34,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.unidades, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras, I.ajuda],
+        more: [I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras, I.ajuda],
       };
     case 'INOVACAO':
       return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.unidades, I.indicadores, I.regras, I.ajuda] };
@@ -40,7 +42,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'ATENDIMENTO':
       return {
         primary: [I.inicio, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
-        more: [I.fila, I.whatsapp, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
+        more: [I.alunos, I.responsaveis, I.fila, I.whatsapp, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
@@ -51,6 +53,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.atendimentos,
         ],
         more: [
+          I.alunos, I.responsaveis,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda,
         ],
@@ -59,12 +62,12 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
       return {
         primary: [
           I.inicio,
-          I.iara,
+          I.alunos,
           { ...I.ofertas, label: 'Matrículas' },
-          I.atendimentos,
+          I.iara,
         ],
         more: [
-          { to: `/unidades/${unitId}?aba=alunos`, label: 'Alunos', icon: Users, match: `/unidades/${unitId}` },
+          I.responsaveis, I.atendimentos,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda,
         ],
       };

@@ -6,10 +6,12 @@
 //   DELETE /session                                     → encerra a sessão
 //   POST   /rpc/:fn          { ...args }               → executa api.<fn>(args) com RLS do perfil
 //   POST   /iara/message     { conversation_id, text, action? } → agente IARA (WhatsApp simulado / portal)
+//   POST   /geo/localizar    { cep?, logradouro?, ... } → CEP e coordenada do endereço do cadastro (ver geo.ts)
 //   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
 import { asSystem, callApi, mapDbError, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot } from "./iara.ts";
 import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
+import { localizarEndereco } from "./geo.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -136,6 +138,14 @@ Deno.serve(async (req: Request) => {
         tx`select iara.agent_reply(${snap.conversation_id}::uuid, ${sql.json(agent.messages as never)}::jsonb,
                                    ${sql.json({ ...agent.patch, context: agent.ctx } as never)}::jsonb, ${sql.json(agent.tools as never)}::jsonb) as r`);
       return json(saved[0]?.r ?? {});
+    }
+
+    // localização de endereço do cadastro (CEP e geocodificação); só o endereço sai para o serviço externo
+    if (path === "/geo/localizar" && req.method === "POST") {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sessão necessária.", code: "SESSION_EXPIRED" }, 401);
+      const body = await req.json().catch(() => ({}));
+      return json(await localizarEndereco(body ?? {}));
     }
 
     const wa = await handleWhatsApp(path, req, meta, json);

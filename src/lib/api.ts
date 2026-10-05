@@ -55,3 +55,15 @@ export function endSession() {
 export function iaraMessage(conversationId: string, text: string, action?: string | null) {
   return request<any>('/iara/message', { method: 'POST', body: JSON.stringify({ conversation_id: conversationId, text, action: action ?? null }) });
 }
+
+/** CEP (ViaCEP) e coordenada do endereço do cadastro — só o endereço sai do sistema, nunca dados da pessoa. */
+export function geoLocalizar(body: { cep?: string; logradouro?: string; numero?: string; bairro?: string; cidade?: string }) {
+  return request<{
+    cep: { cep: string; logradouro: string | null; bairro: string | null; cidade: string; uf: string } | null;
+    cep_erro: string | null;
+    candidatos: { lat: number; lng: number; precisao: string; fonte: string; rotulo: string }[];
+    fora_de_maringa: boolean;
+    geocodificador: 'ok' | 'indisponivel';
+    aviso: string | null;
+  }>('/geo/localizar', { method: 'POST', body: JSON.stringify(body) });
+}

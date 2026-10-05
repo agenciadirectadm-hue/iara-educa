@@ -51,6 +51,28 @@ matriculada) ou a equipe da SEDUC (Central de Vagas, Atendimento ao Cidadão, Ou
   unidade ou equipe. Tudo na auditoria (`CONVERSA_ENCAMINHADA`). API: `api.conversas_lista`, `api.conversas_controle`,
   `api.conversation_transfer`; regras em `supabase/migrations/20261003002800_conversas_unidades.sql`.
 
+**Cadastro 360º de alunos e responsáveis** (menus **Alunos** e **Responsáveis**; arquitetura mestra, cap. 11 e 12) — cada
+criança e cada responsável com ficha completa, editável por quem tem permissão e auditada:
+- **Aluno:** nome e nome social, nascimento (com a faixa da regra de corte), sexo, cor/raça, nacionalidade e naturalidade (ou país
+  de nascimento), certidão de nascimento, CPF, NIS, Cartão SUS, código INEP, filiação, endereço, AEE/acessibilidade/transporte,
+  dados sensíveis (saúde, laudo, restrições, observações legais — só perfis com permissão; cada acesso é auditado) e uso de imagem.
+- **Responsável:** documentos (CPF, RG, NIS), estado civil, escolaridade, idioma, contatos e canal preferido, trabalho e renda
+  (faixa calculada pelo salário mínimo), CadÚnico, benefícios, mãe solo, acessibilidade, consentimentos e **composição familiar**
+  (pessoas da casa sem cadastro próprio; renda por pessoa).
+- **Vínculos** (cap. 12.1): parentesco, principal, quem pode buscar, quem recebe avisos e situação legal; encerrar não apaga
+  (fica no histórico, com motivo) e a criança nunca fica sem responsável.
+- **Dados geográficos:** CEP → rua e bairro (ViaCEP); endereço → ponto no mapa (OpenStreetMap; quando o serviço recusa o
+  servidor em nuvem, o navegador consulta direto); o servidor confere/ajusta o ponto tocando no mapa. Cada endereço guarda
+  precisão e fonte, zona, ponto de referência, território (macrorregião/distrito pelo polígono) e mostra o bairro de referência
+  e as unidades mais próximas com vagas na faixa da criança. Só o endereço sai do sistema — nunca nome ou CPF.
+- **Pendências:** cada ficha mostra o % completo e o que falta (aluno: 7 itens do Censo/matrícula; responsável: 5); as listas
+  filtram por situação, unidade, território e pendência. Mudança de endereço do responsável leva junto as crianças que moram
+  com ele e recalcula a fila. Unidade vê só os seus alunos (e os que ela cadastrou); CPF e contatos mascarados conforme o perfil.
+- API: `api.alunos_lista`, `api.responsaveis_lista`, `api.aluno_cadastro`, `api.aluno_salvar`, `api.responsavel_cadastro`,
+  `api.responsavel_salvar`, `api.vinculo_salvar`, `api.vinculo_encerrar`, `api.domicilio_salvar`, `api.localizar_ponto` e a
+  rota do gateway `POST /geo/localizar`; regras em `supabase/migrations/20261003003000_cadastro_pessoas.sql`. A base fictícia
+  tem os campos novos preenchidos (documentos fictícios com dígito verificador propositalmente inválido).
+
 **WhatsApp de verdade** — a pasta [`whatsapp-ponte/`](whatsapp-ponte/README.md) liga um número ao agente (ponte Baileys →
 gateway `/whatsapp/...` → o mesmo agente do portal, com as opções em lista numerada). O número registrado é o chip da
 IARA Saúde, **+55 44 99774-8259**: cada sistema tem a sua ponte e liga-se um de cada vez (`npm run whatsapp` liga a da
@@ -130,15 +152,17 @@ SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                  
 Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
 após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
-`supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql` e `supabase/tests/conversas_unidades.sql` (os quatro
-últimos rodam numa transação revertida e não deixam resíduo na demonstração; para ver o resultado completo, use
-`SQL_OUT_LIMIT=200000`).
+`supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql`, `supabase/tests/conversas_unidades.sql` e
+`supabase/tests/cadastro_pessoas.sql` (os cinco últimos rodam numa transação revertida e não deixam resíduo na demonstração;
+para ver o resultado completo, use `SQL_OUT_LIMIT=200000`).
 Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
 `node scripts/teste-iara.mjs maria` (família já cadastrada) — cria dados de demonstração.
 
 Limpeza do que visitantes e testes criaram pelo app (famílias, crianças, protocolos, conversas, ofertas, matrículas,
 notificações) — o que as sessões alteraram no cenário gerado volta ao valor original pela trilha de auditoria, que não é
 tocada: `SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_purge_session_data()"`.
+Para limpar só o que uma sessão específica fez (ex.: um teste), sem tocar no resto:
+`select iara.demo_purge_session_data(null, array['<id do usuário da sessão>']::uuid[])`.
 O botão "Reiniciar demonstração" faz o mesmo só para a família da Maria.
 
 Relógio da demonstração: a cada 6 h o gateway desloca os registros fictícios para manter o cenário atual
