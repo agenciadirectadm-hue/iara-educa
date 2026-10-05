@@ -155,7 +155,7 @@ export function FamilyOnboarding() {
           <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} placeholder="Ex.: Londrina" />
         </Field>
         <Button block size="lg" variant="purple" icon={CheckCircle2} loading={busy} disabled={!valid} onClick={submit}>Fazer cadastro</Button>
-        <p className="text-center text-[12px] text-muted">Dados fictícios na demonstração · usados só para o atendimento da rede (LGPD).</p>
+        <p className="text-center text-[12px] text-muted">Dados usados só para o atendimento da rede (LGPD).</p>
       </Card>
     </div>
   );

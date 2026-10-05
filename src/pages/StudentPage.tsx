@@ -11,8 +11,9 @@ import { useSession } from '@/lib/session';
 import { useUnitsMap } from '@/lib/data';
 import { fmtDate, fmtDateTime, fmtInt, fmtKm, timeAgo } from '@/lib/format';
 import { AUDIT_ACTION, CASE_STATUS, CHANNEL, DOC, DOC_STATUS, ENTITY, OFFER_STATUS, QUEUE_CATEGORY, QUEUE_STATUS, SHIFT } from '@/lib/labels';
-import { Avatar, Badge, Button, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, SkeletonList, SourceChip, Tabs } from '@/components/ui';
+import { Avatar, Badge, Button, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, Simulado, SkeletonList, SourceChip, Tabs } from '@/components/ui';
 import { Completude } from '@/components/cadastro';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { NACIONALIDADE, PARENTESCO, RACA, SITUACAO_ALUNO, SITUACAO_LEGAL, mascaraCertidao, mascaraNis, mascaraSus, mascarado, precisaoRotulo } from '@/lib/cadastro';
 import { Crumbs } from '@/components/Crumbs';
 import { useToast } from '@/components/overlays';
@@ -57,7 +58,7 @@ export default function StudentPage() {
             <Badge tone="gray">{s.age}</Badge>
             <Badge tone="blue">Código {s.registry}</Badge>
             <Badge tone={SITUACAO_ALUNO[s.status]?.tone ?? 'gray'}>{SITUACAO_ALUNO[s.status]?.label ?? s.status}</Badge>
-            {s.is_demo && <Badge tone="amber">Fictício</Badge>}
+            {s.is_demo && <Simulado detail="Criança fictícia (simulação)." />}
           </div>
         </div>
         {d.registry?.can_edit && (
@@ -202,31 +203,37 @@ function Guardians({ d }: { d: any }) {
         vincular, mudar o principal, quem pode buscar, encerrar vínculo
       </div>
     )}
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {(d.guardians as any[]).map((g) => (
-        <Link key={g.id} to={`/responsaveis/${g.id}`} className="rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:shadow-lift">
-          <div className="flex items-center gap-3">
-            <Avatar name={g.full_name} seed={g.full_name} size={44} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold">{g.full_name}</div>
-              <div className="text-[12.5px] text-muted">{PARENTESCO[g.relationship] ?? g.relationship}{g.is_primary ? ' · principal' : ''} · situação {(SITUACAO_LEGAL[g.legal_status]?.label ?? g.legal_status ?? '').toLowerCase()}{g.can_pick_up ? ' · pode buscar' : ''}</div>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-[13px]">
-            <span className="inline-flex items-center gap-1"><Phone className="size-3.5" />{g.whatsapp ?? g.phone ?? '—'}</span>
-            <span>CPF {g.cpf ?? '—'}</span>
-          </div>
-          {g.contacts_masked && <p className="mt-2 flex items-center gap-1 text-[12px] text-muted"><Lock className="size-3" />Contatos mascarados para o seu perfil</p>}
-        </Link>
-      ))}
-    </div>
-    {(d.former_guardians ?? []).length > 0 && (
-      <Card className="divide-y divide-line overflow-hidden">
-        <div className="bg-slate-50 px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-subtle">Vínculos encerrados (histórico)</div>
-        {(d.former_guardians as any[]).map((g) => (
-          <ListRow key={g.id} to={`/responsaveis/${g.id}`} leading={<Avatar name={g.full_name} seed={g.full_name} size={34} />} title={g.full_name}
-            subtitle={`${PARENTESCO[g.relationship] ?? g.relationship} · de ${fmtDate(g.start_date)} a ${fmtDate(g.end_date)}`} />
+    <Card className="overflow-hidden">
+      <Tabela rotulo="Responsáveis" largura={900} colunas="minmax(190px,1.5fr) 140px minmax(160px,1.2fr) 112px 140px 130px">
+        <TCabecalho><span>Responsável</span><span>Parentesco</span><span>Papéis</span><span>Situação legal</span><span>Telefone</span><span>CPF</span></TCabecalho>
+        {(d.guardians as any[]).map((g) => (
+          <TLinha key={g.id} to={`/responsaveis/${g.id}`} rotulo={`${g.full_name}, ${PARENTESCO[g.relationship] ?? g.relationship}`}>
+            <TCelula fixa titulo={g.full_name}><Avatar name={g.full_name} seed={g.full_name} size={24} className="mr-2 inline-flex align-middle" /><span className="font-semibold">{g.full_name}</span></TCelula>
+            <TCelula>{PARENTESCO[g.relationship] ?? g.relationship}</TCelula>
+            <TCelula className={clsx('text-[12.5px]', g.is_primary ? 'font-semibold text-purple-800' : 'text-muted')}>
+              {[g.is_primary && 'principal', g.can_pick_up && 'pode buscar', g.can_notify === false ? 'sem avisos' : 'recebe avisos'].filter(Boolean).join(' · ')}
+            </TCelula>
+            <TCelula livre><Badge tone={SITUACAO_LEGAL[g.legal_status]?.tone ?? 'gray'}>{SITUACAO_LEGAL[g.legal_status]?.label ?? g.legal_status}</Badge></TCelula>
+            <TCelula className="tabular text-muted">{g.whatsapp ?? g.phone ?? '—'}{g.contacts_masked && <Lock className="ml-1 inline size-3 text-subtle" />}</TCelula>
+            <TCelula className="tabular text-muted">{g.cpf ?? '—'}</TCelula>
+          </TLinha>
         ))}
+        {!d.guardians.length && <p className="px-3 py-3 text-[13px] text-muted">Nenhum responsável vinculado.</p>}
+      </Tabela>
+    </Card>
+    {(d.former_guardians ?? []).length > 0 && (
+      <Card className="overflow-hidden">
+        <Tabela rotulo="Vínculos encerrados" largura={560} colunas="minmax(190px,1.6fr) 140px 120px 120px">
+          <TCabecalho><span>Vínculo encerrado</span><span>Parentesco</span><span>Desde</span><span>Até</span></TCabecalho>
+          {(d.former_guardians as any[]).map((g) => (
+            <TLinha key={g.id} to={`/responsaveis/${g.id}`} className="opacity-70">
+              <TCelula fixa titulo={g.full_name}><Avatar name={g.full_name} seed={g.full_name} size={24} className="mr-2 inline-flex align-middle" />{g.full_name}</TCelula>
+              <TCelula>{PARENTESCO[g.relationship] ?? g.relationship}</TCelula>
+              <TCelula className="text-muted">{fmtDate(g.start_date)}</TCelula>
+              <TCelula className="text-muted">{fmtDate(g.end_date)}</TCelula>
+            </TLinha>
+          ))}
+        </Tabela>
       </Card>
     )}
     </div>

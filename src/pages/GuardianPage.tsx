@@ -1,11 +1,12 @@
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { Bell, Home, IdCard, Lock, Mail, MapPin, MessageCircle, Pencil, Phone, ShieldCheck, Users, Wallet } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useUnitsMap } from '@/lib/data';
 import { fmtDate, timeAgo } from '@/lib/format';
 import { CASE_STATUS, CHANNEL, CONV_STATE } from '@/lib/labels';
 import { ESTADO_CIVIL, NACIONALIDADE, PARENTESCO, PARENTESCO_DOMICILIO, fmtMoeda, precisaoRotulo } from '@/lib/cadastro';
-import { Avatar, Badge, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, SkeletonList, SourceChip } from '@/components/ui';
+import { Avatar, Badge, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, Simulado, SkeletonList, SourceChip } from '@/components/ui';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { Crumbs } from '@/components/Crumbs';
 import { Completude } from '@/components/cadastro';
 import MapView from '@/components/map/MapView';
@@ -34,7 +35,7 @@ export default function GuardianPage() {
             {g.single_mother && <Badge tone="purple">Mãe solo</Badge>}
             <Badge tone="gray">Prefere {CHANNEL[g.preferred_channel] ?? g.preferred_channel}</Badge>
             {g.language && g.language !== 'Português' && <Badge tone="blue">Idioma: {g.language}</Badge>}
-            {g.is_demo && <Badge tone="amber">Fictício</Badge>}
+            {g.is_demo && <Simulado detail="Pessoa fictícia (simulação)." />}
           </div>
         </div>
         {reg?.can_edit && <ButtonLink to={`/responsaveis/${g.id}/cadastro`} variant="secondary" icon={Pencil} className="hidden shrink-0 sm:inline-flex">Editar cadastro</ButtonLink>}
@@ -101,31 +102,47 @@ export default function GuardianPage() {
       </Section>
 
       <Section title="Crianças vinculadas">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {(d.students as any[]).map((s) => (
-            <Link key={s.id} to={`/alunos/${s.id}`} className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:shadow-lift">
-              <Avatar name={s.name} seed={s.avatar_seed} size={44} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold">{s.name}</div>
-                <div className="text-[12.5px] text-muted">{s.age} · {PARENTESCO[s.relationship] ?? s.relationship}{s.is_primary ? ' (principal)' : ''} · {s.unit ?? 'sem matrícula'}</div>
-                {s.same_address === false && <div className="text-[12px] text-amber-700">mora em outro endereço</div>}
-              </div>
-            </Link>
-          ))}
-          {!d.students.length && <Card><EmptyState compact title="Nenhuma criança vinculada" /></Card>}
-        </div>
+        <Card className="overflow-hidden">
+          <Tabela rotulo="Crianças vinculadas" largura={720} colunas="minmax(200px,1.6fr) 84px 150px minmax(150px,1.3fr) 130px">
+            <TCabecalho><span>Criança</span><span>Idade</span><span>Parentesco</span><span>Unidade</span><span>Endereço</span></TCabecalho>
+            {(d.students as any[]).map((s) => (
+              <TLinha key={s.id} to={`/alunos/${s.id}`} rotulo={`${s.name}, ${s.age}`}>
+                <TCelula fixa titulo={s.name}><Avatar name={s.name} seed={s.avatar_seed} size={24} className="mr-2 inline-flex align-middle" /><span className="font-semibold">{s.name}</span></TCelula>
+                <TCelula className="text-muted">{s.age}</TCelula>
+                <TCelula className={s.is_primary ? 'font-semibold text-purple-800' : ''}>{PARENTESCO[s.relationship] ?? s.relationship}{s.is_primary ? ' · principal' : ''}</TCelula>
+                <TCelula titulo={s.unit ?? undefined} className="text-muted">{s.unit ?? 'sem matrícula'}</TCelula>
+                <TCelula className={s.same_address === false ? 'font-semibold text-amber-700' : 'text-muted'}>{s.same_address === false ? 'mora em outro' : 'mesmo endereço'}</TCelula>
+              </TLinha>
+            ))}
+            {!d.students.length && <p className="px-3 py-3 text-[13px] text-muted">Nenhuma criança vinculada.</p>}
+          </Tabela>
+        </Card>
       </Section>
 
       {((d.household as any[]).length > 0 || (d.household_members as any[]).length > 0) && (
         <Section title="Composição familiar">
-          <Card className="divide-y divide-line overflow-hidden">
-            {(d.household as any[]).map((h) => (
-              <ListRow key={h.id} to={`/responsaveis/${h.id}`} leading={<Avatar name={h.full_name} seed={h.full_name} size={36} />} title={h.full_name} subtitle={`Também responsável por ${h.shared_students} criança(s)`} />
-            ))}
-            {(d.household_members as any[]).map((m) => (
-              <ListRow key={m.id} leading={<span className="inline-flex size-9 items-center justify-center rounded-full bg-slate-100"><Users className="size-4 text-ink-2" /></span>}
-                title={m.name} subtitle={`${PARENTESCO_DOMICILIO[m.relationship] ?? m.relationship}${m.age ? ` · ${m.age}` : ''}${m.occupation ? ` · ${m.occupation}` : ''}${m.income != null ? ` · ${fmtMoeda(m.income)}` : ''} · mora no domicílio`} />
-            ))}
+          <Card className="overflow-hidden">
+            <Tabela rotulo="Composição familiar" largura={680} colunas="minmax(200px,1.6fr) minmax(170px,1.3fr) 84px minmax(120px,1fr) 112px">
+              <TCabecalho><span>Pessoa</span><span>Relação</span><span>Idade</span><span>Ocupação</span><span className="text-right">Renda</span></TCabecalho>
+              {(d.household as any[]).map((h) => (
+                <TLinha key={h.id} to={`/responsaveis/${h.id}`}>
+                  <TCelula fixa titulo={h.full_name}><Avatar name={h.full_name} seed={h.full_name} size={24} className="mr-2 inline-flex align-middle" /><span className="font-semibold">{h.full_name}</span></TCelula>
+                  <TCelula className="text-muted">responsável por {h.shared_students} criança(s)</TCelula>
+                  <TCelula className="text-muted">—</TCelula>
+                  <TCelula className="text-muted">{h.occupation ?? '—'}</TCelula>
+                  <TCelula className="text-right tabular text-muted">{h.monthly_income != null ? fmtMoeda(h.monthly_income) : '—'}</TCelula>
+                </TLinha>
+              ))}
+              {(d.household_members as any[]).map((m) => (
+                <TLinha key={m.id}>
+                  <TCelula fixa titulo={m.name}><span className="mr-2 inline-flex size-6 items-center justify-center rounded-full bg-slate-100 align-middle"><Users className="size-3.5 text-ink-2" /></span><span className="font-semibold">{m.name}</span></TCelula>
+                  <TCelula className="text-muted">{PARENTESCO_DOMICILIO[m.relationship] ?? m.relationship} · mora na casa</TCelula>
+                  <TCelula className="text-muted">{m.age ?? '—'}</TCelula>
+                  <TCelula className="text-muted">{m.occupation ?? '—'}</TCelula>
+                  <TCelula className="text-right tabular text-muted">{m.income != null ? fmtMoeda(m.income) : '—'}</TCelula>
+                </TLinha>
+              ))}
+            </Tabela>
           </Card>
         </Section>
       )}
@@ -155,7 +172,7 @@ export default function GuardianPage() {
           </Card>
         </Section>
       </div>
-      <p className="mt-6 flex items-center justify-center gap-1 text-center text-[12px] text-muted"><ShieldCheck className="size-3.5" />Acesso registrado conforme LGPD · dados fictícios</p>
+      <p className="mt-6 flex items-center justify-center gap-1 text-center text-[12px] text-muted"><ShieldCheck className="size-3.5" />Acesso registrado conforme LGPD</p>
     </div>
   );
 }

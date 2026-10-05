@@ -7,7 +7,8 @@ import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { fmtDate } from '@/lib/format';
 import { PARENTESCO, SITUACAO_LEGAL } from '@/lib/cadastro';
-import { Avatar, Badge, Button, EmptyState, SkeletonList, inputCls } from './ui';
+import { Avatar, Badge, Button, Card, EmptyState, SkeletonList, inputCls } from './ui';
+import { TCabecalho, TCelula, TLinha, Tabela } from './tabela';
 import { Sheet, useToast } from './overlays';
 import { Alternar, Campo, Escolha, Selecao } from './cadastro';
 
@@ -114,7 +115,7 @@ export function BuscarPessoaSheet({ open, onClose, tipo, onEscolher, ignorar = [
   const res = useRpc<any>(tipo === 'responsavel' ? 'responsaveis_lista' : 'alunos_lista', { q: dq, limite: 12 }, { enabled: open && dq.trim().length >= 3 });
   const itens = ((res.data?.itens ?? []) as any[]).filter((i) => !ignorar.includes(i.id));
   return (
-    <Sheet open={open} onClose={onClose} title={tipo === 'responsavel' ? 'Vincular responsável já cadastrado' : 'Vincular criança já cadastrada'}
+    <Sheet open={open} onClose={onClose} size="lg" title={tipo === 'responsavel' ? 'Vincular responsável já cadastrado' : 'Vincular criança já cadastrada'}
       subtitle={tipo === 'responsavel' ? 'Busque pelo nome ou CPF. Se não encontrar, cadastre um responsável novo.' : 'Busque pelo nome, código da rede ou CPF.'}>
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-subtle" />
@@ -125,44 +126,75 @@ export function BuscarPessoaSheet({ open, onClose, tipo, onEscolher, ignorar = [
         : res.isLoading ? <SkeletonList rows={4} />
           : !itens.length ? <EmptyState compact title="Ninguém encontrado" body="Confira a grafia ou cadastre uma pessoa nova." />
             : (
-              <div className="divide-y divide-line overflow-hidden rounded-2xl ring-1 ring-line">
+              <Tabela rotulo="Resultados da busca" largura={560} className="rounded-2xl ring-1 ring-line"
+                colunas={tipo === 'responsavel' ? 'minmax(170px,1.6fr) 118px minmax(110px,1fr) 64px' : 'minmax(170px,1.6fr) 74px minmax(120px,1.2fr) minmax(100px,1fr)'}>
+                <TCabecalho>
+                  {tipo === 'responsavel' ? <><span>Responsável</span><span>CPF</span><span>Bairro</span><span className="text-right">Crianças</span></>
+                    : <><span>Criança</span><span>Idade</span><span>Unidade</span><span>Bairro</span></>}
+                </TCabecalho>
                 {itens.map((i) => (
-                  <button key={i.id} onClick={() => onEscolher({ id: i.id, nome: i.nome })} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-purple-50">
-                    <Avatar name={i.nome} seed={i.avatar_seed ?? i.nome} size={38} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold">{i.nome}</span>
-                      <span className="block truncate text-[12px] text-muted">
-                        {tipo === 'responsavel' ? `CPF ${i.cpf ?? '—'} · ${i.bairro ?? 'sem endereço'} · ${i.criancas?.length ?? 0} criança(s)` : `${i.idade} · ${i.unidade?.nome ?? 'sem matrícula'} · ${i.bairro ?? ''}`}
-                      </span>
-                    </span>
-                  </button>
+                  <TLinha key={i.id} onClick={() => onEscolher({ id: i.id, nome: i.nome })} rotulo={`Escolher ${i.nome}`}>
+                    <TCelula fixa titulo={i.nome}>
+                      <Avatar name={i.nome} seed={i.avatar_seed ?? i.nome} size={24} className="mr-2 inline-flex align-middle" />
+                      <span className="font-semibold">{i.nome}</span>
+                    </TCelula>
+                    {tipo === 'responsavel' ? (
+                      <>
+                        <TCelula className="tabular text-muted">{i.cpf ?? '—'}</TCelula>
+                        <TCelula className="text-muted">{i.bairro ?? '—'}</TCelula>
+                        <TCelula className="text-right tabular text-muted">{i.criancas?.length ?? 0}</TCelula>
+                      </>
+                    ) : (
+                      <>
+                        <TCelula className="text-muted">{i.idade}</TCelula>
+                        <TCelula className="text-muted">{i.unidade?.nome ?? 'sem matrícula'}</TCelula>
+                        <TCelula className="text-muted">{i.bairro ?? '—'}</TCelula>
+                      </>
+                    )}
+                  </TLinha>
                 ))}
-              </div>
+              </Tabela>
             )}
     </Sheet>
   );
 }
 
-/** Linha de um vínculo (na ficha da criança mostra o responsável; na do responsável, a criança). */
+/** Tabela de vínculos (um por linha): na ficha da criança lista os responsáveis; na do responsável, as crianças. */
+export function TabelaVinculos({ quem, vazio, children }: { quem: 'Responsável' | 'Criança'; vazio?: string | false; children: React.ReactNode }) {
+  return (
+    <Card className="overflow-hidden">
+      <Tabela rotulo={quem === 'Responsável' ? 'Responsáveis da criança' : 'Crianças vinculadas'} largura={940}
+        colunas="minmax(190px,1.5fr) 132px minmax(170px,1.3fr) 112px minmax(170px,1.4fr) 112px 92px">
+        <TCabecalho>
+          <span>{quem}</span><span>Parentesco</span><span>Papéis</span><span>Situação legal</span>
+          <span>{quem === 'Responsável' ? 'CPF · telefone' : 'Idade · unidade'}</span><span>Vínculo</span><span />
+        </TCabecalho>
+        {children}
+        {vazio && <p className="px-3 py-3 text-[13px] text-muted">{vazio}</p>}
+      </Tabela>
+    </Card>
+  );
+}
+
+/** Um vínculo por linha (dentro de TabelaVinculos). */
 export function LinhaVinculo({ to, nome, seed, detalhe, v, ate, desde, acoes }: {
   to: string; nome: string; seed: string | number; detalhe?: string; v: Vinculo; ate?: string | null; desde?: string | null; acoes?: React.ReactNode;
 }) {
+  const papeis = [v.principal && 'principal', v.pode_buscar && 'pode buscar', v.recebe_avisos ? 'recebe avisos' : 'sem avisos'].filter(Boolean).join(' · ');
   return (
-    <div className={clsx('flex flex-wrap items-center gap-3 px-3 py-3 sm:flex-nowrap', ate && 'opacity-60')}>
-      <Avatar name={nome} seed={seed} size={42} />
-      <div className="min-w-0 flex-1">
-        <Link to={to} className="block truncate font-semibold hover:text-purple-700">{nome}</Link>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[12px]">
-          <Badge tone="gray">{PARENTESCO[v.parentesco] ?? v.parentesco}</Badge>
-          {v.principal && !ate && <Badge tone="purple">Principal</Badge>}
-          {v.pode_buscar && !ate && <Badge tone="blue">Pode buscar</Badge>}
-          {!v.recebe_avisos && !ate && <Badge tone="gray">Sem avisos</Badge>}
-          <Badge tone={SITUACAO_LEGAL[v.situacao_legal]?.tone ?? 'gray'}>{SITUACAO_LEGAL[v.situacao_legal]?.label ?? v.situacao_legal}</Badge>
-          {ate ? <span className="text-muted">encerrado em {fmtDate(ate)}</span> : desde ? <span className="text-subtle">desde {fmtDate(desde)}</span> : null}
-        </div>
-        {detalhe && <div className="mt-0.5 truncate text-[12px] text-muted">{detalhe}</div>}
-      </div>
-      {acoes && !ate && <div className="flex shrink-0 gap-1.5">{acoes}</div>}
-    </div>
+    <TLinha className={clsx(ate && 'opacity-60')}>
+      <TCelula fixa titulo={nome}>
+        <Avatar name={nome} seed={seed} size={24} className="mr-2 inline-flex align-middle" />
+        <Link to={to} className="font-semibold hover:text-purple-700">{nome}</Link>
+      </TCelula>
+      <TCelula>{PARENTESCO[v.parentesco] ?? v.parentesco}</TCelula>
+      <TCelula titulo={ate ? 'vínculo encerrado' : papeis} className={clsx('text-[12.5px]', v.principal && !ate ? 'font-semibold text-purple-800' : 'text-muted')}>
+        {ate ? 'vínculo encerrado' : papeis}
+      </TCelula>
+      <TCelula livre><Badge tone={SITUACAO_LEGAL[v.situacao_legal]?.tone ?? 'gray'}>{SITUACAO_LEGAL[v.situacao_legal]?.label ?? v.situacao_legal}</Badge></TCelula>
+      <TCelula titulo={detalhe} className="text-[12.5px] text-muted">{detalhe ?? '—'}</TCelula>
+      <TCelula className="text-[12.5px] text-muted">{ate ? `até ${fmtDate(ate)}` : desde ? `desde ${fmtDate(desde)}` : '—'}</TCelula>
+      <TCelula livre className="flex justify-end gap-1">{!ate && acoes}</TCelula>
+    </TLinha>
   );
 }

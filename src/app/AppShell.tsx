@@ -25,6 +25,8 @@ export function AppShell() {
   const loc = useLocation();
   const matches = useMatches();
   const full = matches.some((m) => (m.handle as { full?: boolean } | undefined)?.full);
+  // listas em linha única (cadastros) usam a largura da tela
+  const wide = matches.some((m) => (m.handle as { wide?: boolean } | undefined)?.wide);
   const nav = useMemo(() => navFor(me), [me]);
   const [more, setMore] = useState(false);
   const [account, setAccount] = useState(false);
@@ -44,7 +46,7 @@ export function AppShell() {
       <SideRail nav={nav} onAccount={() => setAccount(true)} />
       <div className="lg:pl-[256px]">
         <TopBar onSearch={() => setSearch(true)} onAccount={() => setAccount(true)} full={full} />
-        <main id="conteudo" className={clsx(full ? '' : 'mx-auto w-full max-w-6xl px-4 pb-32 pt-3 sm:px-6 lg:pb-12')}>
+        <main id="conteudo" className={clsx(full ? '' : clsx('mx-auto w-full px-4 pb-32 pt-3 sm:px-6 lg:pb-12', wide ? 'max-w-[1680px]' : 'max-w-6xl'))}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={loc.pathname}

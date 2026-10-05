@@ -4,14 +4,15 @@ import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  AlertTriangle, ArrowLeft, Bot, Building2, CheckCheck, Clock, ExternalLink, Headset, Landmark, Lock, MessageSquare, Search, SendHorizontal, ShieldCheck,
-  Shuffle, SlidersHorizontal, Undo2, X, XCircle,
+  AlertTriangle, ArrowLeft, Bot, Building2, CheckCheck, Clock, ExternalLink, Globe, Headset, Landmark, Lock, MessageCircle, MessageSquare, Search,
+  SendHorizontal, ShieldCheck, Shuffle, SlidersHorizontal, Undo2, X, XCircle,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useDebounced, useIsDesktop, useNow, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { cleanLabel, fmtInt, timeAgo } from '@/lib/format';
-import { Avatar, Button, Card, EmptyState, ErrorState, SkeletonList, inputCls } from '@/components/ui';
+import { Avatar, Button, Card, EmptyState, ErrorState, MarcaSimulado, Simulado, SkeletonList, inputCls } from '@/components/ui';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { ChatThread, type ChatMessage } from '@/components/chat';
 
@@ -38,7 +39,8 @@ const EQUIPES_SEDUC = [
   { v: 'TRANSPORTE', l: 'Transporte Escolar' }, { v: 'AEE', l: 'Inclusão e AEE' }, { v: 'INTEGRAL', l: 'Educação Integral' },
   { v: 'ALIMENTACAO', l: 'Merenda Escolar' }, { v: 'GESTAO', l: 'Gestão Educacional' },
 ];
-const CANAL: Record<string, string> = { WHATSAPP: 'WhatsApp', WHATSAPP_SIMULADO: 'WhatsApp simulado', PORTAL: 'Portal' };
+// simulação não se escreve: a bandeirinha sinaliza (MarcaSimulado)
+const CANAL: Record<string, string> = { WHATSAPP: 'WhatsApp', WHATSAPP_SIMULADO: 'WhatsApp', PORTAL: 'Portal' };
 const WA_VERDE = '#1FA855';
 
 /** Hora no estilo do WhatsApp: hoje → 14:32 · ontem · antes → 03/10. */
@@ -97,21 +99,28 @@ export default function ConversasEquipe() {
     setParams(p, { replace: desktop || !id });
   };
 
+  const rede = d?.escopo === 'REDE';
+  const dividido = desktop && !!sel;
+  // uma conversa por linha: no celular só o essencial; no computador, com protocolo quando nenhuma conversa está aberta ao lado
+  const colunas = !desktop ? '40px minmax(0,1fr) auto'
+    : dividido ? '40px minmax(130px,1.1fr) minmax(130px,1fr) minmax(100px,1.5fr) 92px'
+      : '40px minmax(170px,1.15fr) minmax(190px,1fr) minmax(200px,2.4fr) 128px 104px';
+
   return (
     <div>
-      {d?.escopo === 'REDE' && <FaixaControle c={controle.data} onAbrir={() => setControleAberto(true)} />}
+      {rede && <FaixaControle c={controle.data} onAbrir={() => setControleAberto(true)} />}
       {d?.escopo === 'UNIDADE' && <FaixaUnidade d={d} />}
 
-      <Card className="mt-3 overflow-hidden lg:grid lg:h-[74dvh] lg:min-h-[540px] lg:grid-cols-[400px_1fr]">
-        <div className="flex min-h-0 flex-col lg:border-r lg:border-line">
-          <div className="border-b border-line bg-white p-3">
-            <div className="relative">
+      <Card className={clsx('mt-3 overflow-hidden lg:h-[74dvh] lg:min-h-[540px]', dividido ? 'lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(400px,1fr)]' : 'lg:flex lg:flex-col')}>
+        <div className="flex min-h-0 flex-1 flex-col lg:border-r lg:border-line">
+          <div className="flex flex-wrap items-center gap-2 border-b border-line bg-white p-3">
+            <div className="relative min-w-[220px] flex-1">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-subtle" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Pesquisar contato, assunto ou telefone" aria-label="Pesquisar conversa"
                 className={clsx(inputCls, 'h-10 rounded-full bg-slate-100 pl-10 ring-0')} />
               {q && <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setQ('')} aria-label="Limpar"><X className="size-4 text-subtle" /></button>}
             </div>
-            <div className="no-scrollbar mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+            <div className="no-scrollbar flex max-w-full gap-1.5 overflow-x-auto">
               {FILTROS.map((f) => (
                 <button key={f.v} onClick={() => setFiltro(f.v)}
                   className={clsx('inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold transition',
@@ -124,28 +133,35 @@ export default function ConversasEquipe() {
                   soWhats ? 'text-white' : 'bg-slate-100 text-ink-2 hover:bg-slate-200')} style={soWhats ? { background: WA_VERDE } : undefined}>
                 <MessageSquare className="size-3.5" /> Só WhatsApp
               </button>
+              {resp && (
+                <button onClick={() => setResp(null)} className="inline-flex h-8 max-w-[260px] shrink-0 items-center gap-1.5 rounded-full bg-blue-50 px-3 text-[12.5px] font-semibold text-blue-900 ring-1 ring-blue-200">
+                  <span className="truncate">Com: {resp.rotulo}</span><X className="size-3.5 shrink-0" />
+                </button>
+              )}
             </div>
-            {resp && (
-              <button onClick={() => setResp(null)} className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[12.5px] font-semibold text-blue-900 ring-1 ring-blue-200">
-                <span className="truncate">Responsável: {resp.rotulo}</span><X className="size-3.5 shrink-0" />
-              </button>
-            )}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto bg-white">
-            {lista.isLoading ? <div className="p-3"><SkeletonList rows={6} /></div> : lista.error ? <div className="p-3"><ErrorState error={lista.error} onRetry={() => lista.refetch()} /></div>
-              : !d?.itens.length ? <EmptyState compact title="Nenhuma conversa neste filtro" body={d?.escopo === 'UNIDADE' ? 'Quando a IARA encaminhar uma conversa para a unidade, ela aparece aqui.' : undefined} />
-                : d.itens.map((c) => <Linha key={c.id} c={c} ativo={c.id === sel} rede={d.escopo === 'REDE'} now={now} onClick={() => abrir(c.id)} />)}
-          </div>
+          {lista.isLoading ? <div className="p-3"><SkeletonList rows={6} /></div> : lista.error ? <div className="p-3"><ErrorState error={lista.error} onRetry={() => lista.refetch()} /></div>
+            : !d?.itens.length ? <EmptyState compact title="Nenhuma conversa neste filtro" body={d?.escopo === 'UNIDADE' ? 'Quando a IARA encaminhar uma conversa para a unidade, ela aparece aqui.' : undefined} />
+              : (
+                <Tabela colunas={colunas} largura={!desktop ? 0 : dividido ? 560 : 880} rotulo="Conversas" className="min-h-0 flex-1 overflow-y-auto bg-white">
+                  {desktop && (
+                    <TCabecalho>
+                      <span /><span>Contato</span><span>{rede ? 'Com quem está' : 'Atendimento'}</span><span>Última mensagem</span>
+                      {!dividido && <span>Protocolo</span>}<span className="text-right">Espera · hora</span>
+                    </TCabecalho>
+                  )}
+                  {d.itens.map((c) => <Linha key={c.id} c={c} ativo={c.id === sel} rede={rede} now={now} desktop={desktop} dividido={dividido} onClick={() => abrir(c.id)} />)}
+                </Tabela>
+              )}
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-white px-3 py-2 text-[11.5px] text-muted">
+            <span className="inline-flex items-center gap-1.5"><span className="inline-flex rounded-full bg-red-500 p-[2px]"><span className="block size-2.5 rounded-full bg-slate-300 ring-2 ring-white" /></span>atendimento humano</span>
+            <span className="inline-flex items-center gap-1"><Clock className="size-3 text-amber-600" />aguardando</span>
+            <span className="inline-flex items-center gap-1"><Headset className="size-3 text-green-700" />em atendimento</span>
+            <span className="inline-flex items-center gap-1"><Bot className="size-3 text-purple-700" />IARA</span>
+            <span className="inline-flex items-center gap-1"><MarcaSimulado />simulação</span>
+          </p>
         </div>
-        {desktop && (sel
-          ? <ConversaPainel key={sel} id={sel} onVoltar={() => abrir(null)} desktop podeControlar={!!d?.pode_controlar} unidades={controle.data?.unidades ?? []} />
-          : (
-            <div className="flex flex-col items-center justify-center gap-2 bg-[#F0F2F5] p-8 text-center">
-              <MessageSquare className="size-10 text-subtle" />
-              <div className="font-display text-lg font-extrabold text-ink-2">Selecione uma conversa</div>
-              <p className="max-w-sm text-[13.5px] text-muted">A lista mostra quem está atendendo cada conversa — a IARA ou uma pessoa — e quem espera um humano aparece primeiro.</p>
-            </div>
-          ))}
+        {dividido && <ConversaPainel key={sel} id={sel!} onVoltar={() => abrir(null)} desktop podeControlar={!!d?.pode_controlar} unidades={controle.data?.unidades ?? []} />}
       </Card>
       {!desktop && sel && (
         <TelaCheia>
@@ -153,7 +169,7 @@ export default function ConversasEquipe() {
         </TelaCheia>
       )}
 
-      {d?.escopo === 'REDE' && (
+      {rede && (
         <ControleSheet open={controleAberto} onClose={() => setControleAberto(false)} c={controle.data}
           onFiltrar={(g) => {
             setResp(g.unit_id ? { unidade_id: g.unit_id, rotulo: ondeCurto(g) } : { equipe: g.equipe, rotulo: g.curto });
@@ -177,57 +193,71 @@ function TelaCheia({ children }: { children: ReactNode }) {
 
 /* ─────────────────────────────────────── linha da lista */
 
-function Linha({ c, ativo, rede, now, onClick }: { c: Item; ativo: boolean; rede: boolean; now: number; onClick: () => void }) {
+/** Canal ao lado do nome: WhatsApp (verde) ou portal; a simulação é a bandeirinha. */
+function Canal({ canal }: { canal: string }) {
+  return (
+    <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
+      {canal === 'PORTAL' ? <Globe className="size-3.5 text-subtle" aria-label="Portal" /> : <MessageCircle className="size-3.5" style={{ color: WA_VERDE }} aria-label="WhatsApp" />}
+      {canal === 'WHATSAPP_SIMULADO' && <MarcaSimulado titulo="Simulação — conversa de demonstração" />}
+    </span>
+  );
+}
+
+/**
+ * Uma conversa por linha. Atendimento humano = borda vermelha no avatar (o selo pequeno diz se está aguardando ou em atendimento);
+ * a IARA é o selo roxo. A coluna seguinte diz com quem está; a última, há quanto tempo a família espera (vermelho acima do limite).
+ */
+function Linha({ c, ativo, rede, now, desktop, dividido, onClick }: {
+  c: Item; ativo: boolean; rede: boolean; now: number; desktop: boolean; dividido: boolean; onClick: () => void;
+}) {
+  const nome = nomeContato(c.contato);
+  const humano = c.quem === 'AGUARDANDO' || c.quem === 'HUMANO';
   const Icone = c.quem === 'IA' ? Bot : c.quem === 'HUMANO' ? Headset : c.quem === 'AGUARDANDO' ? Clock : CheckCheck;
   const cor = c.quem === 'IA' ? 'bg-purple-600' : c.quem === 'HUMANO' ? 'bg-green-600' : c.quem === 'AGUARDANDO' ? 'bg-amber-500' : 'bg-slate-400';
   const atrasada = c.quem === 'AGUARDANDO' && espera(c.aguardando_desde, now) > 30;
   const de = c.ultima?.direcao === 'OUT' ? (c.ultima.de === 'IARA' ? 'IARA: ' : c.ultima.de === 'OPERADOR' ? '✓✓ ' : '') : '';
-  const onde = rede && c.responsavel ? ` · ${ondeCurto(c.responsavel)}` : '';
+  const onde = c.responsavel ? ondeCurto(c.responsavel) : null;
+  const atendente = c.comigo ? 'Você' : cleanLabel(c.atendente).split(' · ')[0] || 'Servidor';
+  const comQuem = c.quem === 'IA' ? 'IARA'
+    : c.quem === 'HUMANO' ? (rede && onde ? `${atendente} · ${onde}` : atendente)
+      : c.quem === 'AGUARDANDO' ? (rede ? onde ?? 'Secretaria' : 'Ninguém assumiu ainda') : 'Encerrada';
+  const corQuem = c.quem === 'IA' ? 'text-purple-700' : c.quem === 'HUMANO' ? 'text-green-700' : c.quem === 'AGUARDANDO' ? (atrasada ? 'text-red-700' : 'text-amber-700') : 'text-subtle';
+  const IconeQuem = c.quem === 'IA' ? Bot : c.quem === 'HUMANO' ? Headset : c.quem === 'AGUARDANDO' ? (c.responsavel?.unit_id ? Building2 : Landmark) : CheckCheck;
+  const texto = previa(c.ultima?.texto ?? c.resumo) || '—';
+  const estado = c.quem === 'IA' ? 'IARA atendendo' : c.quem === 'HUMANO' ? 'em atendimento humano' : c.quem === 'AGUARDANDO' ? 'aguardando atendimento humano' : 'encerrada';
   return (
-    <button onClick={onClick} aria-current={ativo || undefined}
-      className={clsx('flex w-full items-center gap-3 border-b border-line/60 px-3 py-2.5 text-left transition', ativo ? 'bg-[#F0F2F5]' : 'hover:bg-slate-50')}>
-      <span className="relative shrink-0">
-        <Avatar name={nomeContato(c.contato)} seed={c.id} size={48} />
-        <span className={clsx('absolute -bottom-0.5 -right-0.5 inline-flex size-5 items-center justify-center rounded-full text-white ring-2 ring-white', cor)}
-          title={c.quem === 'IA' ? 'IA atendendo' : c.quem === 'HUMANO' ? 'Humano atendendo' : c.quem === 'AGUARDANDO' ? 'Aguardando humano' : 'Encerrada'}>
-          <Icone className="size-3" />
-        </span>
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-[15px] font-semibold text-ink">{nomeContato(c.contato)}</span>
-          <span className={clsx('shrink-0 text-[11.5px]', c.nao_lidas ? 'font-bold' : 'text-subtle')} style={c.nao_lidas ? { color: WA_VERDE } : undefined}>
-            {horaCurta(c.ultima?.em ?? c.em, now)}
+    <TLinha onClick={onClick} ativo={ativo} rotulo={`${nome}, ${estado}${onde ? `, ${onde}` : ''}`}>
+      <TCelula livre>
+        <span className={clsx('relative inline-flex rounded-full p-[2px]', humano && 'bg-red-500')} title={estado}>
+          <Avatar name={nome} seed={c.id} size={30} />
+          <span className={clsx('absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full text-white ring-2 ring-white', cor)}>
+            <Icone className="size-2.5" />
           </span>
         </span>
-        <span className="mt-0.5 flex items-center justify-between gap-2">
-          <span className={clsx('truncate text-[13.5px]', c.ultima?.de === 'SISTEMA' ? 'italic text-subtle' : 'text-muted')}>{de}{previa(c.ultima?.texto ?? c.resumo) || '—'}</span>
-          {c.nao_lidas > 0 && (
-            <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white" style={{ background: '#25D366' }}>
-              {c.nao_lidas}
+      </TCelula>
+      <TCelula titulo={desktop ? nome : `${nome} · ${comQuem}`}>
+        <span className="font-semibold text-ink">{nome}</span>
+        <Canal canal={c.canal} />
+        {!desktop && <span className={clsx('text-[12.5px]', corQuem)}> · {comQuem}</span>}
+      </TCelula>
+      {desktop && (
+        <TCelula titulo={comQuem} className={clsx('text-[13px] font-semibold', corQuem)}>
+          <IconeQuem className="mr-1 inline size-3.5 align-[-2px]" />{comQuem}
+        </TCelula>
+      )}
+      {desktop && <TCelula titulo={`${de}${texto}`} className={c.ultima?.de === 'SISTEMA' ? 'italic text-subtle' : 'text-muted'}>{de}{texto}</TCelula>}
+      {desktop && !dividido && <TCelula className="text-[12.5px] text-subtle">{c.protocolo ?? '—'}</TCelula>}
+      <TCelula livre className="flex items-center justify-end gap-1.5">
+        {c.quem === 'AGUARDANDO'
+          ? <span className={clsx('inline-flex items-center gap-0.5 text-[12px] font-bold', atrasada ? 'text-red-700' : 'text-amber-700')} title={`Aguardando há ${haQuanto(c.aguardando_desde, now)}`}>
+              <Clock className="size-3" />{haQuanto(c.aguardando_desde, now)}
             </span>
-          )}
-        </span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] font-semibold">
-          {c.quem === 'IA' && <span className="inline-flex items-center gap-1 text-purple-700"><Bot className="size-3.5" />IA atendendo</span>}
-          {c.quem === 'AGUARDANDO' && (
-            <span className={clsx('inline-flex items-center gap-1', atrasada ? 'text-red-700' : 'text-amber-700')}>
-              <Clock className="size-3.5" />Aguardando humano{onde} · {haQuanto(c.aguardando_desde, now)}
-            </span>
-          )}
-          {c.quem === 'HUMANO' && (
-            <span className="inline-flex items-center gap-1 text-green-700">
-              <Headset className="size-3.5" />{c.comigo ? 'Você' : cleanLabel(c.atendente).split(' · ')[0] || 'Servidor'}{onde}
-            </span>
-          )}
-          {c.quem === 'ENCERRADA' && <span className="inline-flex items-center gap-1 text-subtle"><CheckCheck className="size-3.5" />Encerrada</span>}
-          <span className="font-medium" style={{ color: c.canal === 'WHATSAPP' ? WA_VERDE : undefined }}>
-            <span className={c.canal === 'WHATSAPP' ? undefined : 'text-subtle'}>{CANAL[c.canal] ?? c.canal}</span>
-          </span>
-          {c.protocolo && <span className="font-medium text-subtle">{c.protocolo}</span>}
-        </span>
-      </span>
-    </button>
+          : <span className={clsx('text-[12px]', c.nao_lidas ? 'font-bold' : 'text-subtle')} style={c.nao_lidas ? { color: WA_VERDE } : undefined}>{horaCurta(c.ultima?.em ?? c.em, now)}</span>}
+        {c.nao_lidas > 0 && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white" style={{ background: '#25D366' }}>{c.nao_lidas}</span>
+        )}
+      </TCelula>
+    </TLinha>
   );
 }
 
@@ -303,9 +333,15 @@ function ConversaPainel({ id, onVoltar, desktop, podeControlar, unidades }: {
             <ArrowLeft className="size-5" />
           </button>
         )}
-        <Avatar name={nomeContato(c.contact)} seed={c.id} size={42} />
+        <span className={clsx('inline-flex shrink-0 rounded-full p-[2px]', (c.state === 'HUMAN_PENDING' || c.state === 'HUMAN_ACTIVE') && 'bg-red-500')}
+          title={c.state === 'HUMAN_PENDING' || c.state === 'HUMAN_ACTIVE' ? 'Atendimento humano' : undefined}>
+          <Avatar name={nomeContato(c.contact)} seed={c.id} size={40} />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold leading-tight">{nomeContato(c.contact)}</div>
+          <div className="flex min-w-0 items-center gap-1 font-semibold leading-tight">
+            <span className="truncate">{nomeContato(c.contact)}</span>
+            {c.channel === 'WHATSAPP_SIMULADO' && <Simulado detail="Conversa de demonstração: nenhuma mensagem real é enviada." />}
+          </div>
           <div className="truncate text-[12.5px]">
             <b className={clsx(c.state === 'HUMAN_PENDING' ? 'text-amber-700' : c.state === 'HUMAN_ACTIVE' ? 'text-green-700' : c.state === 'CLOSED' ? 'text-muted' : 'text-purple-700')}>{quem}</b>
             {c.responsible && <span className="text-muted"> · {c.responsible}</span>}
@@ -473,42 +509,29 @@ function FaixaUnidade({ d }: { d: Lista }) {
 
 function ControleSheet({ open, onClose, c, onFiltrar }: { open: boolean; onClose: () => void; c?: Controle; onFiltrar: (g: Grupo) => void }) {
   return (
-    <Sheet open={open} onClose={onClose} size="lg" title="Controle das mensagens"
-      subtitle={`Quem está com cada conversa que passou para humano. Em vermelho, quem espera há mais de ${c?.limite_min ?? 30} min. Toque numa linha para ver as conversas.`}>
+    <Sheet open={open} onClose={onClose} size="xl" title="Controle das mensagens"
+      subtitle={`Quem está com cada conversa que passou para humano. Em vermelho, quem tem família esperando há mais de ${c?.limite_min ?? 30} min. Toque numa linha para ver as conversas.`}>
       {!c ? <SkeletonList rows={4} /> : !c.responsaveis.length ? <EmptyState compact title="Nenhuma conversa com humano agora" body="Tudo com a IARA." /> : (
-        <div className="divide-y divide-line overflow-hidden rounded-2xl ring-1 ring-line">
+        <Tabela colunas="minmax(230px,1fr) 96px 104px 92px 112px 124px" largura={760} rotulo="Controle por unidade e equipe" className="rounded-2xl ring-1 ring-line">
+          <TCabecalho>
+            <span>Responsável</span><span className="text-right">Aguardando</span><span className="text-right">Com humano</span>
+            <span className="text-right">Atrasadas</span><span className="text-right">Maior espera</span><span className="text-right">Resposta média</span>
+          </TCabecalho>
           {c.responsaveis.map((g) => (
-            <button key={`${g.unit_id ?? 'seduc'}-${g.equipe}`} onClick={() => onFiltrar(g)}
-              className={clsx('block w-full px-3.5 py-3 text-left transition hover:bg-slate-50', g.atrasadas > 0 && 'bg-red-50/50')}>
-              <span className="flex items-center gap-2">
-                {g.tipo === 'UNIDADE' ? <Building2 className="size-4.5 shrink-0 text-orange-600" /> : <Landmark className="size-4.5 shrink-0 text-blue-700" />}
-                <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{maiuscula(g.rotulo)}</span>
-                {g.atrasadas > 0 && (
-                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[12px] font-bold text-red-800">
-                    {g.atrasadas} {g.atrasadas === 1 ? 'atrasada' : 'atrasadas'}
-                  </span>
-                )}
-              </span>
-              <span className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Numero label="Aguardando" valor={fmtInt(g.aguardando)} />
-                <Numero label="Com humano" valor={fmtInt(g.em_atendimento)} />
-                <Numero label="Maior espera" valor={duracao(g.maior_espera_min)} alerta={g.atrasadas > 0} />
-                <Numero label="Resposta média" valor={duracao(g.resposta_media_min)} />
-              </span>
-            </button>
+            <TLinha key={`${g.unit_id ?? 'seduc'}-${g.equipe}`} onClick={() => onFiltrar(g)} alerta={g.atrasadas > 0} rotulo={`${maiuscula(g.rotulo)}: ver conversas`}>
+              <TCelula fixa titulo={maiuscula(g.rotulo)} className="font-semibold">
+                {g.tipo === 'UNIDADE' ? <Building2 className="mr-1.5 inline size-4 align-[-3px] text-orange-600" /> : <Landmark className="mr-1.5 inline size-4 align-[-3px] text-blue-700" />}
+                {maiuscula(g.rotulo)}
+              </TCelula>
+              <TCelula className="text-right tabular">{fmtInt(g.aguardando)}</TCelula>
+              <TCelula className="text-right tabular">{fmtInt(g.em_atendimento)}</TCelula>
+              <TCelula className={clsx('text-right tabular', g.atrasadas > 0 && 'font-bold text-red-700')}>{fmtInt(g.atrasadas)}</TCelula>
+              <TCelula className={clsx('text-right tabular', g.atrasadas > 0 && 'font-semibold text-red-700')}>{duracao(g.maior_espera_min)}</TCelula>
+              <TCelula className="text-right tabular">{duracao(g.resposta_media_min)}</TCelula>
+            </TLinha>
           ))}
-        </div>
+        </Tabela>
       )}
     </Sheet>
   );
 }
-
-function Numero({ label, valor, alerta }: { label: string; valor: string; alerta?: boolean }) {
-  return (
-    <span className="rounded-xl bg-white px-2.5 py-1.5 ring-1 ring-line">
-      <span className="block text-[10.5px] font-bold uppercase tracking-wide text-subtle">{label}</span>
-      <span className={clsx('tabular block text-[15px] font-bold', alerta ? 'text-red-700' : 'text-ink')}>{valor}</span>
-    </span>
-  );
-}
-

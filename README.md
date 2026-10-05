@@ -38,9 +38,11 @@ com as mesmas funções, regras e protocolos — experiências diferentes, mesmo
 - Em todos os casos a família recebe protocolo, equipe responsável e prazo. A tela **Conversas** mostra *quem resolve os pedidos*
   (alçada da demanda), as conversas concluídas sem servidor e as execuções da própria IARA.
 
-**Conversas no estilo do WhatsApp** (`#/iara`, menu **Conversas**) — lista à esquerda e conversa aberta à direita (no
-celular, a conversa abre em tela cheia). Cada linha mostra **quem está atendendo**: a IARA, uma pessoa (com o nome) ou
-"aguardando humano" há quanto tempo, além de mensagens não lidas, canal e protocolo. Quando a IARA passa para humano, a
+**Conversas no estilo do WhatsApp** (`#/iara`, menu **Conversas**) — **uma conversa por linha** (contato, com quem está,
+última mensagem, protocolo, espera/hora e não lidas); ao abrir uma, ela aparece ao lado (no celular, em tela cheia).
+**Atendimento humano = borda vermelha no avatar** (o selo pequeno diz se está aguardando ou em atendimento; roxo = IARA);
+a espera fica em vermelho acima do limite. Simulação não é escrita: uma **bandeirinha discreta** sinaliza (vale para
+todo o sistema — o selo "demonstração" virou bandeirinha). Quando a IARA passa para humano, a
 conversa vai para o **responsável pela alçada**: a secretaria da unidade da criança (protocolo de alçada da unidade ou criança
 matriculada) ou a equipe da SEDUC (Central de Vagas, Atendimento ao Cidadão, Ouvidoria…), e a IARA diz à família para onde foi.
 - **Unidade** (Direção e Secretaria Escolar): vê só as conversas da própria unidade, assume, responde (a resposta chega no
@@ -66,7 +68,8 @@ criança e cada responsável com ficha completa, editável por quem tem permiss�
   precisão e fonte, zona, ponto de referência, território (macrorregião/distrito pelo polígono) e mostra o bairro de referência
   e as unidades mais próximas com vagas na faixa da criança. Só o endereço sai do sistema — nunca nome ou CPF.
 - **Pendências:** cada ficha mostra o % completo e o que falta (aluno: 7 itens do Censo/matrícula; responsável: 5); as listas
-  filtram por situação, unidade, território e pendência. Mudança de endereço do responsável leva junto as crianças que moram
+  (um registro por linha, em colunas; em tela estreita rolam de lado com o nome fixo) filtram por situação, unidade,
+  território e pendência. Mudança de endereço do responsável leva junto as crianças que moram
   com ele e recalcula a fila. Unidade vê só os seus alunos (e os que ela cadastrou); CPF e contatos mascarados conforme o perfil.
 - API: `api.alunos_lista`, `api.responsaveis_lista`, `api.aluno_cadastro`, `api.aluno_salvar`, `api.responsavel_cadastro`,
   `api.responsavel_salvar`, `api.vinculo_salvar`, `api.vinculo_encerrar`, `api.domicilio_salvar`, `api.localizar_ponto` e a

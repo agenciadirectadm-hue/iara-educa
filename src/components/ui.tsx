@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ComponentType, type ReactNo
 import { Link, type LinkProps } from 'react-router';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
-import { AlertTriangle, ChevronRight, Info, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Flag, Info, Loader2, RefreshCw } from 'lucide-react';
 import { TONE_CLASSES, type Tone } from '@/lib/labels';
 import { colorFor, fmtInt, initials } from '@/lib/format';
 import { useExplain } from './overlays';
@@ -147,9 +147,45 @@ const SOURCE: Record<SourceKind, { label: string; cls: string; title: string; bo
     body: 'Resultado de regra explícita e versionada (ex.: vagas ofertáveis = capacidade − matrículas − bloqueadas − reservadas).',
   },
 };
+/**
+ * Simulação: em vez de escrever "simulado/fictício/demonstração", uma bandeirinha discreta.
+ * Tocar (ou passar o mouse) explica o que é simulado.
+ */
+export function Simulado({ detail, className }: { detail?: string; className?: string }) {
+  const explain = useExplain();
+  const s = SOURCE.demo;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        explain({ title: s.title, body: detail ? `${s.body}
+
+${detail}` : s.body, kind: 'demo' });
+      }}
+      title={detail ? `Simulação — ${detail}` : 'Simulação — dado fictício'}
+      aria-label="Simulação: o que significa?"
+      className={clsx('inline-flex size-5 shrink-0 items-center justify-center rounded-full align-middle text-amber-500 transition hover:bg-amber-50 hover:text-amber-600', className)}
+    >
+      <Flag className="size-3" aria-hidden />
+    </button>
+  );
+}
+
+/** Bandeirinha de simulação sem ação (para dentro de linhas e cartões clicáveis). */
+export function MarcaSimulado({ titulo = 'Simulação — dado fictício', className }: { titulo?: string; className?: string }) {
+  return (
+    <span title={titulo} className={clsx('inline-flex shrink-0 items-center align-middle text-amber-500', className)}>
+      <Flag className="size-3" aria-hidden /><span className="sr-only">{titulo}</span>
+    </span>
+  );
+}
+
 export function SourceChip({ kind, detail, className }: { kind: SourceKind; detail?: string; className?: string }) {
   const explain = useExplain();
   const s = SOURCE[kind];
+  if (kind === 'demo') return <Simulado detail={detail} className={className} />;
   return (
     <button
       type="button"
@@ -161,7 +197,7 @@ export function SourceChip({ kind, detail, className }: { kind: SourceKind; deta
       className={clsx('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide ring-1 transition hover:brightness-95', s.cls, className)}
       aria-label={`${s.label}: o que significa?`}
     >
-      {kind === 'demo' ? <AlertTriangle className="size-3" aria-hidden /> : <Info className="size-3" aria-hidden />}
+      <Info className="size-3" aria-hidden />
       {s.label}
     </button>
   );

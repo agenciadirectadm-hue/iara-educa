@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { keepPreviousData } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Plus, Search, ShieldCheck, Users, X } from 'lucide-react';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useGeoLayers, useUnitsMap } from '@/lib/data';
 import { fmtInt } from '@/lib/format';
 import { PARENTESCO, SITUACAO_ALUNO } from '@/lib/cadastro';
-import { Avatar, Badge, Button, ButtonLink, Card, EmptyState, ErrorState, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
-import { AnelCompleto, Selecao } from '@/components/cadastro';
+import { Avatar, Badge, Button, ButtonLink, Card, EmptyState, ErrorState, MarcaSimulado, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
+import { Selecao } from '@/components/cadastro';
 
 const POR_PAGINA = 40;
 
@@ -133,37 +134,43 @@ export default function Alunos() {
       {res.isLoading ? <SkeletonList rows={8} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : (
         <Card className={clsx('overflow-hidden transition-opacity', res.isFetching && res.isPlaceholderData && 'opacity-60')}>
           {!d.itens.length ? <EmptyState title="Nenhum aluno com estes filtros" body={q ? 'Confira a grafia ou busque pelo código da rede.' : undefined} /> : (
-            <div className="divide-y divide-line">
+            <Tabela rotulo="Alunos" largura={1100}
+              colunas="minmax(210px,2fr) 66px 122px minmax(150px,1.5fr) minmax(140px,1.2fr) minmax(150px,1.3fr) minmax(120px,1fr) 54px">
+              <TCabecalho>
+                <span>Aluno</span><span>Idade</span><span>Situação</span><span>Unidade · turma</span><span>Bairro · território</span>
+                <span>Responsável</span><span>Pendências</span><span className="text-right">Cadastro</span>
+              </TCabecalho>
               {(d.itens as any[]).map((i) => (
-                <Link key={i.id} to={`/alunos/${i.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-purple-50/40">
-                  <Avatar name={i.nome} seed={i.avatar_seed} size={44} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="truncate font-semibold">{i.nome}</span>
-                      {i.nome_social && <span className="truncate text-[12px] text-muted">nome social: {i.nome_social}</span>}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-muted">
-                      <span>{i.idade}</span>
-                      <Badge tone={SITUACAO_ALUNO[i.situacao]?.tone ?? 'gray'}>{SITUACAO_ALUNO[i.situacao]?.label ?? i.situacao}</Badge>
-                      {i.unidade && <span className="truncate">{i.unidade.nome} · {i.unidade.turma}</span>}
-                      {i.aee && <span className="inline-flex items-center gap-0.5 text-purple-700"><ShieldCheck className="size-3.5" />AEE</span>}
-                    </div>
-                    <div className="mt-0.5 truncate text-[12px] text-subtle">
-                      <MapPin className="mr-0.5 inline size-3" />{i.bairro ?? 'sem endereço'}{i.territorio ? ` · ${i.territorio}` : ''}
-                      {i.responsavel && <> · {PARENTESCO[i.responsavel.parentesco]?.split(' ')[0] ?? 'Resp.'}: {i.responsavel.nome}</>}
-                    </div>
-                    {i.pendencias.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(i.pendencias as string[]).slice(0, 3).map((p) => (
-                          <span key={p} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-semibold text-amber-900 ring-1 ring-amber-200">falta {p.toLowerCase()}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <AnelCompleto pct={i.completo_pct} />
-                </Link>
+                <TLinha key={i.id} to={`/alunos/${i.id}`} rotulo={`${i.nome}, ${i.idade}, cadastro ${i.completo_pct}% completo`}>
+                  <TCelula fixa titulo={i.nome_social ? `${i.nome} (nome social: ${i.nome_social})` : i.nome}>
+                    <Avatar name={i.nome} seed={i.avatar_seed} size={26} className="mr-2 inline-flex align-middle" />
+                    <span className="font-semibold text-ink">{i.nome}</span>
+                    {i.nome_social && <span className="text-[12px] text-muted"> · {i.nome_social}</span>}
+                    {i.aee && <ShieldCheck className="ml-1 inline size-3.5 align-[-2px] text-purple-700" aria-label="AEE" />}
+                    {i.ficticio && <MarcaSimulado className="ml-1" />}
+                  </TCelula>
+                  <TCelula className="text-muted">{i.idade}</TCelula>
+                  <TCelula livre><Badge tone={SITUACAO_ALUNO[i.situacao]?.tone ?? 'gray'}>{SITUACAO_ALUNO[i.situacao]?.label ?? i.situacao}</Badge></TCelula>
+                  <TCelula titulo={i.unidade ? `${i.unidade.nome} · ${i.unidade.turma}` : undefined} className="text-ink-2">
+                    {i.unidade ? <>{i.unidade.nome} <span className="text-muted">· {i.unidade.turma}</span></> : <span className="text-subtle">sem matrícula</span>}
+                  </TCelula>
+                  <TCelula titulo={[i.bairro, i.territorio].filter(Boolean).join(' · ')} className="text-muted">
+                    {i.bairro ?? 'sem endereço'}{i.territorio ? ` · ${i.territorio}` : ''}
+                  </TCelula>
+                  <TCelula titulo={i.responsavel?.nome} className="text-muted">
+                    {i.responsavel ? <>{(PARENTESCO[i.responsavel.parentesco] ?? 'Resp.').split(' ')[0]}: <span className="text-ink-2">{i.responsavel.nome}</span></> : <span className="font-semibold text-amber-700">sem responsável</span>}
+                  </TCelula>
+                  <TCelula titulo={i.pendencias.length ? `Falta: ${i.pendencias.join(', ')}` : 'Cadastro completo'}>
+                    {i.pendencias.length
+                      ? <span className="font-semibold text-amber-700">{i.pendencias[0]}{i.pendencias.length > 1 ? ` +${i.pendencias.length - 1}` : ''}</span>
+                      : <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 className="size-3.5" />completo</span>}
+                  </TCelula>
+                  <TCelula className={clsx('text-right font-bold tabular', i.completo_pct >= 100 ? 'text-green-700' : i.completo_pct >= 70 ? 'text-amber-700' : 'text-red-700')}>
+                    {i.completo_pct}%
+                  </TCelula>
+                </TLinha>
               ))}
-            </div>
+            </Tabela>
           )}
           <Paginacao pagina={pagina} total={Number(d.total ?? 0)} porPagina={POR_PAGINA} onPagina={(p) => set({ pagina: p })} />
         </Card>

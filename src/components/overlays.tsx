@@ -8,7 +8,7 @@ import { useIsDesktop } from '@/lib/hooks';
 // ---------------------------------------------------------------- Sheet (inferior no celular, lateral no desktop)
 export function Sheet({ open, onClose, title, subtitle, children, footer, size = 'md', labelledBy }: {
   open: boolean; onClose: () => void; title?: ReactNode; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode;
-  size?: 'sm' | 'md' | 'lg'; labelledBy?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl'; labelledBy?: string;
 }) {
   const desktop = useIsDesktop();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -30,7 +30,7 @@ export function Sheet({ open, onClose, title, subtitle, children, footer, size =
     };
   }, [open, onClose]);
 
-  const width = { sm: 'lg:w-[400px]', md: 'lg:w-[480px]', lg: 'lg:w-[640px]' }[size];
+  const width = { sm: 'lg:w-[400px]', md: 'lg:w-[480px]', lg: 'lg:w-[640px]', xl: 'lg:w-[min(920px,calc(100vw-280px))]' }[size];
   return createPortal(
     <AnimatePresence>
       {open && (

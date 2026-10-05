@@ -75,7 +75,7 @@ export const DOC_STATUS: Record<string, { label: string; tone: Tone }> = {
 export const SHIFT: Record<string, string> = { MANHA: 'Manhã', TARDE: 'Tarde', NOITE: 'Noite', INTEGRAL: 'Integral' };
 export const CHANNEL: Record<string, string> = {
   WEB: 'Portal', WHATSAPP: 'WhatsApp', PRESENCIAL: 'Presencial', TELEFONE: 'Telefone', EMAIL: 'E-mail', ESCOLA: 'Escola', CMEI: 'CMEI',
-  CENTRAL_VAGAS: 'Central de Vagas', API: 'Integração', WHATSAPP_SIMULADO: 'WhatsApp (simulado)', PORTAL: 'Portal',
+  CENTRAL_VAGAS: 'Central de Vagas', API: 'Integração', WHATSAPP_SIMULADO: 'WhatsApp', PORTAL: 'Portal',
 };
 export const CONV_STATE: Record<string, { label: string; tone: Tone }> = {
   BOT_ACTIVE: { label: 'IARA atendendo', tone: 'purple' },

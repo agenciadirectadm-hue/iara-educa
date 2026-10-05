@@ -109,7 +109,7 @@ export default function Entrar() {
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-green-700" />
           <p>
             Unidades, endereços, turmas e matrículas agregadas vêm de fontes públicas (Censo Escolar 2025/INEP e Consulta Escolas/SEED-PR).
-            Alunos, responsáveis, fila, ofertas, protocolos e conversas são <b className="text-ink">fictícios</b> e rotulados como demonstração.
+            Alunos, responsáveis, fila, ofertas, protocolos e conversas são <b className="text-ink">fictícios</b> e marcados com uma bandeirinha.
             Nenhuma mensagem real é enviada.
           </p>
         </div>

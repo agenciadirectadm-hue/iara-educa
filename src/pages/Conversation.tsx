@@ -177,7 +177,7 @@ export default function Conversation() {
               <Card className="grid grid-cols-2 gap-3 p-4">
                 <DataPair label="Canal" value={CHANNEL[c.channel] ?? c.channel} />
                 <DataPair label="Estado" value={CONV_STATE[c.state]?.label ?? c.state} />
-                <DataPair label="Identidade" value={c.identity_verified ? 'Verificada (código simulado)' : 'Não verificada'} />
+                <DataPair label="Identidade" value={c.identity_verified ? 'Verificada' : 'Não verificada'} />
                 <DataPair label="Última atividade" value={fmtDateTime(c.last_message_at)} />
               </Card>
             </div>

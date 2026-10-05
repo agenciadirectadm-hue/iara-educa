@@ -300,7 +300,7 @@ function StudentsTab({ unitId }: { unitId: number }) {
         <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-subtle" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar aluno pelo nome" className={clsx(inputCls, 'pl-11')} aria-label="Buscar aluno" />
       </div>
-      <p className="mt-2 flex items-center gap-2 text-[12.5px] text-muted"><ShieldCheck className="size-4 text-green-700" />Lista filtrada pelo servidor conforme seu perfil e escopo. Nomes fictícios. <SourceChip kind="demo" /></p>
+      <p className="mt-2 flex items-center gap-2 text-[12.5px] text-muted"><ShieldCheck className="size-4 text-green-700" />Lista filtrada pelo servidor conforme seu perfil e escopo. <SourceChip kind="demo" detail="Nomes fictícios." /></p>
       <div className="mt-3">
         {res.isLoading ? <SkeletonList rows={5} /> : res.error ? <ErrorState error={res.error} /> : (
           <Card className="divide-y divide-line overflow-hidden">
@@ -343,7 +343,7 @@ function StaffTab({ unitId, census }: { unitId: number; census: number | null })
   const items = res.data.items as any[];
   return (
     <div>
-      <p className="mb-3 text-[13px] text-muted">{items.length} profissionais (fictícios) · Censo 2025: {fmtInt(census)} docentes nesta unidade. <SourceChip kind="demo" detail={res.data.source} /></p>
+      <p className="mb-3 text-[13px] text-muted">{items.length} profissionais · Censo 2025: {fmtInt(census)} docentes nesta unidade. <SourceChip kind="demo" detail={res.data.source} /></p>
       <Card className="divide-y divide-line overflow-hidden">
         {items.map((s) => (
           <div key={s.id} className="flex items-center gap-3 px-4 py-3">

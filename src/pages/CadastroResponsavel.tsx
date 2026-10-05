@@ -15,7 +15,8 @@ import { Crumbs } from '@/components/Crumbs';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { Alternar, AvisoRestrito, BarraSalvar, Campo, Escolha, Secao, Selecao, Texto } from '@/components/cadastro';
 import EnderecoEditor from '@/components/EnderecoEditor';
-import { BuscarPessoaSheet, EncerrarVinculoSheet, LinhaVinculo, VinculoSheet, useRecarregarCadastros, type Vinculo } from '@/components/Vinculos';
+import { BuscarPessoaSheet, EncerrarVinculoSheet, LinhaVinculo, TabelaVinculos, VinculoSheet, useRecarregarCadastros, type Vinculo } from '@/components/Vinculos';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 
 type Form = {
   nome: string; nome_social: string; nascimento: string; sexo: string; nacionalidade: string; estado_civil: string; escolaridade: string; idioma: string;
@@ -295,7 +296,7 @@ function FormularioResponsavel({ cad, crianca }: { cad: any | null; crianca: any
 
         {!novo && (
           <Secao id="criancas" icon={Baby} titulo="Crianças vinculadas" descricao="Encerrar um vínculo não apaga: fica no histórico da criança.">
-            <Card className="divide-y divide-line overflow-hidden">
+            <TabelaVinculos quem="Criança" vazio={!criancas.length && 'Nenhuma criança vinculada.'}>
               {criancas.map((c) => (
                 <LinhaVinculo key={c.id} to={`/alunos/${c.id}`} nome={c.nome} seed={c.avatar_seed} ate={c.ate} desde={c.desde}
                   detalhe={`${c.idade} · ${c.unidade ?? 'sem matrícula'}${c.mesmo_endereco ? ' · mesmo endereço' : ''}`}
@@ -308,8 +309,7 @@ function FormularioResponsavel({ cad, crianca }: { cad: any | null; crianca: any
                     </>
                   )} />
               ))}
-              {!criancas.length && <p className="p-4 text-[13px] text-muted">Nenhuma criança vinculada.</p>}
-            </Card>
+            </TabelaVinculos>
             {podeEditar && can('students.write') && (
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" icon={Link2} onClick={() => setBuscarCrianca(true)}>Vincular criança já cadastrada</Button>
@@ -331,23 +331,28 @@ function FormularioResponsavel({ cad, crianca }: { cad: any | null; crianca: any
                 ))}
               </div>
             )}
-            <Card className="divide-y divide-line overflow-hidden">
-              {(cad.domicilio as any[]).map((m) => (
-                <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <Avatar name={m.nome} seed={m.nome} size={36} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{m.nome}</div>
-                    <div className="text-[12px] text-muted">{PARENTESCO_DOMICILIO[m.parentesco] ?? m.parentesco}{m.idade ? ` · ${m.idade}` : ''}{m.ocupacao ? ` · ${m.ocupacao}` : ''}{m.renda != null ? ` · ${fmtMoeda(m.renda)}` : ''}</div>
-                  </div>
-                  {podeEditar && (
-                    <div className="flex gap-1.5">
-                      <Button type="button" size="sm" variant="secondary" icon={Pencil} aria-label={`Editar ${m.nome}`} onClick={() => setMembro(m)} />
-                      <Button type="button" size="sm" variant="ghost" icon={Trash2} aria-label={`Remover ${m.nome}`} onClick={() => removerMembro(m)} />
-                    </div>
-                  )}
-                </div>
-              ))}
-              {!cad.domicilio.length && <p className="p-4 text-[13px] text-muted">Nenhuma outra pessoa registrada no domicílio.</p>}
+            <Card className="overflow-hidden">
+              <Tabela rotulo="Composição familiar" largura={720} colunas="minmax(190px,1.6fr) 130px 84px minmax(130px,1fr) 112px 84px">
+                <TCabecalho><span>Pessoa</span><span>Parentesco</span><span>Idade</span><span>Ocupação</span><span className="text-right">Renda</span><span /></TCabecalho>
+                {(cad.domicilio as any[]).map((m) => (
+                  <TLinha key={m.id}>
+                    <TCelula fixa titulo={m.nome}><Avatar name={m.nome} seed={m.nome} size={24} className="mr-2 inline-flex align-middle" /><span className="font-semibold">{m.nome}</span></TCelula>
+                    <TCelula>{PARENTESCO_DOMICILIO[m.parentesco] ?? m.parentesco}</TCelula>
+                    <TCelula className="text-muted">{m.idade ?? '—'}</TCelula>
+                    <TCelula titulo={m.ocupacao ?? undefined} className="text-muted">{m.ocupacao ?? '—'}</TCelula>
+                    <TCelula className="text-right tabular text-muted">{m.renda != null ? fmtMoeda(m.renda) : '—'}</TCelula>
+                    <TCelula livre className="flex justify-end gap-1">
+                      {podeEditar && (
+                        <>
+                          <Button type="button" size="sm" variant="secondary" icon={Pencil} aria-label={`Editar ${m.nome}`} onClick={() => setMembro(m)} />
+                          <Button type="button" size="sm" variant="ghost" icon={Trash2} aria-label={`Remover ${m.nome}`} onClick={() => removerMembro(m)} />
+                        </>
+                      )}
+                    </TCelula>
+                  </TLinha>
+                ))}
+                {!cad.domicilio.length && <p className="px-3 py-3 text-[13px] text-muted">Nenhuma outra pessoa registrada no domicílio.</p>}
+              </Tabela>
             </Card>
           </Secao>
         )}

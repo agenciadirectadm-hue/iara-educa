@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import { keepPreviousData } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertCircle, CheckCircle2, HandHeart, Lock, MapPin, Phone, Plus, Search, Users, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, HandHeart, Lock, Plus, Search, Users, X } from 'lucide-react';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useGeoLayers } from '@/lib/data';
 import { fmtInt } from '@/lib/format';
 import { PARENTESCO } from '@/lib/cadastro';
-import { Avatar, Badge, ButtonLink, Card, EmptyState, ErrorState, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
-import { AnelCompleto, Selecao } from '@/components/cadastro';
+import { Avatar, ButtonLink, Card, EmptyState, ErrorState, MarcaSimulado, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
+import { Selecao } from '@/components/cadastro';
 import { Paginacao, PendenciasFrequentes, Resumo, useFiltrosUrl } from './Alunos';
 
 const POR_PAGINA = 40;
@@ -73,41 +73,37 @@ export default function Responsaveis() {
       {res.isLoading ? <SkeletonList rows={8} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : (
         <Card className={clsx('overflow-hidden transition-opacity', res.isFetching && res.isPlaceholderData && 'opacity-60')}>
           {!d.itens.length ? <EmptyState title="Nenhum responsável com estes filtros" /> : (
-            <div className="divide-y divide-line">
-              {(d.itens as any[]).map((g) => (
-                <Link key={g.id} to={`/responsaveis/${g.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-purple-50/40">
-                  <Avatar name={g.nome} seed={g.nome} size={44} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="truncate font-semibold">{g.nome}</span>
-                      {g.cadunico && <Badge tone="purple">CadÚnico</Badge>}
-                      {g.mae_solo && <Badge tone="purple">Mãe solo</Badge>}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px] text-muted">
-                      <span>CPF {g.cpf ?? '—'}</span>
-                      {g.telefone && <span className="inline-flex items-center gap-1"><Phone className="size-3" />{g.telefone}</span>}
-                      <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{g.bairro ?? 'sem endereço'}{g.territorio ? ` · ${g.territorio}` : ''}</span>
-                    </div>
-                    {g.criancas.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(g.criancas as any[]).slice(0, 4).map((k) => (
-                          <span key={k.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11.5px] font-semibold text-ink-2">
-                            {k.nome.split(' ')[0]} · {k.idade}{k.parentesco ? ` · ${(PARENTESCO[k.parentesco] ?? k.parentesco).split(' ')[0].toLowerCase()}` : ''}
-                          </span>
-                        ))}
-                        {g.criancas.length > 4 && <span className="text-[11.5px] text-muted">+{g.criancas.length - 4}</span>}
-                      </div>
-                    )}
-                    {g.pendencias.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(g.pendencias as string[]).map((p) => <span key={p} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11.5px] font-semibold text-amber-900 ring-1 ring-amber-200">falta {p.toLowerCase()}</span>)}
-                      </div>
-                    )}
-                  </div>
-                  <AnelCompleto pct={g.completo_pct} />
-                </Link>
-              ))}
-            </div>
+            <Tabela rotulo="Responsáveis" largura={1080}
+              colunas="minmax(220px,2fr) 124px 128px minmax(190px,1.7fr) minmax(150px,1.3fr) minmax(120px,1fr) 54px">
+              <TCabecalho>
+                <span>Responsável</span><span>CPF</span><span>Telefone</span><span>Crianças</span><span>Bairro · território</span>
+                <span>Pendências</span><span className="text-right">Cadastro</span>
+              </TCabecalho>
+              {(d.itens as any[]).map((g) => {
+                const criancas = (g.criancas as any[]).map((k) => `${k.nome.split(' ')[0]}, ${k.idade}${k.parentesco ? ` (${(PARENTESCO[k.parentesco] ?? k.parentesco).split(' ')[0].toLowerCase()})` : ''}`);
+                return (
+                  <TLinha key={g.id} to={`/responsaveis/${g.id}`} rotulo={`${g.nome}, cadastro ${g.completo_pct}% completo`}>
+                    <TCelula fixa titulo={g.nome}>
+                      <Avatar name={g.nome} seed={g.nome} size={26} className="mr-2 inline-flex align-middle" />
+                      <span className="font-semibold text-ink">{g.nome}</span>
+                      {g.cadunico && <span className="ml-1.5 rounded-full bg-purple-50 px-1.5 py-px text-[10.5px] font-bold text-purple-800 ring-1 ring-purple-200">CadÚnico</span>}
+                      {g.mae_solo && <span className="ml-1 rounded-full bg-purple-50 px-1.5 py-px text-[10.5px] font-bold text-purple-800 ring-1 ring-purple-200">mãe solo</span>}
+                      {g.ficticio && <MarcaSimulado className="ml-1" />}
+                    </TCelula>
+                    <TCelula className="tabular text-muted">{g.cpf ?? '—'}</TCelula>
+                    <TCelula className="tabular text-muted">{g.telefone ?? '—'}</TCelula>
+                    <TCelula titulo={criancas.join(' · ')} className="text-ink-2">{criancas.length ? criancas.join(' · ') : <span className="text-subtle">nenhuma</span>}</TCelula>
+                    <TCelula titulo={[g.bairro, g.territorio].filter(Boolean).join(' · ')} className="text-muted">{g.bairro ?? 'sem endereço'}{g.territorio ? ` · ${g.territorio}` : ''}</TCelula>
+                    <TCelula titulo={g.pendencias.length ? `Falta: ${g.pendencias.join(', ')}` : 'Cadastro completo'}>
+                      {g.pendencias.length
+                        ? <span className="font-semibold text-amber-700">{g.pendencias[0]}{g.pendencias.length > 1 ? ` +${g.pendencias.length - 1}` : ''}</span>
+                        : <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 className="size-3.5" />completo</span>}
+                    </TCelula>
+                    <TCelula className={clsx('text-right font-bold tabular', g.completo_pct >= 100 ? 'text-green-700' : g.completo_pct >= 60 ? 'text-amber-700' : 'text-red-700')}>{g.completo_pct}%</TCelula>
+                  </TLinha>
+                );
+              })}
+            </Tabela>
           )}
           <Paginacao pagina={pagina} total={Number(d.total ?? 0)} porPagina={POR_PAGINA} onPagina={(p) => set({ pagina: p })} />
         </Card>

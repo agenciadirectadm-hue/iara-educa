@@ -10,12 +10,12 @@ import {
   CIDADES_FREQUENTES, NACIONALIDADE, PARENTESCO, RACA, SEXO, TRANSPORTE_SITUACAO, UFS, cpfValido, enderecoDoServidor, enderecoVazio, mascaraCertidao,
   mascaraCpf, mascaraInep, mascaraNis, mascaraSus, nisValido, soDigitos, type Endereco,
 } from '@/lib/cadastro';
-import { Avatar, Button, ButtonLink, Card, ErrorState, PageHeader, SkeletonList, inputCls } from '@/components/ui';
+import { Avatar, Button, ButtonLink, ErrorState, PageHeader, SkeletonList, inputCls } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
 import { Sheet, useToast } from '@/components/overlays';
 import { Alternar, AvisoRestrito, BarraSalvar, Campo, Escolha, Secao, Selecao, Texto } from '@/components/cadastro';
 import EnderecoEditor from '@/components/EnderecoEditor';
-import { BuscarPessoaSheet, EncerrarVinculoSheet, LinhaVinculo, VinculoSheet, useRecarregarCadastros, type Vinculo } from '@/components/Vinculos';
+import { BuscarPessoaSheet, EncerrarVinculoSheet, LinhaVinculo, TabelaVinculos, VinculoSheet, useRecarregarCadastros, type Vinculo } from '@/components/Vinculos';
 
 const PAISES = ['Haiti', 'Venezuela', 'Paraguai', 'Argentina', 'Colômbia', 'Bolívia', 'Peru', 'Japão', 'Portugal', 'Estados Unidos'];
 
@@ -320,10 +320,10 @@ function FormularioAluno({ cad, respInicial, parentescoInicial }: { cad: any | n
             )
           ) : (
             <>
-              <Card className="divide-y divide-line overflow-hidden">
+              <TabelaVinculos quem="Responsável" vazio={!cad.responsaveis.length && 'Nenhum responsável vinculado.'}>
                 {(cad.responsaveis as any[]).map((r) => (
                   <LinhaVinculo key={r.id} to={`/responsaveis/${r.id}`} nome={r.nome} seed={r.nome} ate={r.ate} desde={r.desde}
-                    detalhe={`CPF ${r.cpf ?? '—'} · ${r.telefone ?? 'sem telefone'}${r.mesmo_endereco ? ' · mesmo endereço' : ''}`}
+                    detalhe={`${r.cpf ?? 'sem CPF'} · ${r.telefone ?? 'sem telefone'}${r.mesmo_endereco ? ' · mesmo endereço' : ''}`}
                     v={{ parentesco: r.parentesco, principal: r.principal, pode_buscar: r.pode_buscar, recebe_avisos: r.recebe_avisos, situacao_legal: r.situacao_legal }}
                     acoes={podeEditar && (
                       <>
@@ -333,8 +333,7 @@ function FormularioAluno({ cad, respInicial, parentescoInicial }: { cad: any | n
                       </>
                     )} />
                 ))}
-                {!cad.responsaveis.length && <p className="p-4 text-[13px] text-muted">Nenhum responsável vinculado.</p>}
-              </Card>
+              </TabelaVinculos>
               {podeEditar && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="button" variant="secondary" icon={Link2} onClick={() => setBuscarResp(true)}>Vincular responsável já cadastrado</Button>

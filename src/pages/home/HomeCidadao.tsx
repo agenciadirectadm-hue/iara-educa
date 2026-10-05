@@ -10,7 +10,7 @@ import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
 import { fmtDate, fmtKm, timeAgo, timeLeft } from '@/lib/format';
 import { CASE_STATUS, DOC, DOC_STATUS, SHIFT } from '@/lib/labels';
-import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Section, SkeletonList } from '@/components/ui';
+import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Section, Simulado, SkeletonList } from '@/components/ui';
 import { IaraMascot } from '@/components/iara';
 import { useSession } from '@/lib/session';
 import { FamilyOnboarding } from '@/pages/Family';
@@ -116,7 +116,7 @@ function CitizenHome() {
             ))}
           </Card>
         </Section>
-        <Section title="Avisos" subtitle="Notificações simuladas — nenhuma mensagem real é enviada">
+        <Section title={<span className="inline-flex items-center gap-1">Avisos<Simulado detail="Avisos simulados: nenhuma mensagem real é enviada." /></span>} subtitle="Notificações da rede para a sua família">
           <Card className="divide-y divide-line">
             {d.notifications.length ? d.notifications.slice(0, 5).map((n: any) => (
               <div key={n.id} className="flex items-start gap-3 px-4 py-3">
@@ -205,7 +205,7 @@ function ChildCard({ c }: { c: any }) {
     setSending(type);
     try {
       await rpc('document_set', { student_id: c.id, doc_type: type, status: 'RECEBIDO' });
-      toast({ title: `${DOC[type]} enviado`, description: 'Envio simulado. A unidade fará a validação.', tone: 'success' });
+      toast({ title: `${DOC[type]} enviado`, description: 'A unidade fará a validação.', tone: 'success' });
       qc.invalidateQueries({ queryKey: ['citizen_home'] });
     } catch (e) {
       toast({ title: 'Envio não concluído', description: (e as Error).message, tone: 'error' });

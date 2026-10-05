@@ -21,7 +21,7 @@ export default function IaraHub() {
   return me?.scope === 'GUARDIAN' ? <CitizenChat /> : <StaffInbox />;
 }
 
-// ============================================================================ Cidadão: WhatsApp simulado
+// ============================================================================ Cidadão: conversa com a IARA (simulação do WhatsApp)
 const DEFAULT_MENU: QuickReply[] = [
   { label: 'Procurar vaga', action: 'intent:procurar_vaga' },
   { label: 'Posição na fila', action: 'intent:fila' },
@@ -127,7 +127,7 @@ function CitizenChat() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 font-display text-[16px] font-extrabold leading-tight">IARA <Badge tone="purple" className="!py-0">assistente virtual</Badge></div>
           <div className="truncate text-[12px] text-muted">
-            {human ? (state === 'HUMAN_ACTIVE' ? `Em atendimento com ${cleanLabel(conv.data?.conversation?.assigned) || 'servidor da SEDUC'}` : 'Aguardando um servidor da SEDUC') : typing ? 'digitando…' : `online · ${CHANNEL[conv.data?.conversation?.channel] ?? 'WhatsApp (simulado)'}`}
+            {human ? (state === 'HUMAN_ACTIVE' ? `Em atendimento com ${cleanLabel(conv.data?.conversation?.assigned) || 'servidor da SEDUC'}` : 'Aguardando um servidor da SEDUC') : typing ? 'digitando…' : `online · ${CHANNEL[conv.data?.conversation?.channel] ?? 'WhatsApp'}`}
           </div>
         </div>
         <WhatsAppButton />
@@ -190,7 +190,7 @@ function StaffInbox() {
   const { me } = useSession();
   const unidade = me?.scope === 'UNIT';
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 pb-32 pt-3 sm:px-6 lg:pb-12">
+    <div className="mx-auto w-full max-w-[1680px] px-4 pb-32 pt-3 sm:px-6 lg:pb-12">
       <PageHeader
         eyebrow={unidade ? `Secretaria da unidade · ${me?.unit?.name ?? ''}` : 'Agente IARA · WhatsApp e portal'}
         title={unidade ? 'Conversas da unidade' : 'Conversas'}
