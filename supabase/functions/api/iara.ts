@@ -312,7 +312,7 @@ export class Agent {
         this.say("Me diga o bairro (ou o nome da unidade) e eu mostro as unidades mais próximas.", { quick_replies: [{ label: "Jardim Alvorada" }, { label: "Zona 7" }, { label: "Vila Morangueira" }] });
         return;
       case "atendente":
-        return this.handoff("Pedido de atendimento humano");
+        return await this.handoff("Pedido de atendimento humano");
       case "transferencia":
         return await this.startTransfer();
       case "familia":
@@ -420,7 +420,7 @@ export class Agent {
       case "doc_send":
         return await this.sendDocument(value);
       case "handoff":
-        return this.handoff(value || "Pedido do cidadão");
+        return await this.handoff(value || "Pedido do cidadão");
       case "nothing":
         this.done();
         this.say("Combinado! Se precisar, é só chamar. 💜");
@@ -1391,13 +1391,20 @@ export class Agent {
     this.done(`Informação: ${art.title}.`);
   }
 
-  private handoff(reason: string) {
+  /** Passa para humano no responsável pela alçada (secretaria da unidade da criança ou equipe da SEDUC) e diz qual. */
+  private async handoff(reason: string): Promise<void> {
+    let destino = "equipe da Secretaria Municipal de Educação";
+    try {
+      const r = await this.tool("handoff_to_team", "conversation_handoff", { conversation_id: this.conv.conversation_id, reason });
+      if (r?.label) destino = r.label;
+    } catch {
+      // o estado HUMAN_PENDING abaixo garante o encaminhamento mesmo se a consulta ao responsável falhar
+    }
     this.patch.state = "HUMAN_PENDING";
     this.patch.handoff_reason = reason;
-    this.patch.summary = `Encaminhado para atendimento humano: ${reason}.`;
-    this.tools.push({ tool: "handoff_to_team", input: { motivo: reason }, output: { ok: true }, status: "OK", ms: 1, correlation_id: crypto.randomUUID() });
-    this.say("Encaminhei sua conversa para a equipe da Central de Vagas com todo o histórico — você não precisa repetir as informações. Enquanto aguarda, suas mensagens continuam registradas.",
-      { notice: "Atendimento humano no horário de expediente da SEDUC." });
+    this.patch.summary = `Encaminhado para atendimento humano (${destino}): ${reason}.`;
+    this.say(`Encaminhei sua conversa, com todo o histórico, para atendimento humano: **${destino}**. Você não precisa repetir as informações — assim que alguém assumir, a resposta chega por aqui.`,
+      { notice: "Atendimento humano no horário de expediente." });
     this.done(`Encaminhado: ${reason}.`);
   }
 }

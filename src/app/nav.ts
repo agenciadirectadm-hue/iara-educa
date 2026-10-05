@@ -13,7 +13,7 @@ const I = {
   vagas: { to: '/vagas', label: 'Buscar vaga', icon: Search },
   fila: { to: '/fila', label: 'Fila', icon: ListOrdered },
   ofertas: { to: '/ofertas', label: 'Ofertas', icon: FileCheck },
-  iara: { to: '/iara', label: 'Conversas IARA', icon: Inbox },
+  iara: { to: '/iara', label: 'Conversas', icon: Inbox },
   auditoria: { to: '/auditoria', label: 'Auditoria', icon: ShieldCheck },
   qualidade: { to: '/qualidade', label: 'Qualidade de dados', icon: Database },
   regras: { to: '/regras', label: 'Regras e critérios', icon: ScrollText },
@@ -39,28 +39,34 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
-        primary: [I.inicio, I.atendimentos, { ...I.vagas, label: 'Vagas' }, I.fila],
-        more: [{ ...I.iara, label: 'Caixa da IARA' }, I.whatsapp, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
+        primary: [I.inicio, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
+        more: [I.fila, I.whatsapp, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
         primary: [
           { ...I.inicio, label: 'Minha unidade' },
-          { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
+          I.iara,
           { ...I.fila, to: `/fila?unidade=${unitId}`, match: '/fila' },
           I.atendimentos,
         ],
-        more: [{ ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda],
+        more: [
+          { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
+          { ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda,
+        ],
       };
     case 'SECRETARIA_ESCOLAR':
       return {
         primary: [
           I.inicio,
+          I.iara,
           { ...I.ofertas, label: 'Matrículas' },
           I.atendimentos,
-          { to: `/unidades/${unitId}?aba=alunos`, label: 'Alunos', icon: Users, match: `/unidades/${unitId}` },
         ],
-        more: [{ to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda],
+        more: [
+          { to: `/unidades/${unitId}?aba=alunos`, label: 'Alunos', icon: Users, match: `/unidades/${unitId}` },
+          { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda,
+        ],
       };
     case 'CIDADAO':
     case 'CIDADAO_NOVO':

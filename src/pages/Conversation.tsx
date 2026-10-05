@@ -63,7 +63,7 @@ export default function Conversation() {
 
   return (
     <div>
-      <Crumbs items={[{ label: 'Caixa da IARA', to: '/iara' }, { label: cleanLabel(c.contact) }]} />
+      <Crumbs items={[{ label: 'Conversas', to: '/iara' }, { label: cleanLabel(c.contact) }]} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Avatar name={cleanLabel(c.contact)} seed={c.id} size={52} />
         <div className="min-w-0 flex-1">

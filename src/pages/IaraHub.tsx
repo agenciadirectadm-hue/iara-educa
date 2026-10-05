@@ -3,17 +3,18 @@ import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { Bot, Headset, MessageCirclePlus, Search, SendHorizontal, ShieldCheck, Sparkles, Wrench, X, Zap } from 'lucide-react';
+import { Bot, Clock, Headset, MessageCirclePlus, SendHorizontal, ShieldCheck, Wrench, Zap } from 'lucide-react';
 import { iaraMessage, rpc, type ApiError } from '@/lib/api';
-import { useDebounced, useNow, useRpc } from '@/lib/hooks';
+import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
-import { cleanLabel, fmtInt, timeAgo } from '@/lib/format';
-import { CHANNEL, CONV_STATE } from '@/lib/labels';
-import { Avatar, Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonList, SourceChip, Tabs, inputCls } from '@/components/ui';
-import { IaraAvatar, IaraBubble } from '@/components/iara';
+import { cleanLabel, fmtInt } from '@/lib/format';
+import { CHANNEL } from '@/lib/labels';
+import { Badge, Card, ErrorState, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
+import { IaraAvatar } from '@/components/iara';
 import { ChatThread, QuickReplies, asQuickReply, type ChatMessage, type QuickReply } from '@/components/chat';
 import { useConfirm, useToast } from '@/components/overlays';
 import { WhatsAppButton } from '@/components/whatsapp';
+import ConversasEquipe from './ConversasEquipe';
 
 export default function IaraHub() {
   const { me } = useSession();
@@ -184,94 +185,35 @@ function CitizenChat() {
   );
 }
 
-// ============================================================================ Servidores: caixa de entrada
-const STATES = ['HUMAN_PENDING', 'HUMAN_ACTIVE', 'FOLLOWUP_PENDING', 'BOT_ACTIVE', 'CLOSED'] as const;
-
+// ============================================================================ Servidores: conversas no estilo do WhatsApp
 function StaffInbox() {
-  const [state, setState] = useState<string>('ALL');
-  const [q, setQ] = useState('');
-  const dq = useDebounced(q, 300);
-  const now = useNow(30_000);
-  const res = useRpc<any>('conversations_list', { state: state === 'ALL' ? null : state, q: dq || null }, { refetchInterval: 15_000 });
-  const counts = (res.data?.counts ?? {}) as Record<string, number>;
-  const totalAll = Object.values(counts).reduce((a, b) => a + b, 0);
+  const { me } = useSession();
+  const unidade = me?.scope === 'UNIT';
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-32 pt-3 sm:px-6 lg:pb-12">
+    <div className="mx-auto w-full max-w-7xl px-4 pb-32 pt-3 sm:px-6 lg:pb-12">
       <PageHeader
-        eyebrow="Agente IARA · WhatsApp e portal"
-        title="Caixa da IARA"
-        subtitle="Conversas atendidas pela IARA e as que ela encaminhou para a equipe com resumo. Assuma, responda e devolva — tudo auditado."
-        actions={<WhatsAppStatusChip />}
+        eyebrow={unidade ? `Secretaria da unidade · ${me?.unit?.name ?? ''}` : 'Agente IARA · WhatsApp e portal'}
+        title={unidade ? 'Conversas da unidade' : 'Conversas'}
+        subtitle={unidade
+          ? 'Conversas que a IARA passou para a sua unidade, com todo o histórico. Assuma, responda por aqui (a resposta chega no WhatsApp da família) e devolva. A Secretaria acompanha o tempo de resposta.'
+          : 'Todas as conversas do WhatsApp e do portal: quem está com a IARA, quem espera uma pessoa e com qual unidade ou equipe está. A Secretaria controla, cobra e redistribui.'}
+        actions={unidade ? undefined : <WhatsAppStatusChip />}
       />
-      <IaraBubble compact className="mb-4">
-        Quando não consigo resolver com segurança — exceção, reclamação, dado divergente ou pedido de atendente — eu <b>pauso</b> e passo para vocês com o resumo e o protocolo. Nunca prometo vaga, prazo ou posição sem confirmação do sistema.
-      </IaraBubble>
-      <ResolutionStats />
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {(['HUMAN_PENDING', 'HUMAN_ACTIVE', 'FOLLOWUP_PENDING', 'BOT_ACTIVE'] as const).map((s) => (
-          <button key={s} onClick={() => setState(state === s ? 'ALL' : s)} className={clsx('rounded-3xl p-3 text-left ring-1 transition active:scale-[0.98]', state === s ? 'bg-purple-700 text-white ring-purple-700' : 'bg-white ring-line hover:ring-purple-200')}>
-            <div className={clsx('font-display text-2xl font-black tabular', state === s ? 'text-white' : 'text-ink')}>{fmtInt(counts[s] ?? 0)}</div>
-            <div className={clsx('text-[12.5px] font-semibold', state === s ? 'text-purple-100' : 'text-muted')}>{CONV_STATE[s].label}</div>
-          </button>
-        ))}
-      </div>
-      <Tabs
-        value={state}
-        onChange={setState}
-        items={[{ value: 'ALL', label: 'Todas', count: totalAll }, ...STATES.map((s) => ({ value: s, label: CONV_STATE[s].label, count: counts[s] ?? 0 }))]}
-      />
-      <div className="relative mt-3">
-        <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-subtle" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Contato ou assunto" className={clsx(inputCls, 'pl-11')} aria-label="Buscar conversa" />
-        {q && <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setQ('')} aria-label="Limpar"><X className="size-5 text-subtle" /></button>}
-      </div>
-      <div className="mt-2 flex items-center gap-2 text-[12.5px] text-muted"><SourceChip kind="demo" detail="Conversas fictícias geradas para a demonstração" /> atualiza a cada 15 s</div>
-      <div className="mt-3">
-        {res.isLoading ? <SkeletonList rows={6} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : !res.data.items.length ? (
-          <Card><EmptyState title="Nenhuma conversa neste filtro" /></Card>
-        ) : (
-          <Card className="divide-y divide-line overflow-hidden">
-            {(res.data.items as any[]).map((c) => (
-              <Link key={c.id} to={`/conversas/${c.id}`} className="flex items-start gap-3 px-4 py-3 transition hover:bg-purple-50/50">
-                <div className="relative">
-                  <Avatar name={cleanLabel(c.contact)} seed={c.id} size={44} />
-                  <span className={clsx('absolute -bottom-0.5 -right-0.5 inline-flex size-5 items-center justify-center rounded-full ring-2 ring-white', c.state === 'BOT_ACTIVE' ? 'bg-purple-600' : c.state.startsWith('HUMAN') ? 'bg-blue-600' : 'bg-slate-400')}>
-                    {c.state === 'BOT_ACTIVE' ? <Bot className="size-3 text-white" /> : <Headset className="size-3 text-white" />}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-semibold">{cleanLabel(c.contact)}</span>
-                    <span className="shrink-0 text-[11.5px] text-muted">{timeAgo(c.last_message_at, now)}</span>
-                  </div>
-                  <div className="truncate text-[13px] text-muted">{c.summary ?? c.last_message ?? '—'}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <Badge tone={CONV_STATE[c.state]?.tone}>{CONV_STATE[c.state]?.label ?? c.state}</Badge>
-                    {c.assigned_to_me && <Badge tone="green">com você</Badge>}
-                    {c.assigned && !c.assigned_to_me && <Badge tone="gray" icon={Headset}>{cleanLabel(c.assigned).split(' · ')[0]}</Badge>}
-                    {c.case && <Badge tone="blue">{c.case.protocol}</Badge>}
-                    {c.intent && <span className="text-[11.5px] text-subtle">· {c.intent.replace(/_/g, ' ')}</span>}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </Card>
-        )}
-      </div>
-      <Card className="mt-6 p-4">
-        <div className="mb-2 flex items-center gap-2 font-display font-extrabold"><Wrench className="size-5 text-purple-700" /> Como a IARA trabalha</div>
+      <ConversasEquipe />
+      {!unidade && <div className="mt-6"><ResolutionStats /></div>}
+      <Card className={clsx('p-4', unidade && 'mt-6')}>
+        <div className="mb-2 flex items-center gap-2 font-display font-extrabold"><Wrench className="size-5 text-purple-700" /> Como funciona</div>
         <ul className="grid grid-cols-1 gap-2 text-[13.5px] text-ink-2 sm:grid-cols-2">
-          <li className="flex gap-2"><Sparkles className="mt-0.5 size-4 shrink-0 text-purple-600" />Usa ferramentas do próprio sistema (buscar vagas, consultar fila, registrar protocolo, aceitar oferta) com as permissões do cidadão.</li>
-          <li className="flex gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-purple-600" />Dados pessoais só depois de verificar a identidade e o vínculo com a criança.</li>
-          <li className="flex gap-2"><Headset className="mt-0.5 size-4 shrink-0 text-purple-600" />Encaminha com resumo quando há exceção, divergência ou pedido de atendente — e pausa até a devolução.</li>
-          <li className="flex gap-2"><Bot className="mt-0.5 size-4 shrink-0 text-purple-600" />Cada ferramenta executada fica registrada (entrada, saída, tempo) e aparece no detalhe da conversa.</li>
+          <li className="flex gap-2"><Bot className="mt-0.5 size-4 shrink-0 text-purple-600" />A IARA atende primeiro e resolve na hora o que é dela, com as ferramentas do próprio sistema e as permissões do cidadão.</li>
+          <li className="flex gap-2"><Headset className="mt-0.5 size-4 shrink-0 text-purple-600" />Quando precisa de uma pessoa, pausa e passa a conversa com o histórico para quem responde pelo assunto: a secretaria da unidade da criança ou a equipe da SEDUC.</li>
+          <li className="flex gap-2"><Clock className="mt-0.5 size-4 shrink-0 text-purple-600" />A Secretaria vê todas as conversas, quem está com cada uma e há quanto tempo a família espera — e transfere quando precisa.</li>
+          <li className="flex gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-purple-600" />Cada encaminhamento, resposta e transferência fica registrado na auditoria, com motivo.</li>
         </ul>
       </Card>
     </div>
   );
 }
 
-/** Princípio da IARA resolutiva: quanto sai resolvido na hora × encaminhado para a unidade ou para a SEDUC. */
 /** Situação do WhatsApp real (número ligado ao agente) — atalho para o painel do canal. */
 function WhatsAppStatusChip() {
   const c = useRpc<{ ativo: boolean; online: boolean; numero_formatado: string }>('whatsapp_canal', {}, { refetchInterval: 30_000, retry: false });
@@ -286,6 +228,7 @@ function WhatsAppStatusChip() {
   );
 }
 
+/** Princípio da IARA resolutiva: quanto sai resolvido na hora × encaminhado para a unidade ou para a SEDUC. */
 function ResolutionStats() {
   const res = useRpc<any>('iara_resolution_stats', { days: 30 }, { staleTime: 60_000 });
   const d = res.data;

@@ -35,8 +35,21 @@ com as mesmas funções, regras e protocolos — experiências diferentes, mesmo
     alteração de responsável, documentos;
   - **SEDUC** (equipe responsável): transporte escolar, educação integral, AEE, alimentação especial, recursos e reclamações;
     responsável que não é pai nem mãe vai para a Central de Vagas conferir a guarda.
-- Em todos os casos a família recebe protocolo, equipe responsável e prazo. A caixa da IARA mostra *quem resolve os pedidos*
+- Em todos os casos a família recebe protocolo, equipe responsável e prazo. A tela **Conversas** mostra *quem resolve os pedidos*
   (alçada da demanda), as conversas concluídas sem servidor e as execuções da própria IARA.
+
+**Conversas no estilo do WhatsApp** (`#/iara`, menu **Conversas**) — lista à esquerda e conversa aberta à direita (no
+celular, a conversa abre em tela cheia). Cada linha mostra **quem está atendendo**: a IARA, uma pessoa (com o nome) ou
+"aguardando humano" há quanto tempo, além de mensagens não lidas, canal e protocolo. Quando a IARA passa para humano, a
+conversa vai para o **responsável pela alçada**: a secretaria da unidade da criança (protocolo de alçada da unidade ou criança
+matriculada) ou a equipe da SEDUC (Central de Vagas, Atendimento ao Cidadão, Ouvidoria…), e a IARA diz à família para onde foi.
+- **Unidade** (Direção e Secretaria Escolar): vê só as conversas da própria unidade, assume, responde (a resposta chega no
+  WhatsApp da família) e devolve à IARA ou à Secretaria, com motivo.
+- **Secretaria** (Atendimento, Central de Vagas, Secretário): vê todas, com faixa de controle (com a IA, aguardando, com
+  humano, esperando há mais de 30 min, nas unidades, na SEDUC) e o quadro **Controle por unidade** — aguardando, em
+  atendimento, atrasadas, maior espera e tempo médio da 1ª resposta de cada unidade e equipe; transfere para qualquer
+  unidade ou equipe. Tudo na auditoria (`CONVERSA_ENCAMINHADA`). API: `api.conversas_lista`, `api.conversas_controle`,
+  `api.conversation_transfer`; regras em `supabase/migrations/20261003002800_conversas_unidades.sql`.
 
 **WhatsApp de verdade** — a pasta [`whatsapp-ponte/`](whatsapp-ponte/README.md) liga um número ao agente (ponte Baileys →
 gateway `/whatsapp/...` → o mesmo agente do portal, com as opções em lista numerada). O número registrado é o chip da
@@ -117,8 +130,9 @@ SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                  
 Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
 após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
-`supabase/tests/prioridade_laudo.sql` e `supabase/tests/vida_familia.sql` (os três últimos rodam numa transação revertida e não
-deixam resíduo na demonstração; para ver o resultado completo, use `SQL_OUT_LIMIT=200000`).
+`supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql` e `supabase/tests/conversas_unidades.sql` (os quatro
+últimos rodam numa transação revertida e não deixam resíduo na demonstração; para ver o resultado completo, use
+`SQL_OUT_LIMIT=200000`).
 Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
 `node scripts/teste-iara.mjs maria` (família já cadastrada) — cria dados de demonstração.
 
@@ -126,6 +140,10 @@ Limpeza do que visitantes e testes criaram pelo app (famílias, crianças, proto
 notificações) — o que as sessões alteraram no cenário gerado volta ao valor original pela trilha de auditoria, que não é
 tocada: `SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_purge_session_data()"`.
 O botão "Reiniciar demonstração" faz o mesmo só para a família da Maria.
+
+Relógio da demonstração: a cada 6 h o gateway desloca os registros fictícios para manter o cenário atual
+(`iara.demo_timeshift`, um de cada vez — trava na linha do tenant). O que foi criado ao vivo (visitantes, testes, WhatsApp)
+não é deslocado. Cada deslocamento fica na auditoria (`DEMO_TIMESHIFT`), e a limpeza usa essa soma para restaurar valores.
 
 ## Estrutura
 
