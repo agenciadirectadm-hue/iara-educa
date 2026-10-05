@@ -86,6 +86,15 @@ as $$
   group by 1, 2
 $$;
 
+-- exceção (laudo) cuja oferta existe. Em produção ofertas nunca são apagadas; na demonstração, a limpeza remove o que
+-- sessões de teste fizeram — o registro de auditoria (imutável) fica, mas não entra nos números do painel
+create or replace function iara.excecao_com_oferta(p_entry text) returns boolean
+language sql stable security definer set search_path = iara, public
+as $$
+  select exists (select 1 from iara.vacancy_offers o
+                 where o.waiting_list_entry_id::text = p_entry and o.ranking_snapshot ->> 'priority_exception' = 'LAUDO')
+$$;
+
 -- 3. Painel do controle externo --------------------------------------------------------------------------------------
 create or replace function api.controle_painel(p jsonb default '{}'::jsonb) returns jsonb
 language plpgsql stable security definer set search_path = iara, public
@@ -161,7 +170,8 @@ begin
           'quando', a.occurred_at, 'unidade', u.short_name, 'codigo', iara.codigo_publico(case when a.entity_id ~ '^[0-9a-f-]{36}$' then a.entity_id::uuid end),
           'quem', regexp_replace(coalesce(a.actor_label, ''), '\s*\(demo #[0-9A-F]+\)', ''),
           'resumo', iara.anonimizar(a.summary, iara.nomes_da_inscricao(a.entity_id))) order by a.occurred_at desc), '[]'::jsonb)
-      from (select * from iara.audit_log where action = 'PRIORITY_DECISION' order by occurred_at desc limit 20) a
+      from (select * from iara.audit_log a1 where a1.action = 'PRIORITY_DECISION' and iara.excecao_com_oferta(a1.entity_id)
+            order by a1.occurred_at desc limit 20) a
       left join iara.education_units u on u.id = a.unit_id),
     -- prazos dos protocolos de vaga
     'protocolos', (select jsonb_build_object(
@@ -189,9 +199,10 @@ begin
           'quem', regexp_replace(coalesce(a.actor_label, ''), '\s*\(demo #[0-9A-F]+\)', ''),
           'resumo', iara.anonimizar(a.summary, case when a.action = 'PRIORITY_DECISION' then iara.nomes_da_inscricao(a.entity_id) else '{}' end))
           order by a.occurred_at desc), '[]'::jsonb)
-      from (select * from iara.audit_log
-            where action in ('RULE_VERSION', 'REGRA_MEDIDA_DISTANCIA', 'PRIORITY_DECISION', 'CONTROLE_CONSULTA', 'QUEUE_RECALCULATED')
-            order by occurred_at desc limit 30) a)
+      from (select * from iara.audit_log a1
+            where a1.action in ('RULE_VERSION', 'REGRA_MEDIDA_DISTANCIA', 'PRIORITY_DECISION', 'CONTROLE_CONSULTA', 'QUEUE_RECALCULATED')
+              and (a1.action <> 'PRIORITY_DECISION' or iara.excecao_com_oferta(a1.entity_id))
+            order by a1.occurred_at desc limit 30) a)
   );
 end $$;
 
