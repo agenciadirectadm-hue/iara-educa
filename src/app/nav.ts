@@ -1,7 +1,4 @@
-import {
-  Building2, ChartColumn, CircleHelp, ClipboardList, Database, FileCheck, GraduationCap, House, Inbox, ListOrdered, Map as MapIcon,
-  MessageCircle, ScrollText, Search, ShieldCheck, Users,
-} from 'lucide-react';
+import { Building2, ChartColumn, CircleHelp, ClipboardList, Database, FileCheck, GraduationCap, House, Inbox, ListOrdered, Map as MapIcon, MessageCircle, ScrollText, Search, ShieldCheck, Smartphone, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -21,6 +18,7 @@ const I = {
   qualidade: { to: '/qualidade', label: 'Qualidade de dados', icon: Database },
   regras: { to: '/regras', label: 'Regras e critérios', icon: ScrollText },
   ajuda: { to: '/ajuda', label: 'Ajuda e fontes', icon: CircleHelp },
+  whatsapp: { to: '/canal-whatsapp', label: 'WhatsApp da IARA', icon: Smartphone },
 } satisfies Record<string, NavItem>;
 
 export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
@@ -34,15 +32,15 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.unidades, I.vagas, I.ofertas, I.iara, I.indicadores, I.auditoria, I.qualidade, I.regras, I.ajuda],
+        more: [I.unidades, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras, I.ajuda],
       };
     case 'INOVACAO':
-      return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.unidades, I.indicadores, I.regras, I.ajuda] };
+      return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.unidades, I.indicadores, I.regras, I.ajuda] };
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
         primary: [I.inicio, I.atendimentos, { ...I.vagas, label: 'Vagas' }, I.fila],
-        more: [{ ...I.iara, label: 'Caixa da IARA' }, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
+        more: [{ ...I.iara, label: 'Caixa da IARA' }, I.whatsapp, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {

@@ -31,6 +31,7 @@ const Audit = lazy(() => import('./pages/Audit'));
 const Quality = lazy(() => import('./pages/Quality'));
 const Rules = lazy(() => import('./pages/Rules'));
 const Help = lazy(() => import('./pages/Help'));
+const CanalWhatsApp = lazy(() => import('./pages/CanalWhatsApp'));
 const WhatsAppEntry = lazy(() => import('./pages/WhatsApp'));
 const WhatsAppPoster = lazy(() => import('./pages/WhatsApp').then((m) => ({ default: m.WhatsAppPoster })));
 
@@ -116,6 +117,7 @@ export const router = createHashRouter([
       { path: '/conversas/:id', element: <RequireSession>{S(<Conversation />)}</RequireSession> },
       { path: '/protocolos', element: <RequireSession>{S(<CitizenCases />)}</RequireSession> },
       { path: '/familia', element: <RequireSession>{S(<Family />)}</RequireSession> },
+      { path: '/canal-whatsapp', element: <RequireSession>{S(<CanalWhatsApp />)}</RequireSession> },
       { path: '/indicadores', element: <RequireSession>{S(<Indicators />)}</RequireSession> },
       { path: '/auditoria', element: <RequireSession>{S(<Audit />)}</RequireSession> },
       { path: '/qualidade', element: S(<Quality />) },

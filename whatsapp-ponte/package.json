@@ -1,0 +1,21 @@
+{
+  "name": "iara-educa-ponte-whatsapp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ponte do WhatsApp da IARA Educa (Baileys): liga um número de WhatsApp ao agente da IARA.",
+  "scripts": {
+    "configurar": "node configurar.mjs",
+    "ligar": "node ponte.mjs --ligar",
+    "conectar": "node ponte.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

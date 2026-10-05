@@ -38,6 +38,13 @@ com as mesmas funções, regras e protocolos — experiências diferentes, mesmo
 - Em todos os casos a família recebe protocolo, equipe responsável e prazo. A caixa da IARA mostra *quem resolve os pedidos*
   (alçada da demanda), as conversas concluídas sem servidor e as execuções da própria IARA.
 
+**WhatsApp de verdade** — a pasta [`whatsapp-ponte/`](whatsapp-ponte/README.md) liga um número ao agente (ponte Baileys →
+gateway `/whatsapp/...` → o mesmo agente do portal, com as opções em lista numerada). O número registrado é o chip da
+IARA Saúde, **+55 44 99774-8259**: cada sistema tem a sua ponte e liga-se um de cada vez (`npm run whatsapp` liga a da
+Educação; `Ctrl+C` desliga). O painel **WhatsApp da IARA** (Secretário/Inovação) mostra a ponte e tem o interruptor; com o
+canal ligado, o QR code do portal passa a abrir esse WhatsApp. Resposta de servidor na Caixa da IARA e avisos de oferta
+saem pela fila de saída. Teste sem celular: `node whatsapp-ponte/simular.mjs --ligar +5544900001234 "oi" "2"`.
+
 **Início da conversa pelo WhatsApp** — QR code, número e link de conversa no portal da família (início, cadastro,
 Minha família, chat da IARA), na tela de entrada, na Ajuda, na página pública `#/whatsapp` e no cartaz A4 para imprimir
 (`#/whatsapp/cartaz`), com "Compartilhar com a família" para os demais responsáveis. Enquanto a SEDUC não define o número

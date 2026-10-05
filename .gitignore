@@ -9,6 +9,10 @@ dev-dist/
 .env.*.local
 *.pem
 
+# Ponte do WhatsApp: segredo da ponte e sessão do aparelho conectado (valem o mesmo que o celular)
+whatsapp-ponte/.env
+whatsapp-ponte/.wa-sessao*/
+
 # Claude Code — configurações pessoais e relógio de horas (privados)
 .claude/settings.local.json
 horas-trabalhadas/

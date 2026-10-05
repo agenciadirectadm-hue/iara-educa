@@ -6,8 +6,10 @@
 //   DELETE /session                                     → encerra a sessão
 //   POST   /rpc/:fn          { ...args }               → executa api.<fn>(args) com RLS do perfil
 //   POST   /iara/message     { conversation_id, text, action? } → agente IARA (WhatsApp simulado / portal)
+//   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
 import { asSystem, callApi, mapDbError, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot } from "./iara.ts";
+import { handleWhatsApp } from "./whatsapp.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -135,6 +137,9 @@ Deno.serve(async (req: Request) => {
                                    ${sql.json({ ...agent.patch, context: agent.ctx } as never)}::jsonb, ${sql.json(agent.tools as never)}::jsonb) as r`);
       return json(saved[0]?.r ?? {});
     }
+
+    const wa = await handleWhatsApp(path, req, meta, json);
+    if (wa) return wa;
 
     return json({ error: "Rota não encontrada." }, 404);
   } catch (e) {

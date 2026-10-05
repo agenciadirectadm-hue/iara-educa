@@ -201,6 +201,7 @@ function StaffInbox() {
         eyebrow="Agente IARA · WhatsApp e portal"
         title="Caixa da IARA"
         subtitle="Conversas atendidas pela IARA e as que ela encaminhou para a equipe com resumo. Assuma, responda e devolva — tudo auditado."
+        actions={<WhatsAppStatusChip />}
       />
       <IaraBubble compact className="mb-4">
         Quando não consigo resolver com segurança — exceção, reclamação, dado divergente ou pedido de atendente — eu <b>pauso</b> e passo para vocês com o resumo e o protocolo. Nunca prometo vaga, prazo ou posição sem confirmação do sistema.
@@ -271,6 +272,20 @@ function StaffInbox() {
 }
 
 /** Princípio da IARA resolutiva: quanto sai resolvido na hora × encaminhado para a unidade ou para a SEDUC. */
+/** Situação do WhatsApp real (número ligado ao agente) — atalho para o painel do canal. */
+function WhatsAppStatusChip() {
+  const c = useRpc<{ ativo: boolean; online: boolean; numero_formatado: string }>('whatsapp_canal', {}, { refetchInterval: 30_000, retry: false });
+  if (!c.data) return null;
+  const on = c.data.ativo && c.data.online;
+  return (
+    <Link to="/canal-whatsapp" className={clsx('inline-flex h-10 items-center gap-2 rounded-2xl px-3.5 text-[13px] font-semibold ring-1',
+      on ? 'bg-green-50 text-green-800 ring-green-200' : c.data.ativo ? 'bg-amber-50 text-amber-900 ring-amber-200' : 'bg-white text-ink-2 ring-line')}>
+      <span className={clsx('size-2 rounded-full', on ? 'bg-green-500' : c.data.ativo ? 'bg-amber-500' : 'bg-slate-300')} aria-hidden />
+      WhatsApp {c.data.numero_formatado}: {on ? 'ligado' : c.data.ativo ? 'ligado, sem ponte' : 'desligado'}
+    </Link>
+  );
+}
+
 function ResolutionStats() {
   const res = useRpc<any>('iara_resolution_stats', { days: 30 }, { staleTime: 60_000 });
   const d = res.data;
