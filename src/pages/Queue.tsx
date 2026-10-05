@@ -1,12 +1,19 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import clsx from 'clsx';
-import { Search, X } from 'lucide-react';
+import { Check, Search, X } from 'lucide-react';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useBootstrap } from '@/lib/data';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { fmtInt, fmtKm } from '@/lib/format';
 import { FLAG, QUEUE_CATEGORY, QUEUE_STATUS } from '@/lib/labels';
+import type { MedidaDistancia } from '@/lib/api';
 import { Avatar, Badge, Card, Chip, EmptyState, ErrorState, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
+import { LinkMetodologia, MEDIDA, MEDIDAS } from '@/components/distancias';
+import { Paginacao } from './Alunos';
+
+const CHAVE_DIST: Record<MedidaDistancia, 'linha_reta_m' | 'a_pe_m' | 'carro_m'> = { LINHA_RETA: 'linha_reta_m', A_PE: 'a_pe_m', CARRO: 'carro_m' };
 
 export default function Queue() {
   const [sp, setSp] = useSearchParams();
@@ -19,7 +26,9 @@ export default function Queue() {
   const flag = sp.get('criterio');
   const status = sp.get('status') ?? 'WAITING';
   const page = Number(sp.get('pagina') ?? 1);
-  const res = useRpc<any>('queue_list', { unit_id: unit ? Number(unit) : null, grade_level_id: serie ? Number(serie) : null, category: cat, flag, status, q: dq || null, page, page_size: 40 });
+  const res = useRpc<any>('queue_list', { unit_id: unit ? Number(unit) : null, grade_level_id: serie ? Number(serie) : null, category: cat, flag, status, q: dq || null, page, page_size: 40 },
+    { placeholderData: keepPreviousData });
+  const crit = res.data?.criterio_distancia as { medida: MedidaDistancia; limite_m: number } | undefined;
   const set = (k: string, v: string | null) => {
     const n = new URLSearchParams(sp);
     if (!v) n.delete(k);
@@ -58,34 +67,64 @@ export default function Queue() {
           <option value="WAITING">Aguardando</option><option value="OFFERED">Com oferta</option><option value="ACCEPTED">Aceitaram</option><option value="MATRICULATED">Matriculadas</option><option value="ALL">Todas</option>
         </select>
       </div>
-      <div className="mt-2 flex items-center gap-2 text-[13px] text-muted">{res.data && <span>{fmtInt(res.data.total)} criança(s)</span>}<SourceChip kind="demo" /></div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted">
+        {res.data && <span className="inline-flex items-center gap-1">{fmtInt(res.data.total)} criança(s)<SourceChip kind="demo" /></span>}
+        {crit && (
+          <span>
+            Distância da casa à unidade pretendida em linha reta, a pé e de carro (pelas ruas) · o critério “até {fmtKm(crit.limite_m)}” usa a medida <b className="text-purple-800">{MEDIDA[crit.medida].rotulo.toLowerCase()}</b> ·{' '}
+            <LinkMetodologia>como medimos</LinkMetodologia>
+          </span>
+        )}
+      </div>
       <div className="mt-3">
         {res.isLoading ? <SkeletonList rows={6} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : res.data.items.length === 0 ? <Card><EmptyState title="Ninguém neste filtro" /></Card> : (
-          <Card className="divide-y divide-line overflow-hidden">
-            {(res.data.items as any[]).map((w) => (
-              <Link key={w.id} to={`/fila/${w.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-purple-50/50">
-                <span className={clsx('inline-flex size-11 shrink-0 items-center justify-center rounded-2xl font-display text-[15px] font-black', w.position ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-500')}>{w.position ? `${w.position}º` : '—'}</span>
-                <span className="hidden sm:block"><Avatar name={w.student} seed={w.avatar_seed} size={38} /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold">{w.student}</div>
-                  <div className="truncate text-[12.5px] text-muted">{w.grade} · {w.unit} · {w.days_waiting} dias · {fmtKm(w.distance_m)}</div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    <Badge tone={QUEUE_CATEGORY[w.category]?.tone}>{QUEUE_CATEGORY[w.category]?.short}</Badge>
-                    {status !== 'WAITING' && <Badge tone={QUEUE_STATUS[w.status]?.tone}>{QUEUE_STATUS[w.status]?.label}</Badge>}
-                    {(w.flags ?? []).map((f: string) => <Badge key={f} tone="purple">{FLAG[f]?.short}</Badge>)}
-                  </div>
-                </div>
-                <div className="text-right"><div className="font-display font-black tabular text-ink">{fmtInt(w.score)}</div><div className="text-[10.5px] text-muted">pontos</div></div>
-              </Link>
-            ))}
+          <Card className="overflow-hidden">
+            <Tabela rotulo="Fila de espera" largura={1170} colunas="minmax(250px,1.6fr) 104px minmax(150px,1fr) 64px 104px 92px 96px minmax(150px,1fr) 58px">
+              <TCabecalho>
+                <span>Posição · criança</span><span>Faixa</span><span>Unidade pretendida</span><span className="text-right">Espera</span>
+                {MEDIDAS.map((m) => {
+                  const I = MEDIDA[m].icone;
+                  return (
+                    <span key={m} className={clsx('inline-flex items-center justify-end gap-1 whitespace-nowrap', crit?.medida === m && 'text-purple-800')} title={crit?.medida === m ? 'Medida usada pelo critério da fila' : undefined}>
+                      <I className="size-3.5" style={{ color: MEDIDA[m].cor }} aria-hidden />{MEDIDA[m].rotulo}{crit?.medida === m && ' ★'}
+                    </span>
+                  );
+                })}
+                <span>Critérios</span><span className="text-right">Pontos</span>
+              </TCabecalho>
+              {(res.data.items as any[]).map((w) => (
+                <TLinha key={w.id} to={`/fila/${w.id}`} rotulo={`${w.position ? `${w.position}º, ` : ''}${w.student}, ${w.unit}`}>
+                  <TCelula fixa titulo={w.student}>
+                    <span className={clsx('mr-2 inline-flex h-7 min-w-9 items-center justify-center rounded-xl px-1.5 align-middle font-display text-[13px] font-black tabular', w.position ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-500')}>{w.position ? `${w.position}º` : '—'}</span>
+                    <Avatar name={w.student} seed={w.avatar_seed} size={24} className="mr-2 inline-flex align-middle" />
+                    <span className="font-semibold">{w.student}</span>
+                  </TCelula>
+                  <TCelula className="text-muted">{w.grade}</TCelula>
+                  <TCelula titulo={w.unit}>{w.unit}</TCelula>
+                  <TCelula className="text-right tabular text-muted">{fmtInt(w.days_waiting)} d</TCelula>
+                  {MEDIDAS.map((m) => {
+                    const v = w.dist?.[CHAVE_DIST[m]] as number | null | undefined;
+                    const eCrit = crit?.medida === m;
+                    return (
+                      <TCelula key={m} className={clsx('text-right tabular', eCrit ? 'font-semibold text-ink' : 'text-muted')}>
+                        {v != null ? fmtKm(v) : '—'}
+                        {eCrit && v != null && crit && (v <= crit.limite_m ? <Check className="ml-0.5 inline size-3.5 text-green-700" aria-label="até o limite" /> : <X className="ml-0.5 inline size-3.5 text-subtle" aria-label="acima do limite" />)}
+                      </TCelula>
+                    );
+                  })}
+                  <TCelula titulo={[QUEUE_CATEGORY[w.category]?.label, ...(w.flags ?? []).map((f: string) => FLAG[f]?.short ?? f)].filter(Boolean).join(' · ')}>
+                    <span className="inline-flex gap-1">
+                      {status !== 'WAITING' && <Badge tone={QUEUE_STATUS[w.status]?.tone}>{QUEUE_STATUS[w.status]?.label}</Badge>}
+                      {(w.flags ?? []).map((f: string) => <Badge key={f} tone="purple">{FLAG[f]?.short}</Badge>)}
+                      {!(w.flags ?? []).length && <span className="text-muted">{QUEUE_CATEGORY[w.category]?.short}</span>}
+                    </span>
+                  </TCelula>
+                  <TCelula className="text-right font-display font-black tabular text-ink">{fmtInt(w.score)}</TCelula>
+                </TLinha>
+              ))}
+            </Tabela>
+            <Paginacao pagina={page} total={res.data.total} porPagina={40} onPagina={(n) => set('pagina', String(n))} />
           </Card>
-        )}
-        {res.data && res.data.total > 40 && (
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <button disabled={page <= 1} onClick={() => set('pagina', String(page - 1))} className="h-10 rounded-xl bg-white px-4 text-sm font-semibold ring-1 ring-line disabled:opacity-40">Anterior</button>
-            <span className="text-sm text-muted">Página {page}</span>
-            <button disabled={page * 40 >= res.data.total} onClick={() => set('pagina', String(page + 1))} className="h-10 rounded-xl bg-white px-4 text-sm font-semibold ring-1 ring-line disabled:opacity-40">Próxima</button>
-          </div>
         )}
       </div>
     </div>

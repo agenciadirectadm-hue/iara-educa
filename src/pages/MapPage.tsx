@@ -13,6 +13,11 @@ import type { UnitMapItem } from '@/lib/types';
 import MapView, { type HeatMode, type RegionMetric } from '@/components/map/MapView';
 import { Badge, Button, ButtonLink, Chip, OccupancyBar, SourceChip, Spinner } from '@/components/ui';
 import { Sheet } from '@/components/overlays';
+import type { DistanciaUnidade, MedidaDistancia } from '@/lib/api';
+import { LinkMetodologia, MEDIDA, SeletorMedida, TresDistancias, metros, modoTracado, trajetosDe, useDistancias } from '@/components/distancias';
+
+/** Quantas unidades perto do ponto pesquisado ganham número, linha/rota no mapa e as três medidas. */
+const PERTO = 8;
 
 type Filter = 'todas' | 'cmei' | 'escola' | 'vaga' | 'creche';
 type Snap = 'peek' | 'half' | 'full';
@@ -61,6 +66,22 @@ export default function MapPage() {
   }, [all, filter, point]);
   const selected = all.find((u) => u.id === selectedId) ?? null;
 
+  // ponto pesquisado (ou a casa da família): as unidades mais próximas, medidas em linha reta (padrão), a pé ou de carro
+  const [medida, setMedida] = useState<MedidaDistancia>('LINHA_RETA');
+  const perto = useMemo(() => (point ? list.slice(0, PERTO) : []), [list, point]);
+  const dist = useDistancias(point && perto.length
+    ? { lat: point.lat, lng: point.lng, unidades: perto.map((u) => u.id), geometrias_modo: modoTracado(medida) } : null);
+  const porUnidade = useMemo(() => new Map((dist.data?.unidades ?? []).map((u) => [u.id, u])), [dist.data]);
+  // ordem pela medida escolhida (a linha reta vale enquanto a rota não chega)
+  const ordenadas = useMemo(() => {
+    const val = (u: UnitMapItem) => {
+      const x = porUnidade.get(u.id);
+      return (x ? metros(x, medida) : null) ?? (point ? distance(point, u) : 0);
+    };
+    return [...perto].sort((a, b) => val(a) - val(b));
+  }, [perto, porUnidade, medida, point]);
+  const trajetos = trajetosDe(dist.data, medida);
+
   const setParam = (k: string, v: string | null) => {
     const n = new URLSearchParams(sp);
     if (v == null) n.delete(k);
@@ -90,13 +111,17 @@ export default function MapPage() {
           regionMetric={regionMetric}
           colorMode={layer === 'vagas' || filter === 'vaga' || filter === 'creche' ? 'vacancy' : 'type'}
           showAreas={showAreas}
-          home={point ? { lat: point.lat, lng: point.lng, radius_m: 2000 } : null}
+          home={point ? { lat: point.lat, lng: point.lng, radius_m: medida === 'LINHA_RETA' ? 2000 : undefined } : null}
+          highlight={point ? ordenadas.map((u, i) => ({ id: u.id, label: String(i + 1) })) : undefined}
+          highlightLabel={`Mais perto ${MEDIDA[medida].curto} (número = ordem)`}
+          lines={!!point && medida === 'LINHA_RETA'}
+          trajetos={point ? trajetos : null}
           homeLabel="Ponto pesquisado"
           legend="overlay"
-          legendClassName={desktop ? 'bottom-3 left-[424px]' : 'left-3 top-[118px]'}
+          legendClassName={desktop ? 'bottom-3 left-[424px]' : point ? 'left-3 top-[170px]' : 'left-3 top-[118px]'}
           focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : point ? { lat: point.lat, lng: point.lng, zoom: 13.6 } : null}
           fitKey={`${filter}`}
-          padding={{ top: 130, bottom: desktop ? 40 : 170, left: desktop ? 420 : 30, right: 70 }}
+          padding={{ top: point ? 180 : 130, bottom: desktop ? 40 : 170, left: desktop ? 420 : 30, right: 70 }}
         />
       ) : (
         <ListView list={list} point={point} onPick={(u) => navigate(`/unidades/${u.id}`)} />
@@ -156,6 +181,11 @@ export default function MapPage() {
             <Chip key={v} active={filter === v} onClick={() => { setFilter(v); setParam('filtro', v === 'todas' ? null : v); }}>{l}</Chip>
           ))}
         </div>
+        {point && view === 'mapa' && (
+          <div className="pointer-events-auto mt-1">
+            <SeletorMedida value={medida} onChange={setMedida} carregando={dist.calculando} />
+          </div>
+        )}
       </div>
 
       {/* painel: inferior no celular, lateral no desktop */}
@@ -183,9 +213,10 @@ export default function MapPage() {
           )}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-1">
             {selected ? (
-              <UnitSummary u={selected} point={point} onClose={() => select(null)} />
+              <UnitSummary u={selected} point={point} dist={porUnidade.get(selected.id) ?? null} medida={medida} onClose={() => select(null)} />
             ) : (
-              <Overview list={list} point={point} layer={layer} onClearPoint={() => setPoint(null)} onPick={select} total={all.length} />
+              <Overview list={list} point={point} layer={layer} onClearPoint={() => setPoint(null)} onPick={select} total={all.length}
+                perto={ordenadas} porUnidade={porUnidade} medida={medida} calculando={dist.calculando} />
             )}
           </div>
         </motion.div>
@@ -222,7 +253,10 @@ export default function MapPage() {
   );
 }
 
-function Overview({ list, point, layer, onClearPoint, onPick, total }: { list: UnitMapItem[]; point: any; layer: string; onClearPoint: () => void; onPick: (u: UnitMapItem) => void; total: number }) {
+function Overview({ list, point, layer, onClearPoint, onPick, total, perto, porUnidade, medida, calculando }: {
+  list: UnitMapItem[]; point: any; layer: string; onClearPoint: () => void; onPick: (u: UnitMapItem) => void; total: number;
+  perto: UnitMapItem[]; porUnidade: Map<number, DistanciaUnidade>; medida: MedidaDistancia; calculando: boolean;
+}) {
   const vagas = list.reduce((a, u) => a + u.offerable, 0);
   const fila = list.reduce((a, u) => a + u.queue, 0);
   return (
@@ -237,9 +271,34 @@ function Overview({ list, point, layer, onClearPoint, onPick, total }: { list: U
         <span><b className="text-red-700">{fmtInt(fila)}</b> na fila</span>
         <SourceChip kind="demo" detail="Unidades e endereços são públicos; vagas e fila pertencem à camada de demonstração." />
       </div>
-      {point && <p className="mt-2 rounded-2xl bg-purple-50 p-2.5 text-[12.5px] text-purple-900">Círculo = raio de 2 km (território prioritário da regra TERRITORIO_2KM). Ordenado pela distância em linha reta.</p>}
+      {point && (
+        <p className="mt-2 rounded-2xl bg-purple-50 p-2.5 text-[12.5px] text-purple-900">
+          {medida === 'LINHA_RETA'
+            ? 'Círculo = 2 km em linha reta (critério de proximidade da fila). '
+            : `Caminho ${MEDIDA[medida].curto} pelas ruas até cada unidade. `}
+          As {perto.length} mais próximas estão numeradas, na ordem da distância {MEDIDA[medida].curto}. <LinkMetodologia className="text-[12.5px]" />
+        </p>
+      )}
+      {point && perto.length > 0 && (
+        <div className="mt-3 divide-y divide-line">
+          {perto.map((u, i) => {
+            const x = porUnidade.get(u.id);
+            return (
+              <button key={u.id} onClick={() => onPick(u)} className="flex w-full items-center gap-3 py-2.5 text-left">
+                <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-purple-700 font-display text-[14px] font-black text-white">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-semibold">{u.name}</div>
+                  {x ? <TresDistancias variante="linha" u={x} destaque={medida} calculando={calculando} />
+                    : <div className="truncate text-[12px] text-muted">{u.neighborhood} · {fmtKm(distance(point, u))} em linha reta</div>}
+                </div>
+                <span className={clsx('text-[12.5px] font-bold tabular', u.offerable > 0 ? 'text-green-700' : 'text-muted')}>{u.offerable > 0 ? `${u.offerable} vagas` : '—'}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="mt-3 divide-y divide-line">
-        {list.slice(0, point ? 12 : 25).map((u) => (
+        {list.slice(point ? perto.length : 0, point ? 12 : 25).map((u) => (
           <button key={u.id} onClick={() => onPick(u)} className="flex w-full items-center gap-3 py-2.5 text-left">
             <span className={clsx('inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-white', u.status !== 'ATIVA' ? 'bg-slate-400' : u.type === 'CMEI' ? 'bg-purple-500' : 'bg-blue-500')}>
               <School className="size-4" />
@@ -256,7 +315,7 @@ function Overview({ list, point, layer, onClearPoint, onPick, total }: { list: U
   );
 }
 
-function UnitSummary({ u, point, onClose }: { u: UnitMapItem; point: any; onClose: () => void }) {
+function UnitSummary({ u, point, dist, medida, onClose }: { u: UnitMapItem; point: any; dist: DistanciaUnidade | null; medida: MedidaDistancia; onClose: () => void }) {
   return (
     <div>
       <div className="flex items-start gap-3">
@@ -270,8 +329,14 @@ function UnitSummary({ u, point, onClose }: { u: UnitMapItem; point: any; onClos
             <Badge tone={u.type === 'CMEI' ? 'purple' : 'blue'}>{u.type_label}</Badge>
             {u.status !== 'ATIVA' && <Badge tone="gray">Situação a validar</Badge>}
             {u.geo_precision !== 'VALIDADO' && <Badge tone="amber">Coordenada {u.geo_precision.toLowerCase()}</Badge>}
-            {point && <Badge tone="gray" icon={Navigation}>{fmtKm(distance(point, u))}</Badge>}
+            {point && !dist && <Badge tone="gray" icon={Navigation}>{fmtKm(distance(point, u))} em linha reta</Badge>}
           </div>
+          {point && dist && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
+              <span className="font-semibold text-ink-2">Do ponto pesquisado:</span>
+              <TresDistancias variante="linha" u={dist} destaque={medida} />
+            </div>
+          )}
         </div>
         <button onClick={onClose} className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100" aria-label="Fechar unidade"><X className="size-5" /></button>
       </div>

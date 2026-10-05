@@ -26,6 +26,9 @@ grant execute on function
   iara.digitos(text), iara.endereco_aproximado(text)
   to authenticated;
 
+-- Distâncias (linha reta, a pé, de carro): medida usada pelo critério de proximidade (SECURITY INVOKER: queue_list)
+grant execute on function iara.medida_distancia_fila(), iara.medida_rotulo(text) to authenticated;
+
 -- API pública (sem dados pessoais)
 grant execute on function
   api.bootstrap(jsonb), api.units_map(jsonb), api.geo_layers(jsonb), api.units_list(jsonb), api.unit_detail(jsonb), api.territory_detail(jsonb),

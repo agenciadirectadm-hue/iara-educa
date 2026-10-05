@@ -7,7 +7,8 @@
 //   POST /whatsapp/saida                       → lote da fila de saída (servidor respondendo, avisos)
 //   POST /whatsapp/saida/confirmar { id, wa_id?, erro? }
 // Autenticação: cabeçalho x-iara-canal com o segredo da ponte (o banco guarda só o hash).
-import { asSystem, callApi, sql, type RequestMeta } from "./db.ts";
+import { asSystem, callApi, gravarRotas, sql, type RequestMeta } from "./db.ts";
+import { distanciasComPrazo } from "./rotas.ts";
 import { Agent, type ConvSnapshot, type QuickReply, type Reply } from "./iara.ts";
 
 type Canal = { id: string; numero_e164: string; ativo: boolean; estado: string };
@@ -163,7 +164,8 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
   // servidor no atendimento: a IARA não responde (a resposta humana sai pela fila de saída)
   if (snap.state === "HUMAN_ACTIVE" || snap.state === "HUMAN_PENDING") return json({ ativo: true, humano: true, respostas: [] });
 
-  const agent = new Agent((fn, args) => callApi(userId, meta, fn, args), snap);
+  const chamar = (fn: string, args: unknown) => callApi(userId, meta, fn, args);
+  const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)));
   if (tipo === "audio" && !ouvido) agent.messages.push({ body: audioDisponivel() ? AUDIO_NAO_ENTENDI : SEM_AUDIO });
   else if (tipo === "midia" && !texto.trim()) agent.messages.push({ body: SEM_MIDIA });
   else {

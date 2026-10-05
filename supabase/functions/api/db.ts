@@ -41,6 +41,10 @@ export async function asSystem<T>(userId: string | null, meta: RequestMeta, fn: 
   }) as T;
 }
 
+/** Guarda rotas calculadas no cache e atualiza as inscrições da fila com aquela casa e unidade. */
+export const gravarRotas = (userId: string | null, meta: RequestMeta) => (itens: unknown[]) =>
+  asSystem(userId, meta, (tx) => tx`select iara.rotas_gravar(${sql.json({ itens } as never)}::jsonb) as n`).then(() => undefined);
+
 let apiFunctions: Set<string> | null = null;
 let loadedAt = 0;
 

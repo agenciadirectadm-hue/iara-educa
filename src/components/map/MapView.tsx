@@ -7,7 +7,7 @@ import { Crosshair, Minus, Plus } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
 import { MapLegend } from './MapLegend';
 import {
-  BALANCE_STOPS, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, REGION_OPACITY, ROUTE_LINE,
+  BALANCE_STOPS, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, REGION_OPACITY, ROTA_COLOR, ROUTE_LINE,
   SELECTED_STROKE, UNIT_COLOR, VACANCY_COLOR, interpolate,
 } from './mapStyle';
 
@@ -57,6 +57,8 @@ export type MapViewProps = {
   homeLabel?: string;
   highlightLabel?: string;
   selectedLabel?: string;
+  /** Rotas calculadas pelas ruas ([lng, lat]), da residência até cada unidade: a pé (tracejada) e de carro (contínua). */
+  trajetos?: { id: number; modo: 'A_PE' | 'CARRO'; coords: [number, number][] }[] | null;
 };
 
 function circle(lat: number, lng: number, r: number, n = 72): GeoJSON.Feature<GeoJSON.Polygon> {
@@ -164,6 +166,7 @@ export function MapView(p: MapViewProps) {
       map.addSource('units', { type: 'geojson', data: empty, promoteId: 'id' });
       map.addSource('radius', { type: 'geojson', data: empty });
       map.addSource('lines', { type: 'geojson', data: empty });
+      map.addSource('rotas', { type: 'geojson', data: empty });
       map.addSource('ranks', { type: 'geojson', data: empty });
 
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.55 } });
@@ -184,6 +187,18 @@ export function MapView(p: MapViewProps) {
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': PURPLE, 'fill-opacity': 0.08 } });
       map.addLayer({ id: 'radius-line', type: 'line', source: 'radius', paint: { 'line-color': PURPLE, 'line-width': 2, 'line-dasharray': [2, 1.5] } });
       map.addLayer({ id: 'lines', type: 'line', source: 'lines', paint: { 'line-color': ROUTE_LINE, 'line-width': 2, 'line-opacity': 0.55, 'line-dasharray': [1, 1.6] } });
+      map.addLayer({
+        id: 'rotas-contorno', type: 'line', source: 'rotas', layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': ['match', ['get', 'modo'], 'CARRO', 8, 6.5], 'line-opacity': 0.9 },
+      });
+      map.addLayer({
+        id: 'rota-carro', type: 'line', source: 'rotas', filter: ['==', ['get', 'modo'], 'CARRO'], layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': ROTA_COLOR.CARRO, 'line-width': 4.5, 'line-opacity': 0.85 },
+      });
+      map.addLayer({
+        id: 'rota-pe', type: 'line', source: 'rotas', filter: ['==', ['get', 'modo'], 'A_PE'], layout: { 'line-join': 'round' },
+        paint: { 'line-color': ROTA_COLOR.A_PE, 'line-width': 3.5, 'line-dasharray': [1.6, 1.1] },
+      });
       map.addLayer({
         id: 'units-halo', type: 'circle', source: 'units',
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 11, 17, 16], 'circle-color': '#ffffff', 'circle-opacity': 0.95 },
@@ -324,6 +339,16 @@ export function MapView(p: MapViewProps) {
     } : empty);
   }, [ready, p.home, p.highlight, p.lines, p.units]);
 
+  // rotas calculadas pelas ruas (a pé e de carro), da residência até cada unidade
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const feats: GeoJSON.Feature[] = (p.trajetos ?? []).filter((t) => t.coords.length > 1).map((t) => ({
+      type: 'Feature', properties: { modo: t.modo, id: t.id }, geometry: { type: 'LineString', coordinates: t.coords },
+    }));
+    (map.getSource('rotas') as GeoJSONSource).setData({ type: 'FeatureCollection', features: feats });
+  }, [ready, p.trajetos]);
+
   // seleção
   useEffect(() => {
     const map = mapRef.current;
@@ -361,6 +386,7 @@ export function MapView(p: MapViewProps) {
         if (p.home) pts.push([p.home.lng, p.home.lat]);
         const hl = p.highlight?.map((h) => p.units.find((u) => u.id === h.id)).filter(Boolean) as UnitMapItem[] | undefined;
         (hl?.length ? hl : p.home ? [] : p.units).forEach((u) => pts.push([u.lng, u.lat]));
+        for (const t of p.trajetos ?? []) t.coords.forEach((x) => pts.push(x));
         if (!pts.length) return;
         const b = pts.reduce((acc, c) => acc.extend(c), new LngLatBounds(pts[0], pts[0]));
         if (pts.length === 1) map.flyTo({ center: pts[0], zoom: 14.5, padding: pad, duration: 800 });
@@ -386,6 +412,7 @@ export function MapView(p: MapViewProps) {
     units: p.units, showUnits: p.showUnits, colorMode: p.colorMode, regionMetric: p.regionMetric, heat: p.heat,
     hasBoundary: !!p.geo?.municipality, showAreas: p.showAreas && !!p.geo?.areas, home: p.home, homeLabel: p.homeLabel,
     highlight: p.highlight, highlightLabel: p.highlightLabel, lines: p.lines,
+    rotas: { A_PE: (p.trajetos ?? []).some((t) => t.modo === 'A_PE'), CARRO: (p.trajetos ?? []).some((t) => t.modo === 'CARRO') },
     selectedUnit: p.selectedId != null ? p.units.find((u) => u.id === p.selectedId) ?? null : null, selectedLabel: p.selectedLabel,
   };
 

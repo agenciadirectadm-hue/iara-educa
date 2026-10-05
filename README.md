@@ -92,6 +92,30 @@ número fictício). Para ativar o número oficial, sem novo deploy:
 `update iara.tenants set settings = settings || '{"iara_whatsapp_numero": "55449XXXXXXXX"}' where id = 1;` — a partir daí o
 QR code e o link viram `https://wa.me/<número>?text=<mensagem>` (mensagem em `iara_whatsapp_mensagem`).
 
+### Distância casa–unidade: linha reta, a pé e de carro
+Pedido do Ministério Público e da Defensoria: a proximidade não pode se basear só na linha reta. A IARA Educa calcula e mostra
+as **três medidas** — e o modelo vale para qualquer município.
+
+- **Toda tela em que se procura ou se pede uma vaga** (busca de vaga, unidades próximas no mapa, endereço do cadastro,
+  ficha da criança, inscrição na fila e portal da família) tem o seletor **Linha reta (padrão) · A pé · De carro**: no mapa,
+  a reta pontilhada vira o caminho pelas ruas até cada unidade numerada, e as listas destacam a medida escolhida (com o tempo).
+- **A pé:** trajeto mais curto pelas ruas, calçadas e caminhos de pedestres (tempo a 5 km/h). **De carro:** trajeto mais
+  rápido respeitando a mão de direção (tempo sem trânsito). **Linha reta:** a menor distância no mapa, sem considerar ruas.
+- **O critério "até 2 km" (IN nº 025/2025, +15 pontos) usa uma medida** — parâmetro público da regra `TERRITORIO_2KM`
+  (`condition.medida` = `LINHA_RETA` | `A_PE` | `CARRO`; padrão: linha reta, como na redação da IN). As três ficam registradas
+  em cada inscrição (`dist_reta_m`, `dist_pe_m`, `dist_carro_m`) e no extrato da pontuação que a família vê (portal e WhatsApp).
+- **Transparência e decisão:** `#/regras#distancia` explica a metodologia, mostra quantas crianças atendem o critério por cada
+  medida e quanto o caminho real é maior que a linha reta; a Secretaria **simula** o impacto de trocar a medida (quem perde os
+  pontos, quem muda de posição) e o(a) Secretário(a) **troca** a medida com justificativa registrada na auditoria — todas as
+  filas são recalculadas. Casa nova ainda sem rota: vale a linha reta, provisoriamente, e o gateway calcula a rota em segundo plano.
+- **Motor de rotas:** OSRM sobre o OpenStreetMap (`supabase/functions/api/rotas.ts`). Padrão: servidores públicos da FOSSGIS,
+  para uso leve e demonstração (limites medidos: matriz = 1 consulta a cada ~10 s e até 10 mil células; rota avulsa sem espera).
+  **Em produção ou em outro município:** um servidor OSRM próprio com o recorte do OpenStreetMap do estado (ex.: Geofabrik),
+  informado nos segredos da função `api`: `ROTAS_OSRM_A_PE` e `ROTAS_OSRM_CARRO` (opcionais: `ROTAS_MAX_URL`,
+  `ROTAS_MAX_CELULAS`). Só coordenadas vão ao motor de rotas — nunca nome, CPF ou endereço escrito.
+- **Fila inteira em lote:** `POST /rotas/fila` (botão "Calcular rotas pendentes" em `#/regras`, perfis da Secretaria) — as
+  1.294 inscrições ativas da demonstração foram calculadas em 10 consultas (91 s). Rotas ficam em cache (`iara.rotas_cache`).
+
 ### Princípios aplicados
 - **Dado oficial prevalece; nada é inventado** — lacunas aparecem como `PENDENTE SEDUC`. Cada número tem selo de origem
   (oficial, público, calculado, demonstração, projetado, pendente) que explica de onde vem.
@@ -155,8 +179,9 @@ SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                  
 Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
 após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
-`supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql`, `supabase/tests/conversas_unidades.sql` e
-`supabase/tests/cadastro_pessoas.sql` (os cinco últimos rodam numa transação revertida e não deixam resíduo na demonstração;
+`supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql`, `supabase/tests/conversas_unidades.sql`,
+`supabase/tests/cadastro_pessoas.sql` e `supabase/tests/distancias_rota.sql` (os seis últimos rodam numa transação revertida
+e não deixam resíduo na demonstração;
 para ver o resultado completo, use `SQL_OUT_LIMIT=200000`).
 Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
 `node scripts/teste-iara.mjs maria` (família já cadastrada) — cria dados de demonstração.

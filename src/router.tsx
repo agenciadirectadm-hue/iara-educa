@@ -120,7 +120,7 @@ export const router = createHashRouter([
       { path: '/atendimentos/novo', element: <RequireSession>{S(<CaseNew />)}</RequireSession> },
       { path: '/atendimentos/:id', element: <RequireSession>{S(<CasePage />)}</RequireSession> },
       { path: '/vagas', element: S(<VacancySearch />) },
-      { path: '/fila', element: <RequireSession>{S(<Queue />)}</RequireSession> },
+      { path: '/fila', element: <RequireSession>{S(<Queue />)}</RequireSession>, handle: { wide: true } },
       { path: '/fila/:id', element: <RequireSession>{S(<QueueEntry />)}</RequireSession> },
       { path: '/ofertas', element: <RequireSession>{S(<Offers />)}</RequireSession> },
       { path: '/iara', element: <RequireSession>{S(<IaraHub />)}</RequireSession>, handle: { full: true } },

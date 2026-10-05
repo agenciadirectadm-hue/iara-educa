@@ -7,11 +7,15 @@
 //   POST   /rpc/:fn          { ...args }               → executa api.<fn>(args) com RLS do perfil
 //   POST   /iara/message     { conversation_id, text, action? } → agente IARA (WhatsApp simulado / portal)
 //   POST   /geo/localizar    { cep?, logradouro?, ... } → CEP e coordenada do endereço do cadastro (ver geo.ts)
+//   POST   /rotas            { lat, lng, unidades?|proximas?, geometria_unidade? } → linha reta, a pé e de carro (ver rotas.ts)
+//   POST   /rotas/fila       { unidades? }             → rotas da fila ativa em lote (Secretaria)
+//   GET    /rotas/status                               → situação do motor de rotas
 //   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
-import { asSystem, callApi, mapDbError, sql, type RequestMeta } from "./db.ts";
+import { asSystem, callApi, gravarRotas, mapDbError, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot } from "./iara.ts";
 import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 import { localizarEndereco } from "./geo.ts";
+import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +47,8 @@ function rateLimited(ip: string, max = 40, windowMs = 10 * 60_000): boolean {
   return hits.length > max;
 }
 
+let statusRotas: { em: number; valor: unknown } | null = null;
+
 // Rotinas periódicas: expiração de ofertas e atualização temporal do modo demonstração
 let lastHousekeeping = 0;
 let housekeepingRunning: Promise<void> | null = null;
@@ -56,6 +62,23 @@ function housekeeping(meta: RequestMeta) {
       housekeepingRunning = null;
     });
   return housekeepingRunning;
+}
+
+// Rotas que faltam na fila (inscrição nova, mudança de endereço — por qualquer canal): calculadas em segundo plano,
+// no máximo a cada 2 min por instância; com o critério medido pela rota, a fila se reordena sozinha.
+let ultimaRotas = 0;
+let rotasRodando = false;
+function rotasPendentes(meta: RequestMeta) {
+  if (rotasRodando || Date.now() - ultimaRotas < 2 * 60_000) return;
+  ultimaRotas = Date.now();
+  rotasRodando = true;
+  const pendentes = (_fn: string, a: unknown) =>
+    asSystem(null, meta, (tx) => tx`select iara.rotas_pendentes(${sql.json((a ?? {}) as never)}::jsonb) as r`).then((r) => r[0]?.r);
+  const job = rotasDaFila(pendentes, gravarRotas(null, meta), { tempo_s: 40 })
+    .then((r) => { if (r.calculadas || r.erro) console.log("rotas pendentes", JSON.stringify(r)); })
+    .catch((e) => console.error("rotas pendentes", e?.message))
+    .finally(() => { rotasRodando = false; });
+  (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(job);
 }
 
 async function resolveUser(req: Request): Promise<{ userId: string | null; expired: boolean }> {
@@ -84,6 +107,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const hk = housekeeping(meta);
+    rotasPendentes(meta);
     if (hk && path.startsWith("/rpc/dashboard")) await hk;
 
     if (path === "/session" && req.method === "POST") {
@@ -132,7 +156,8 @@ Deno.serve(async (req: Request) => {
         return json({ ...conv, bot_paused: true });
       }
 
-      const agent = new Agent((fn, args) => callApi(userId, meta, fn, args), snap);
+      const chamar = (fn: string, args: unknown) => callApi(userId, meta, fn, args);
+      const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)));
       await agent.handle(text, action);
       const saved = await asSystem(userId, meta, (tx) =>
         tx`select iara.agent_reply(${snap.conversation_id}::uuid, ${sql.json(agent.messages as never)}::jsonb,
@@ -146,6 +171,30 @@ Deno.serve(async (req: Request) => {
       if (!userId || expired) return json({ error: "Sessão necessária.", code: "SESSION_EXPIRED" }, 401);
       const body = await req.json().catch(() => ({}));
       return json(await localizarEndereco(body ?? {}));
+    }
+
+    // distâncias: linha reta (banco) + rotas a pé e de carro (motor OSRM), guardadas no cache
+    if ((path === "/rotas" || path === "/rotas/fila") && req.method === "POST") {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sessão necessária.", code: "SESSION_EXPIRED" }, 401);
+      const corpo = await req.json().catch(() => ({}));
+      const api = (fn: string, a: unknown) => callApi(userId, meta, fn, a);
+      const gravar = gravarRotas(userId, meta);
+      return json(path === "/rotas" ? await distanciasComRotas(api, gravar, corpo ?? {}) : await rotasDaFila(api, gravar, corpo ?? {}));
+    }
+
+    // situação do motor de rotas (a pé e de carro): uma rota mínima em cada perfil, guardada por 10 min
+    if (path === "/rotas/status" && req.method === "GET") {
+      if (!statusRotas || Date.now() - statusRotas.em > 600_000) {
+        const a = { lat: -23.4254, lng: -51.9617 }, b = { lat: -23.4051, lng: -51.9387 };
+        const teste = async (modo: "A_PE" | "CARRO") => {
+          const t0 = Date.now();
+          try { const r = await rota(modo, a, b); return { ok: r.distancia_m != null, distancia_m: r.distancia_m, ms: Date.now() - t0 }; }
+          catch (e) { return { ok: false, erro: (e as Error).message, ms: Date.now() - t0 }; }
+        };
+        statusRotas = { em: Date.now(), valor: { provedor: PROVEDOR, a_pe: await teste("A_PE"), carro: await teste("CARRO") } };
+      }
+      return json(statusRotas.valor);
     }
 
     const wa = await handleWhatsApp(path, req, meta, json);

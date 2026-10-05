@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, School, Search, ShieldCheck, Sparkles, Upload, X,
+  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, Upload, X,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
@@ -16,6 +16,10 @@ import { useSession } from '@/lib/session';
 import { FamilyOnboarding } from '@/pages/Family';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { WhatsAppCard } from '@/components/whatsapp';
+import { LinkMetodologia, TresDistancias, TresDistanciasInscricao, useDistancias } from '@/components/distancias';
+
+// o quadro tem mapa: só carrega quando a família abre "ver o caminho"
+const QuadroDistancias = lazy(() => import('@/components/QuadroDistancias'));
 
 export default function HomeCidadao() {
   const { me } = useSession();
@@ -102,20 +106,7 @@ function CitizenHome() {
       </Section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Unidades perto de casa" action={<Link to="/mapa?perto=1" className="text-sm font-semibold text-purple-700">Ver no mapa</Link>}>
-          <Card className="divide-y divide-line">
-            {d.nearby.slice(0, 4).map((u: any) => (
-              <Link key={u.id} to={`/unidades/${u.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-                <span className={clsx('inline-flex size-9 items-center justify-center rounded-xl text-white', u.type === 'CMEI' ? 'bg-purple-500' : 'bg-blue-500')}><School className="size-4" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold">{u.name}</div>
-                  <div className="text-[12.5px] text-muted">{fmtKm(u.distance_m)} · {u.neighborhood}</div>
-                </div>
-                <ChevronRight className="size-5 text-subtle" />
-              </Link>
-            ))}
-          </Card>
-        </Section>
+        <UnidadesPerto d={d} />
         <Section title={<span className="inline-flex items-center gap-1">Avisos<Simulado detail="Avisos simulados: nenhuma mensagem real é enviada." /></span>} subtitle="Notificações da rede para a sua família">
           <Card className="divide-y divide-line">
             {d.notifications.length ? d.notifications.slice(0, 5).map((n: any) => (
@@ -199,6 +190,7 @@ function ChildCard({ c }: { c: any }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [sending, setSending] = useState<string | null>(null);
+  const [caminho, setCaminho] = useState(false);
   const missing = docs.filter((d) => !['VALIDADO', 'RECEBIDO'].includes(d.status));
   const showDocs = (q || accepted) && missing.length > 0;
   const send = async (type: string) => {
@@ -250,7 +242,14 @@ function ChildCard({ c }: { c: any }) {
             {(q.breakdown ?? []).filter((b: any) => b.weight > 0 || b.code === 'DATA_SOLICITACAO' || (b.analysis && b.applied)).map((b: any) => (
               <li key={b.code} className="flex items-start gap-2 text-[13.5px]">
                 {b.applied ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-700" /> : <Circle className="mt-0.5 size-4 shrink-0 text-subtle" />}
-                <span className={b.applied ? 'flex-1 text-ink' : 'flex-1 text-muted'}>{b.name}<span className="block text-[12px] text-muted">{b.evidence}</span></span>
+                <span className={b.applied ? 'flex-1 text-ink' : 'flex-1 text-muted'}>{b.name}<span className="block text-[12px] text-muted">{b.evidence}</span>
+                  {b.code === 'TERRITORIO_2KM' && b.distancias && (
+                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <TresDistanciasInscricao breakdown={q.breakdown} />
+                      <button type="button" onClick={() => setCaminho(true)} className="inline-flex items-center gap-1 text-[12px] font-semibold text-purple-700 hover:underline"><Route className="size-3.5" />ver o caminho</button>
+                    </span>
+                  )}
+                </span>
                 {b.analysis ? <span className="shrink-0 text-[11.5px] font-bold text-purple-700">sob análise</span>
                   : b.weight > 0 && <span className={b.applied ? 'shrink-0 font-bold text-green-700' : 'shrink-0 text-muted'}>+{b.weight}</span>}
               </li>
@@ -284,6 +283,53 @@ function ChildCard({ c }: { c: any }) {
       {!c.school && !q && !accepted && (
         <ButtonLink to="/vagas" className="mt-3" block variant="soft" icon={Search}>Procurar vaga para {c.first_name}</ButtonLink>
       )}
+      {q && <CaminhoSheet open={caminho} onClose={() => setCaminho(false)} criancaId={c.id} nome={c.first_name} unidadeId={q.unit_id} unidade={q.unit} />}
     </Card>
+  );
+}
+
+/** O caminho de casa até a unidade pedida: linha reta, a pé e de carro, desenhados no mapa. */
+function CaminhoSheet({ open, onClose, criancaId, nome, unidadeId, unidade }: {
+  open: boolean; onClose: () => void; criancaId: string; nome: string; unidadeId: number; unidade: string;
+}) {
+  const det = useRpc<any>('student_detail', { student_id: criancaId }, { enabled: open });
+  const a = det.data?.address;
+  return (
+    <Sheet open={open} onClose={onClose} title={`De casa até ${unidade}`} subtitle={`Endereço de ${nome} · as três formas de medir`} size="lg">
+      {det.isLoading ? <SkeletonList rows={3} /> : a?.lat != null ? (
+        <Suspense fallback={<SkeletonList rows={3} />}>
+          <QuadroDistancias origem={{ lat: a.lat, lng: a.lng }} unidadeId={unidadeId} titulo="Distância até a unidade pedida" homeLabel={`Casa de ${nome}`} unidadeLabel="Unidade pedida" className="shadow-none ring-0" />
+        </Suspense>
+      ) : <p className="text-[14px] text-muted">Endereço sem localização no mapa. Atualize o endereço em “Minha família”.</p>}
+      <p className="mt-3 text-[12.5px] text-muted">A pontuação “até 2 km” usa a medida indicada na regra; as outras duas ficam registradas para conferência. <LinkMetodologia /></p>
+    </Sheet>
+  );
+}
+
+/** Unidades perto de casa, com a distância em linha reta, a pé e de carro. */
+function UnidadesPerto({ d }: { d: any }) {
+  const a = d.guardian?.address;
+  const perto = (d.nearby ?? []).slice(0, 4) as any[];
+  const dist = useDistancias(a?.lat != null && perto.length ? { lat: a.lat, lng: a.lng, unidades: perto.map((u) => u.id) } : null);
+  return (
+    <Section title="Unidades perto de casa" action={<Link to="/mapa?perto=1" className="text-sm font-semibold text-purple-700">Ver no mapa</Link>}>
+      <Card className="divide-y divide-line">
+        {perto.map((u: any) => {
+          const x = dist.data?.unidades.find((y) => y.id === u.id);
+          return (
+            <Link key={u.id} to={`/unidades/${u.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+              <span className={clsx('inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-white', u.type === 'CMEI' ? 'bg-purple-500' : 'bg-blue-500')}><School className="size-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold">{u.name}</div>
+                {x ? <TresDistancias variante="linha" u={x} criterio={dist.data?.criterio} calculando={dist.calculando} />
+                  : <div className="text-[12.5px] text-muted">{fmtKm(u.distance_m)} em linha reta · {u.neighborhood}</div>}
+              </div>
+              <ChevronRight className="size-5 shrink-0 text-subtle" />
+            </Link>
+          );
+        })}
+        <p className="flex flex-wrap items-center gap-x-2 px-4 py-2 text-[12px] text-muted">Linha reta, a pé e de carro (pelas ruas) a partir do seu endereço · <LinkMetodologia className="text-[12px]" /></p>
+      </Card>
+    </Section>
   );
 }

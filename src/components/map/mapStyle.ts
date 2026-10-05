@@ -6,6 +6,8 @@ export const SELECTED_STROKE = '#0E1A2B';
 /** Limite do município, áreas de influência, raio da residência e marcadores de ranking. */
 export const PURPLE = '#7A24C5';
 export const ROUTE_LINE = '#0E1A2B';
+/** Rotas calculadas pelas ruas: a pé (tracejada) e de carro (contínua). */
+export const ROTA_COLOR = { A_PE: '#0A8F5B', CARRO: '#1D6FD8' } as const;
 export const REGION_OPACITY = 0.42;
 
 export type Stops = [number, string][];

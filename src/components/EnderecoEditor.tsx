@@ -9,6 +9,8 @@ import { PRECISAO, fmtDistancia, mascaraCep, precisaoRotulo, soDigitos, type End
 import { Button } from './ui';
 import { Campo, Escolha, Texto } from './cadastro';
 import MapView from './map/MapView';
+import type { MedidaDistancia } from '@/lib/api';
+import { MEDIDA, SeletorMedida, TresDistancias, modoTracado, trajetosDe, useDistancias } from './distancias';
 
 type Ponto = { dentro_maringa: boolean; territorio: string | null; territorio_tipo: string | null; bairro: string | null; bairro_distancia_m: number | null;
   unidades: { id: number; nome: string; tipo_rotulo: string | null; distancia_m: number; vagas: number | null }[] };
@@ -113,6 +115,11 @@ export default function EnderecoEditor({ value, onChange, faixaId }: { value: En
   const p = local.data;
   const exata = PRECISAO[value.precisao]?.exata;
   const proximas = (p?.unidades ?? []).slice(0, 3);
+  // unidades mais próximas: linha reta (padrão), a pé ou de carro, com o caminho no mapa
+  const [medida, setMedida] = useState<MedidaDistancia>('LINHA_RETA');
+  const dist = useDistancias(temPonto && proximas.length
+    ? { lat: value.lat!, lng: value.lng!, unidades: proximas.map((u) => u.id), geometrias_modo: modoTracado(medida) } : null);
+  const trajetos = trajetosDe(dist.data, medida);
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
@@ -168,13 +175,15 @@ export default function EnderecoEditor({ value, onChange, faixaId }: { value: En
             Localizar endereço
           </Button>
         </div>
+        <div className="relative">
         <MapView
           className="h-64 sm:h-80"
           units={units.data?.units ?? []}
           geo={geo.data}
           home={temPonto ? { lat: value.lat!, lng: value.lng! } : null}
           highlight={proximas.map((u, i) => ({ id: u.id, label: String(i + 1) }))}
-          lines
+          lines={medida === 'LINHA_RETA'}
+          trajetos={trajetos}
           onMapClick={(lat, lng) => { setAviso(null); set({ lat, lng, precisao: 'PONTO_NO_MAPA', fonte: 'Marcado no mapa' }); }}
           focus={foco}
           fitKey="endereco"
@@ -182,6 +191,10 @@ export default function EnderecoEditor({ value, onChange, faixaId }: { value: En
           homeLabel="Endereço marcado"
           highlightLabel="Unidades mais próximas"
         />
+        {temPonto && proximas.length > 0 && (
+          <SeletorMedida value={medida} onChange={setMedida} carregando={dist.calculando} className="absolute left-2 top-2 z-10" />
+        )}
+        </div>
         <div className="space-y-2 p-3 text-[13px]">
           {aviso && <p className="flex items-start gap-2 rounded-2xl bg-amber-50 p-2.5 text-amber-950 ring-1 ring-amber-200"><TriangleAlert className="mt-0.5 size-4 shrink-0" />{aviso}</p>}
           {!temPonto ? (
@@ -207,7 +220,10 @@ export default function EnderecoEditor({ value, onChange, faixaId }: { value: En
                       <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-purple-700 text-[12px] font-bold text-white">{i + 1}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{u.nome}</span>
-                        <span className="block text-[12px] text-muted"><Building2 className="mr-0.5 inline size-3" />{fmtDistancia(u.distancia_m)}{u.vagas != null ? ` · ${u.vagas} vaga(s) na faixa` : ''}</span>
+                        {dist.data?.unidades.find((x) => x.id === u.id)
+                          ? <TresDistancias variante="linha" u={dist.data.unidades.find((x) => x.id === u.id)!} destaque={medida} calculando={dist.calculando} className="text-[12px]" />
+                          : <span className="block text-[12px] text-muted"><Building2 className="mr-0.5 inline size-3" />{fmtDistancia(u.distancia_m)} {MEDIDA.LINHA_RETA.curto}</span>}
+                        {u.vagas != null && <span className="block text-[12px] text-muted">{u.vagas} vaga(s) na faixa</span>}
                       </span>
                     </div>
                   ))}

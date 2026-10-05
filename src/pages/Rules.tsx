@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router';
 import clsx from 'clsx';
 import { Ban, Calculator, Check, ChevronDown, Clock, ExternalLink, FileText, FlaskConical, Gauge, History, ListOrdered, Scale, ScrollText, Stethoscope } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { fmtDate } from '@/lib/format';
 import { Badge, Card, ErrorState, PageHeader, Section, SkeletonList, SourceChip, type SourceKind } from '@/components/ui';
 import { IaraBubble } from '@/components/iara';
+import { ComoMedimosDistancia } from '@/components/MetodologiaDistancia';
+import { MEDIDA } from '@/components/distancias';
 
 const GROUPS: { type: string; title: string; subtitle: string; icon: typeof Scale }[] = [
   { type: 'PRIORIDADE_FILA', title: 'Pontuação da fila', subtitle: 'Critérios de pontuação do Anexo I da IN nº 025/2025 — somam até 100 pontos. Maior pontuação vem primeiro.', icon: ListOrdered },
@@ -19,7 +22,7 @@ const KIND: Record<string, SourceKind> = { OFICIAL: 'oficial', PUBLICO: 'publico
 
 function describeCondition(code: string, c: any): string | null {
   if (!c || !Object.keys(c).length) return null;
-  if (c.max_m) return `Raio de ${(c.max_m / 1000).toLocaleString('pt-BR')} km entre a residência e a unidade`;
+  if (c.max_m) return `Até ${(c.max_m / 1000).toLocaleString('pt-BR')} km entre a residência e a unidade, medidos ${MEDIDA[c.medida as keyof typeof MEDIDA]?.curto ?? 'em linha reta'}${c.medida && c.medida !== 'LINHA_RETA' ? ' (pela rota)' : ''}`;
   if (c.per === 'km') return 'Aplicado por quilômetro de distância (linha reta)';
   if (c.cap) return `Por criança à frente, limitado a ${c.cap}`;
   if (c.hours) return `${c.hours} horas para a família responder`;
@@ -33,6 +36,13 @@ function describeCondition(code: string, c: any): string | null {
 export default function Rules() {
   const res = useRpc<any>('rules_list', {}, { staleTime: 10 * 60_000 });
   const [history, setHistory] = useState(false);
+  const { hash } = useLocation();
+  // link "Como medimos a distância" (#/regras#distancia): leva direto à seção, depois que a página carrega
+  useEffect(() => {
+    if (hash !== '#distancia' || !res.data) return;
+    const t = setTimeout(() => document.getElementById('distancia')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    return () => clearTimeout(t);
+  }, [hash, res.data]);
   if (res.isLoading) return <SkeletonList rows={6} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const items = res.data.items as any[];
@@ -65,6 +75,7 @@ export default function Rules() {
         </p>
       </Card>
       <Simulator rules={active.filter((r) => r.type === 'PRIORIDADE_FILA')} analysis={active.find((r) => r.type === 'PRIORIDADE_ANALISE')} />
+      <ComoMedimosDistancia />
       {GROUPS.map((g) => {
         const rs = active.filter((r) => r.type === g.type);
         if (!rs.length) return null;

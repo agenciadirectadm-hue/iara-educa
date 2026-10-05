@@ -163,6 +163,27 @@ function splitStreet(text: string): { street: string; number: string | null } {
 }
 
 const km = (m: number | null | undefined) => (m == null ? "—" : `${(m / 1000).toFixed(1).replace(".", ",")} km`);
+const minutos = (s: number | null | undefined) => {
+  if (s == null) return "";
+  const m = Math.max(1, Math.round(s / 60));
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
+};
+const MEDIDA_TXT: Record<string, string> = { LINHA_RETA: "linha reta", A_PE: "a pé", CARRO: "de carro" };
+type Trecho = { distancia_m?: number; duracao_s?: number; sem_rota?: boolean } | null;
+/** "📏 1,4 km em linha reta · 🚶 2,0 km a pé (25 min) · 🚗 2,2 km de carro (5 min)" — as três medidas, como no portal. */
+function linhaDistancias(reta: number | null | undefined, pe: Trecho, carro: Trecho): string {
+  const r = (t: Trecho, rot: string, ic: string) =>
+    t?.distancia_m != null ? `${ic} ${km(t.distancia_m)} ${rot}${t.duracao_s != null ? ` (${minutos(t.duracao_s)})` : ""}` : null;
+  return [reta != null ? `📏 ${km(reta)} em linha reta` : null, r(pe, "a pé", "🚶"), r(carro, "de carro", "🚗")].filter(Boolean).join(" · ");
+}
+/** Distâncias registradas na inscrição da fila (extrato do critério de proximidade). */
+function linhaInscricao(breakdown: any[] | null | undefined): string | null {
+  const b = (breakdown ?? []).find((x) => x?.code === "TERRITORIO_2KM");
+  const d = b?.distancias;
+  if (!d) return null;
+  const txt = linhaDistancias(d.linha_reta_m, d.a_pe_m != null ? { distancia_m: d.a_pe_m } : null, d.carro_m != null ? { distancia_m: d.carro_m } : null);
+  return txt ? `${txt} — o critério “até ${km(b.max_m ?? 2000)}” usa: ${MEDIDA_TXT[b.medida ?? "LINHA_RETA"]}` : null;
+}
 const dt = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const first = (name?: string | null) => (name ?? "").trim().split(/\s+/)[0] ?? "";
@@ -175,13 +196,31 @@ export class Agent {
   private home: any = null;
   private fam: any = null;
 
-  constructor(private call: CallFn, private conv: ConvSnapshot) {
+  /** `rotas`: distâncias a pé e de carro pelo motor de rotas (mesmo cálculo do portal); sem ele, só a linha reta. */
+  constructor(private call: CallFn, private conv: ConvSnapshot, private rotas?: (pedido: Record<string, unknown>) => Promise<any>) {
     this.ctx = { flow: null, step: null, data: {}, pending: null, ...(conv.context ?? {}) };
     this.ctx.data = this.ctx.data ?? {};
   }
 
   private say(body: string, payload?: Reply["payload"]) {
     this.messages.push({ body, payload });
+  }
+
+  /** Linha reta, a pé e de carro de um ponto às unidades — se o motor de rotas falhar, a conversa segue com a linha reta. */
+  private async distancias(lat: number, lng: number, unidades: number[]): Promise<any | null> {
+    if (!this.rotas || !unidades.length || lat == null || lng == null) return null;
+    const started = Date.now();
+    const correlation_id = crypto.randomUUID();
+    try {
+      const d = await this.rotas({ lat, lng, unidades });
+      // só as unidades vão para o registro da ferramenta — a coordenada da casa não
+      this.tools.push({ tool: "route_distances", input: { unidades }, output: { unidades: (d?.unidades ?? []).length, medida: d?.criterio?.medida },
+                        status: "OK", ms: Date.now() - started, correlation_id });
+      return d;
+    } catch (e) {
+      this.tools.push({ tool: "route_distances", input: { unidades }, output: {}, status: "ERRO", error: (e as Error).message, ms: Date.now() - started, correlation_id });
+      return null;
+    }
   }
 
   private async tool<T = any>(tool: string, fn: string | null, args: Record<string, unknown>, idem?: string): Promise<T> {
@@ -880,14 +919,23 @@ export class Agent {
       return;
     }
     this.ctx.data = { ...d, unit_id: items[0].unit_id, unit_name: items[0].name, search_label: label, units: items.map((u) => ({ id: u.unit_id, name: u.name })) };
+    const dist = await this.distancias(lat, lng, items.map((u) => u.unit_id));
+    const porUnidade = new Map<number, any>(((dist?.unidades ?? []) as any[]).map((x) => [x.id, x]));
+    const crit = dist?.criterio as { medida: string; limite_m: number } | undefined;
+    const dentro = (u: any) => {
+      const x = porUnidade.get(u.unit_id);
+      const m = !x || !crit ? null : crit.medida === "A_PE" ? x.a_pe?.distancia_m : crit.medida === "CARRO" ? x.carro?.distancia_m : x.linha_reta_m;
+      return m != null && crit ? m <= crit.limite_m : !!u.within_territory;
+    };
     this.say(`Estas unidades atendem **${d.grade}** perto de ${label}:`, {
       cards: items.map((u) => ({
         title: u.name,
-        subtitle: `${km(u.distance_m)} · ${u.territory ?? ""}`,
+        subtitle: porUnidade.get(u.unit_id) ? `${u.territory ?? ""}` : `${km(u.distance_m)} em linha reta · ${u.territory ?? ""}`,
         lines: [
+          ...(porUnidade.get(u.unit_id) ? [linhaDistancias(porUnidade.get(u.unit_id).linha_reta_m, porUnidade.get(u.unit_id).a_pe, porUnidade.get(u.unit_id).carro)] : []),
           u.offerable_effective > 0 ? `${u.offerable_effective} vaga(s) ofertável(is) agora` : "Sem vaga ofertável no momento",
           u.my_position ? `${d.child_name ?? "A criança"} já é ${u.my_position}º(ª) na fila desta unidade` : u.queue > 0 ? `${u.queue} criança(s) na fila desta faixa` : "Sem fila nesta faixa",
-          u.within_territory ? "Até 2 km de casa (+15 pontos na fila)" : "Mais de 2 km de casa",
+          dentro(u) ? `Até ${km(crit?.limite_m ?? 2000)} de casa${crit ? ` (${MEDIDA_TXT[crit.medida]})` : ""} — +15 pontos na fila` : `Mais de ${km(crit?.limite_m ?? 2000)} de casa${crit ? ` (${MEDIDA_TXT[crit.medida]})` : ""}`,
         ],
         unit_id: u.unit_id,
         badge: u.offerable_effective > 0 ? "com vaga" : "fila",
@@ -948,7 +996,7 @@ export class Agent {
     this.say(`✅ **${res.child}** está na fila de espera on-line de ${res.grade} ${daUnidade(res.unit)}. Protocolo **${res.protocol}**.`, {
       cards: [{
         title: `${res.child} · ${res.position}º de ${res.queue_size}`, subtitle: `${res.grade} · ${res.unit}`, unit_id: res.unit_id,
-        lines: [`${Number(res.score)} de 100 pontos (IN nº 025/2025)`, ...applied, ...analysis, `Regras ${res.rule_version}`],
+        lines: [`${Number(res.score)} de 100 pontos (IN nº 025/2025)`, ...applied, ...analysis, ...[linhaInscricao(res.breakdown)].filter(Boolean) as string[], `Regras ${res.rule_version}`],
         badge: `${res.position}º`, tone: "purple",
       }],
       notice: res.message,
@@ -1206,11 +1254,16 @@ export class Agent {
       }
       const res = await this.tool("list_units", "units_list", { lat: hit.lat, lng: hit.lng, sort: "distance" });
       const items = ((res?.items ?? []) as any[]).slice(0, 3);
+      const dist = await this.distancias(hit.lat, hit.lng, items.map((u) => u.id));
+      const porUnidade = new Map<number, any>(((dist?.unidades ?? []) as any[]).map((x) => [x.id, x]));
       this.say(`Unidades mais próximas de ${hit.label}:`, {
-        cards: items.map((u) => ({
-          title: u.name, subtitle: `${km(u.distance_m)} · ${u.type_label}`,
-          lines: [u.address ?? "", u.stages ?? "", `${u.ops?.offerable ?? 0} vaga(s) ofertável(is) (demonstração)`], unit_id: u.id,
-        })),
+        cards: items.map((u) => {
+          const x = porUnidade.get(u.id);
+          return {
+            title: u.name, subtitle: x ? u.type_label : `${km(u.distance_m)} em linha reta · ${u.type_label}`,
+            lines: [...(x ? [linhaDistancias(x.linha_reta_m, x.a_pe, x.carro)] : []), u.address ?? "", u.stages ?? "", `${u.ops?.offerable ?? 0} vaga(s) ofertável(is)`], unit_id: u.id,
+          };
+        }),
         notice: "Toque numa unidade para ver detalhes e localização no mapa.",
       });
       this.done(`Consultou unidades próximas de ${hit.label}.`);
@@ -1239,6 +1292,7 @@ export class Agent {
           cards.push({
             title: `${kid.first_name} · ${q.position}º na fila`, subtitle: `${q.grade} · ${q.unit}`,
             lines: [`${q.queue_size} criança(s) nesta fila · ${Number(q.score ?? 0)} de 100 pontos`, ...applied, ...analysis,
+              ...[linhaInscricao(bd)].filter(Boolean) as string[],
               `Critérios da IN nº 025/2025-SEDUC · regras ${q.rule_version ?? ""} · entrada em ${new Date(q.entered_at).toLocaleDateString("pt-BR")}`],
             unit_id: q.unit_id, badge: `${q.position}º`, tone: "purple",
           });

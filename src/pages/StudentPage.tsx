@@ -8,7 +8,6 @@ import {
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
-import { useUnitsMap } from '@/lib/data';
 import { fmtDate, fmtDateTime, fmtInt, fmtKm, timeAgo } from '@/lib/format';
 import { AUDIT_ACTION, CASE_STATUS, CHANNEL, DOC, DOC_STATUS, ENTITY, OFFER_STATUS, QUEUE_CATEGORY, QUEUE_STATUS, SHIFT } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, Simulado, SkeletonList, SourceChip, Tabs } from '@/components/ui';
@@ -18,6 +17,8 @@ import { NACIONALIDADE, PARENTESCO, RACA, SITUACAO_ALUNO, SITUACAO_LEGAL, mascar
 import { Crumbs } from '@/components/Crumbs';
 import { useToast } from '@/components/overlays';
 import MapView from '@/components/map/MapView';
+import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancias';
+import QuadroDistancias from '@/components/QuadroDistancias';
 
 type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria';
 
@@ -81,7 +82,6 @@ export default function StudentPage() {
 }
 
 function Resumo({ d, primary }: { d: any; primary: any }) {
-  const units = useUnitsMap();
   const s = d.student;
   const a = d.address;
   const alerts: { icon: any; text: string; tone: string }[] = [];
@@ -90,6 +90,18 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
   if (d.age_grade_distortion) alerts.push({ icon: AlertTriangle, text: `Distorção idade-série: pela data de nascimento, a faixa seria ${d.grade_rule?.grade_name}`, tone: 'amber' });
   if (s.accessibility) alerts.push({ icon: AlertTriangle, text: s.accessibility, tone: 'amber' });
   const reg = d.registry;
+  // distâncias (linha reta, a pé e de carro) até a escola onde estuda ou, sem matrícula, até a unidade pedida na fila
+  const naFila = (d.queue as any[]).find((q) => ['WAITING', 'OFFERED', 'ACCEPTED'].includes(q.status));
+  const alvo = d.school
+    ? { id: d.school.unit_id as number, titulo: 'Distância de casa até a escola', rotulo: 'Unidade onde estuda' }
+    : naFila ? { id: naFila.unit_id as number, titulo: 'Distância de casa até a unidade pedida', rotulo: 'Unidade pedida na fila' } : null;
+  const enderecoInfo = a && (
+    <div className="text-[13px]">
+      <div className="flex items-start gap-2"><Home className="mt-0.5 size-4 shrink-0 text-ink-2" /><span>{a.line}</span></div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted"><MapPin className="size-4" />{a.territory ?? 'fora de Maringá'} · zona {a.zone?.toLowerCase() ?? 'urbana'} · {precisaoRotulo(a.precision)} <SourceChip kind="demo" detail="Endereço fictício; coordenada aproximada." /></div>
+      {a.reference && <div className="mt-1 text-[12.5px] text-muted">Referência: {a.reference}</div>}
+    </div>
+  );
   return (
     <div className="space-y-4">
       {reg && (
@@ -108,7 +120,7 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
           <div className="min-w-0 flex-1">
             <div className="text-[12px] font-bold uppercase tracking-wide text-blue-100">Matrícula ativa</div>
             <div className="truncate font-display text-lg font-extrabold">{d.school.unit_name}</div>
-            <div className="text-[13px] text-blue-100">{d.school.class_name} · {SHIFT[d.school.shift]} · {fmtKm(d.school.distance_m)} de casa</div>
+            <div className="text-[13px] text-blue-100">{d.school.class_name} · {SHIFT[d.school.shift]} · {fmtKm(d.school.distance_m)} de casa em linha reta</div>
           </div>
         </Link>
       ) : (
@@ -143,29 +155,31 @@ function Resumo({ d, primary }: { d: any; primary: any }) {
           </dl>
           <p className="mt-3 text-[12px] text-muted">{d.grade_rule?.explanation}</p>
         </Card>
-        <Card className="overflow-hidden">
-          {a ? (
-            <>
-              <MapView
-                className="h-56"
-                units={(units.data?.units ?? []).filter((u) => u.id === d.school?.unit_id)}
-                home={{ lat: a.lat, lng: a.lng, radius_m: 2000 }}
-                highlight={d.school ? [{ id: d.school.unit_id, label: '★' }] : []}
-                highlightLabel="Unidade onde estuda"
-                homeLabel="Endereço da criança"
-                lines
-                fitKey={s.id}
-                cooperative
-                controls={false}
-              />
-              <div className="p-3 text-[13px]">
-                <div className="flex items-start gap-2"><Home className="mt-0.5 size-4 shrink-0 text-ink-2" /><span>{a.line}</span></div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted"><MapPin className="size-4" />{a.territory ?? 'fora de Maringá'} · zona {a.zone?.toLowerCase() ?? 'urbana'} · {precisaoRotulo(a.precision)} <SourceChip kind="demo" detail="Endereço fictício; coordenada aproximada." /></div>
-                {a.reference && <div className="mt-1 text-[12.5px] text-muted">Referência: {a.reference}</div>}
-              </div>
-            </>
-          ) : <p className="p-4 text-sm text-muted">Endereço não disponível no seu escopo.</p>}
-        </Card>
+        {a && a.lat != null && alvo ? (
+          <div className="space-y-2">
+            <QuadroDistancias origem={{ lat: a.lat, lng: a.lng }} unidadeId={alvo.id} titulo={alvo.titulo} homeLabel="Endereço da criança" unidadeLabel={alvo.rotulo} />
+            <Card className="p-3">{enderecoInfo}</Card>
+          </div>
+        ) : (
+          <Card className="overflow-hidden">
+            {a ? (
+              <>
+                {a.lat != null && (
+                  <MapView
+                    className="h-56"
+                    units={[]}
+                    home={{ lat: a.lat, lng: a.lng, radius_m: 2000 }}
+                    homeLabel="Endereço da criança"
+                    fitKey={s.id}
+                    cooperative
+                    controls={false}
+                  />
+                )}
+                <div className="p-3">{enderecoInfo}</div>
+              </>
+            ) : <p className="p-4 text-sm text-muted">Endereço não disponível no seu escopo.</p>}
+          </Card>
+        )}
       </div>
       <DadosPessoais s={s} />
     </div>
@@ -318,6 +332,13 @@ function QueueOffers({ d }: { d: any }) {
               <Badge tone={QUEUE_STATUS[q.status]?.tone}>{QUEUE_STATUS[q.status]?.label}</Badge>
             </div>
           </div>
+          {(q.breakdown ?? []).some((b: any) => b.code === 'TERRITORIO_2KM' && b.distancias) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-slate-50 px-3 py-2 text-[12.5px]">
+              <span className="font-semibold text-ink-2">Distância de casa:</span>
+              <TresDistanciasInscricao breakdown={q.breakdown} />
+              <LinkMetodologia className="text-[12px]">como medimos</LinkMetodologia>
+            </div>
+          )}
           <ul className="mt-3 grid grid-cols-1 gap-1 sm:grid-cols-2">
             {(q.breakdown ?? []).map((b: any) => (
               <li key={b.code} className="flex items-start gap-2 text-[13px]">

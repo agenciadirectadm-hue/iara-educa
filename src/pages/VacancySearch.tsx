@@ -17,6 +17,8 @@ import { useConfirm, useToast } from '@/components/overlays';
 import { IaraBubble } from '@/components/iara';
 import { OfferSheet } from '@/components/OfferSheet';
 import MapView from '@/components/map/MapView';
+import type { MedidaDistancia } from '@/lib/api';
+import { LinkMetodologia, MEDIDA, SeletorMedida, TresDistancias, metros, modoTracado, trajetosDe, useDistancias } from '@/components/distancias';
 
 const RULE_LABEL: Record<string, string> = {
   VAGA_OFERTAVEL: 'Vaga ofertável', TERRITORIO_2KM: 'Reside até 2 km', DISTANCIA: 'Distância', IRMAO_NA_UNIDADE: 'Irmão(ã) na unidade',
@@ -94,6 +96,17 @@ export default function VacancySearch() {
   const res = result.data;
   const ranked = (res?.results ?? []) as any[];
   const highlight = useMemo(() => ranked.map((r) => ({ id: r.unit_id, label: String(r.rank) })), [ranked]);
+  // linha reta (padrão), a pé ou de carro: o seletor do mapa troca a medida e desenha o caminho até cada unidade encontrada
+  const [medida, setMedida] = useState<MedidaDistancia>('LINHA_RETA');
+  const distPedido = useMemo(() => {
+    const ids = ((res?.results ?? []) as any[]).slice(0, 8).map((r) => r.unit_id as number);
+    if (!res?.ok || !args || !ids.length) return null;
+    return { lat: Number(args.lat), lng: Number(args.lng), unidades: ids, geometrias_modo: modoTracado(medida) };
+  }, [res, args, medida]);
+  const dist = useDistancias(distPedido);
+  const distPorUnidade = useMemo(() => new Map((dist.data?.unidades ?? []).map((u) => [u.id, u])), [dist.data]);
+  const criterio = dist.data?.criterio;
+  const trajetos = trajetosDe(dist.data, medida);
   const queueByUnit = useMemo(() => {
     const m = new Map<number, any>();
     for (const q of (student.data?.queue ?? []) as any[]) if (q.status === 'WAITING') m.set(q.unit_id, q);
@@ -173,7 +186,7 @@ export default function VacancySearch() {
           </Field>
         </div>
         <div className="mt-4">
-          <Field label="Residência" hint={home ? 'Distâncias em linha reta a partir deste ponto.' : 'Busque o bairro ou toque no mapa para marcar o ponto.'}>
+          <Field label="Residência" hint={home ? 'Distâncias a partir deste ponto: em linha reta, a pé e de carro (pelas ruas).' : 'Busque o bairro ou toque no mapa para marcar o ponto.'}>
             {home ? (
               <div className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-line">
                 <MapPin className="size-5 text-purple-700" /><span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{home.label}</span>
@@ -223,7 +236,22 @@ export default function VacancySearch() {
               <SourceChip kind="calculado" detail="Pontuação = soma das regras vigentes (tabela iara.rules). Vagas ofertáveis da camada de demonstração." />
             </div>
             <Card className="overflow-hidden">
-              <MapView className="h-[42vh] min-h-[280px]" units={units.data?.units ?? []} home={{ lat: home!.lat, lng: home!.lng, radius_m: res.territory_radius_m }} highlight={highlight} highlightLabel="Resultado da busca (número = posição)" lines fitKey={JSON.stringify(args)} cooperative colorMode="vacancy" />
+              <div className="relative">
+                <MapView className="h-[42vh] min-h-[280px]" units={units.data?.units ?? []}
+                  home={{ lat: home!.lat, lng: home!.lng, radius_m: medida === 'LINHA_RETA' ? res.territory_radius_m : undefined }}
+                  highlight={highlight} highlightLabel="Resultado da busca (número = posição)" lines={medida === 'LINHA_RETA'} trajetos={trajetos}
+                  fitKey={`${JSON.stringify(args)}-${medida}-${trajetos?.length ?? 0}`} cooperative colorMode="vacancy" />
+                <SeletorMedida value={medida} onChange={setMedida} carregando={dist.calculando} className="absolute left-2 top-2 z-10 sm:left-3 sm:top-3" />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line bg-white px-3 py-2 text-[12.5px] text-muted">
+                <span>
+                  {medida === 'LINHA_RETA'
+                    ? <>Distâncias em linha reta; o círculo marca {fmtKm(res.territory_radius_m)}. Toque em <b>A pé</b> ou <b>De carro</b> para ver o caminho pelas ruas.</>
+                    : <>Caminho <b>{MEDIDA[medida].curto}</b> pelas ruas até cada unidade{medida === 'A_PE' ? ' (tempo a 5 km/h)' : ' (tempo sem trânsito)'}.</>}
+                  {dist.calculando && medida !== 'LINHA_RETA' ? ' Calculando as rotas…' : dist.motorErro ? ' Algumas rotas não puderam ser calculadas agora (a linha reta vale).' : ''}
+                </span>
+                <LinkMetodologia className="ml-auto text-[12px]" />
+              </div>
             </Card>
             <p className="mt-2 flex items-start gap-2 text-[12.5px] text-muted"><Info className="mt-0.5 size-4 shrink-0" />{res.disclaimer}</p>
 
@@ -238,10 +266,20 @@ export default function VacancySearch() {
                         <span className={clsx('inline-flex size-10 shrink-0 items-center justify-center rounded-2xl font-display text-lg font-black text-white', r.rank === 1 ? 'bg-purple-700' : 'bg-slate-500')}>{r.rank}</span>
                         <div className="min-w-0 flex-1">
                           <Link to={`/unidades/${r.unit_id}`} className="font-display text-[17px] font-extrabold leading-tight hover:text-purple-700">{r.name}</Link>
-                          <div className="text-[12.5px] text-muted"><Navigation className="mr-1 inline size-3.5" />{fmtKm(r.distance_m)} · {r.territory} · {(r.shifts ?? []).map((s: string) => SHIFT[s]).join('/')}</div>
+                          <div className="text-[12.5px] text-muted"><Navigation className="mr-1 inline size-3.5" />{r.territory} · {(r.shifts ?? []).map((s: string) => SHIFT[s]).join('/')}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {distPorUnidade.get(r.unit_id)
+                              ? <TresDistancias variante="linha" u={distPorUnidade.get(r.unit_id)!} criterio={criterio} calculando={dist.calculando} destaque={medida} />
+                              : <span className="text-[12.5px] text-muted">{fmtKm(r.distance_m)} em linha reta</span>}
+                          </div>
                           <div className="mt-1.5 flex flex-wrap gap-1.5">
                             <Badge tone={r.offerable_effective > 0 ? 'green' : 'gray'}>{r.offerable_effective} vaga(s) ofertável(is)</Badge>
-                            {r.within_territory && <Badge tone="purple">território prioritário</Badge>}
+                            {(() => {
+                              const u = distPorUnidade.get(r.unit_id);
+                              const m = u && criterio ? metros(u, criterio.medida) : null;
+                              const dentro = m != null && criterio ? m <= criterio.limite_m : r.within_territory;
+                              return dentro ? <Badge tone="purple">até {fmtKm(criterio?.limite_m ?? res.territory_radius_m)} {criterio ? MEDIDA[criterio.medida].curto : ''} · +pontos na fila</Badge> : null;
+                            })()}
                             {r.queue_ahead > 0 && <Badge tone="amber">{r.queue_ahead} à frente na fila</Badge>}
                             {r.my_position && <Badge tone="blue">{r.my_position}º desta fila</Badge>}
                             {r.sibling && <Badge tone="teal">irmão(ã) na unidade</Badge>}

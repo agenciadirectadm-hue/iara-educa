@@ -4,7 +4,7 @@ import { Info, X } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
 import { PRESSURE } from '@/lib/labels';
 import {
-  BALANCE_LEGEND, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, ROUTE_LINE, SELECTED_STROKE,
+  BALANCE_LEGEND, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE,
   UNIT_COLOR, VACANCY_COLOR, cssGradient,
 } from './mapStyle';
 
@@ -25,6 +25,7 @@ export type LegendInput = {
   highlight?: { id: number; label: string }[];
   highlightLabel?: string;
   lines?: boolean;
+  rotas?: { A_PE?: boolean; CARRO?: boolean };
   selectedUnit?: UnitMapItem | null;
   selectedLabel?: string;
 };
@@ -33,7 +34,7 @@ type Sym =
   | { kind: 'dot'; color: string }
   | { kind: 'selected'; color: string }
   | { kind: 'area'; color: string }
-  | { kind: 'line'; color: string; style: 'dashed' | 'dotted'; thin?: boolean }
+  | { kind: 'line'; color: string; style: 'dashed' | 'dotted' | 'solid'; thin?: boolean; thick?: boolean }
   | { kind: 'scale'; gradient: string }
   | { kind: 'home' }
   | { kind: 'radius' }
@@ -97,7 +98,11 @@ export function buildLegend(i: LegendInput): Group[] {
   const refs: Item[] = [];
   if (i.home) refs.push({ sym: { kind: 'home' }, label: i.homeLabel ?? 'Residência informada' });
   if (i.home?.radius_m) refs.push({ sym: { kind: 'radius' }, label: `Raio de ${km(i.home.radius_m)}` });
-  if (i.home && i.lines && i.highlight?.length) refs.push({ sym: { kind: 'line', color: ROUTE_LINE, style: 'dotted' }, label: 'Distância em linha reta' });
+  if (i.home && i.lines && i.highlight?.length) {
+    refs.push({ sym: { kind: 'line', color: ROUTE_LINE, style: 'dotted' }, label: i.rotas?.A_PE || i.rotas?.CARRO ? 'Linha reta' : 'Distância em linha reta' });
+  }
+  if (i.rotas?.A_PE) refs.push({ sym: { kind: 'line', color: ROTA_COLOR.A_PE, style: 'dashed', thick: true }, label: 'Rota a pé' });
+  if (i.rotas?.CARRO) refs.push({ sym: { kind: 'line', color: ROTA_COLOR.CARRO, style: 'solid', thick: true }, label: 'Rota de carro' });
   if (i.showAreas) refs.push({ sym: { kind: 'line', color: PURPLE, style: 'dashed', thin: true }, label: 'Áreas de influência (proximidade)' });
   if (i.hasBoundary) refs.push({ sym: { kind: 'line', color: PURPLE, style: 'dashed' }, label: 'Limite do município' });
   if (refs.length) groups.push({ title: 'Referências', items: refs });
@@ -114,7 +119,13 @@ function LegendSymbol({ sym }: { sym: Sym }) {
     case 'area':
       return <span className="inline-block h-2.5 w-3.5 shrink-0 rounded-[3px] ring-1 ring-black/5" style={{ background: sym.color, opacity: 0.72 }} />;
     case 'line':
-      return <span className={clsx('inline-block w-5 shrink-0', sym.thin ? 'border-t' : 'border-t-2', sym.style === 'dashed' ? 'border-dashed' : 'border-dotted')} style={{ borderColor: sym.color }} />;
+      return (
+        <span
+          className={clsx('inline-block w-5 shrink-0', sym.thin ? 'border-t' : sym.thick ? 'border-t-[3px]' : 'border-t-2',
+            sym.style === 'dashed' ? 'border-dashed' : sym.style === 'solid' ? 'border-solid' : 'border-dotted')}
+          style={{ borderColor: sym.color }}
+        />
+      );
     case 'scale':
       return (
         <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-subtle">

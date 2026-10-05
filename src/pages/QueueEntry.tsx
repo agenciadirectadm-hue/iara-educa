@@ -5,11 +5,13 @@ import { CheckCircle2, Circle, FileCheck2, RefreshCw, ShieldCheck, Sparkles, Ste
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
-import { fmtDate, fmtDateTime, fmtInt, fmtKm } from '@/lib/format';
+import { fmtDate, fmtDateTime, fmtInt } from '@/lib/format';
 import { OFFER_STATUS, QUEUE_CATEGORY, QUEUE_STATUS, SHIFT } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, OccupancyBar, PageHeader, Section, SkeletonList, SourceChip } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
 import { OfferSheet } from '@/components/OfferSheet';
+import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancias';
+import QuadroDistancias from '@/components/QuadroDistancias';
 import { useToast } from '@/components/overlays';
 
 export default function QueueEntry() {
@@ -92,6 +94,12 @@ export default function QueueEntry() {
                       {b.analysis ? <Badge tone={b.applied ? 'purple' : 'gray'}>sob análise · fora da soma</Badge> : b.weight > 0 && <span className={b.applied ? 'text-green-700' : 'text-muted'}>+{b.weight}</span>}
                     </div>
                     <div className="text-[12.5px] text-muted">{b.evidence} · v{b.version}</div>
+                    {b.code === 'TERRITORIO_2KM' && b.distancias && (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <TresDistanciasInscricao breakdown={e.breakdown} />
+                        <LinkMetodologia className="text-[12px]">como medimos</LinkMetodologia>
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
@@ -103,7 +111,7 @@ export default function QueueEntry() {
           <Card className="p-4">
             <div className="mb-3 flex items-center gap-3">
               <Avatar name={d.student.name} seed={d.student.avatar_seed} size={44} />
-              <div className="min-w-0 flex-1"><Link to={`/alunos/${d.student.id}`} className="font-semibold hover:text-purple-700">{d.student.name}</Link><div className="text-[12.5px] text-muted">{d.student.address?.line ?? 'endereço restrito'} · {fmtKm(e.distance_m)} da unidade</div></div>
+              <div className="min-w-0 flex-1"><Link to={`/alunos/${d.student.id}`} className="font-semibold hover:text-purple-700">{d.student.name}</Link><div className="text-[12.5px] text-muted">{d.student.address?.line ?? 'endereço restrito'}</div></div>
             </div>
             <div className="flex flex-wrap gap-2">
               {can('offers.create') && <Button variant="purple" icon={Sparkles} disabled={!d.can_offer_now} onClick={() => setOffer(true)}>{d.can_offer_now ? 'Ofertar vaga' : e.status === 'OFFERED' ? 'Oferta aguardando a família' : e.status === 'ACCEPTED' ? 'Aceita — aguardando matrícula' : e.status === 'MATRICULATED' ? 'Matrícula concluída' : e.position === 1 ? 'Sem vaga ofertável agora' : 'Oferta segue a ordem da fila'}</Button>}
@@ -120,6 +128,15 @@ export default function QueueEntry() {
             </div>
             <p className="mt-2 text-[12px] text-muted">Preferência de turno: {e.shift ? SHIFT[e.shift] : 'indiferente'}{e.full_time ? ' · pede período integral' : ''}</p>
           </Card>
+          {d.student.address?.lat != null && (
+            <QuadroDistancias
+              origem={{ lat: d.student.address.lat, lng: d.student.address.lng }}
+              unidadeId={d.unit.id}
+              titulo="Distância de casa até a unidade pretendida"
+              homeLabel="Casa da criança"
+              unidadeLabel="Unidade pretendida"
+            />
+          )}
           <Section title="Turmas desta faixa na unidade" className="mt-0">
             <div className="space-y-2">
               {(d.classes as any[]).map((c) => (
