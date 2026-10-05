@@ -6,7 +6,8 @@
   "description": "Ponte do WhatsApp da IARA Educa (Baileys): liga um número de WhatsApp ao agente da IARA.",
   "scripts": {
     "configurar": "node configurar.mjs",
-    "ligar": "node ponte.mjs --ligar",
+    "ligar": "node manter.mjs",
+    "ligar:direto": "node ponte.mjs --ligar",
     "conectar": "node ponte.mjs",
     "parar": "node parar.mjs"
   },

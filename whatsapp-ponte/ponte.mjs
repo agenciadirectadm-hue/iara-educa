@@ -43,6 +43,9 @@ const BATIMENTO_MS = 60_000
 const FILA_MS = 5_000
 /** Áudio maior que isto não é transcrito (≈ 10 min de mensagem de voz). */
 const AUDIO_MAX_BYTES = 8 * 1024 * 1024
+/** Saídas que o vigia (manter.mjs) NÃO deve religar: aparelho removido no celular e sessão aberta em outro lugar. */
+const SAIDA_DESPAREADO = 3
+const SAIDA_SUBSTITUIDA = 4
 
 let sock = null
 let conectado = false
@@ -222,12 +225,12 @@ async function conectar() {
       if (encerrando) return
       if (codigo === DisconnectReason.loggedOut) {
         log('✗ o aparelho foi desconectado no celular. Apague a pasta .wa-sessao-educa e rode de novo para parear.')
-        await desligarEsair(1)
+        await desligarEsair(SAIDA_DESPAREADO)
         return
       }
       if (codigo === DisconnectReason.connectionReplaced) {
         log('✗ outra conexão assumiu ESTA sessão (a mesma pasta aberta em outro lugar?). Encerrando para não brigar por ela.')
-        await desligarEsair(1)
+        await desligarEsair(SAIDA_SUBSTITUIDA)
         return
       }
       log(`conexão caiu (${codigo ?? 'sem código'}) — reconectando em 3 s`)
@@ -268,6 +271,10 @@ async function desligarEsair(codigo = 0) {
 }
 process.on('SIGINT', () => desligarEsair(0))
 process.on('SIGTERM', () => desligarEsair(0))
+// Internet instável (conexão reiniciada no meio de um download da biblioteca do WhatsApp) não pode derrubar a ponte:
+// registra e segue; se a conexão com o WhatsApp cair de fato, o 'connection.update' reconecta.
+process.on('unhandledRejection', (err) => log('⚠ erro não tratado (a ponte segue):', err?.message ?? err))
+process.on('uncaughtException', (err) => log('⚠ exceção não tratada (a ponte segue):', err?.message ?? err))
 
 async function principal() {
   if (!API || SEGREDO.length < 24 || NUMERO.length < 11) {
