@@ -7,7 +7,8 @@
   "scripts": {
     "configurar": "node configurar.mjs",
     "ligar": "node ponte.mjs --ligar",
-    "conectar": "node ponte.mjs"
+    "conectar": "node ponte.mjs",
+    "parar": "node parar.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -41,6 +41,7 @@ ou a cada `npm run configurar -- --novo`, que troca o segredo).
 |---|---|
 | `npm run ligar` | conecta e **liga** o canal; `Ctrl+C` desliga e encerra |
 | `npm run conectar` | só conecta; quem manda é o interruptor do painel (**WhatsApp da IARA**) |
+| `npm run parar` (ou `npm run whatsapp:parar` na raiz) | desliga o canal e encerra a ponte — use quando ela roda sem janela |
 | `node simular.mjs --ligar +5544900001234 "oi" "2"` | testa sem celular: mostra o que a IARA responderia (nada é enviado) |
 | `node simular.mjs --ligar +5544900001234 --audio fala.ogg` | testa a escuta com um arquivo de áudio |
 

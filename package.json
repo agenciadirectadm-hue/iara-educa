@@ -11,7 +11,8 @@
     "whatsapp": "npm --prefix whatsapp-ponte run ligar",
     "db:sql": "node scripts/sql.mjs",
     "deploy:api": "node scripts/deploy-function.mjs api",
-    "seed": "python scripts/seed/gerar_seed_publico.py"
+    "seed": "python scripts/seed/gerar_seed_publico.py",
+    "whatsapp:parar": "npm --prefix whatsapp-ponte run parar"
   },
   "license": "UNLICENSED",
   "type": "module",

@@ -84,7 +84,7 @@ const estado = (e, ok) => api('POST', '/whatsapp/estado', { estado: e, conectado
 
 function pagina() {
   const base = 'body{font-family:system-ui;background:#2E0F4F;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;box-sizing:border-box;text-align:center}p{color:#E7D6FB;margin:6px 0;font-size:14px;line-height:1.5;max-width:400px}code{background:#4B1E7A;padding:2px 6px;border-radius:4px}'
-  if (conectado) return `<!doctype html><meta charset="utf-8"><title>IARA Educa · conectado</title><style>${base}h1{font-size:28px;margin:0 0 8px}</style><div><h1>✓ WhatsApp conectado</h1><p>A IARA Educa ${LIGAR ? 'já responde' : 'está conectada'} no número <code>${NUMERO}</code>.</p><p style="opacity:.7">Pode fechar esta aba.</p></div>`
+  if (conectado) return `<!doctype html><meta charset="utf-8"><title>IARA Educa · conectado</title><style>${base}h1{font-size:28px;margin:0 0 8px}</style><div><h1>✓ WhatsApp conectado</h1><p>A IARA Educa ${LIGAR ? 'já responde' : 'está conectada'} no número <code>${NUMERO}</code>.</p><p style="opacity:.7">Pode fechar esta aba — a ponte continua ligada.<br>Para desligar: <code>npm run whatsapp:parar</code> (na pasta do projeto).</p></div>`
   if (!qrAtual) return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="2"><title>IARA Educa · aguarde</title><style>${base}</style><p>gerando o QR…</p>`
   return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="5"><title>IARA Educa · parear WhatsApp</title>
 <style>${base}img{background:#fff;padding:12px;border-radius:14px;width:320px;height:320px}h1{font-size:20px;margin:0 0 4px}</style>
@@ -92,10 +92,19 @@ function pagina() {
 <p>No celular do número <code>${NUMERO}</code>:<br><b>WhatsApp → Aparelhos conectados → Conectar aparelho</b></p>
 <img src="${qrAtual}" alt="QR de pareamento"><p>É um aparelho a mais no mesmo número — o da IARA Saúde continua pareado.<br>A página se renova a cada 5 s.</p></div>`
 }
-createServer((_, res) => {
+// Só neste computador (127.0.0.1): o QR de pareamento vale o acesso ao número. POST /parar desliga com
+// segurança (desliga o canal no painel e encerra) — é o que `npm run parar` usa quando a ponte roda sem janela.
+createServer((req, res) => {
+  if (req.method === 'POST' && req.url === '/parar') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
+    res.end('desligando')
+    log('pedido de desligar recebido (npm run parar)')
+    desligarEsair(0)
+    return
+  }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
   res.end(pagina())
-}).listen(PORTA_QR, () => log(`página do QR: http://localhost:${PORTA_QR}`))
+}).listen(PORTA_QR, '127.0.0.1', () => log(`página do QR: http://localhost:${PORTA_QR}`))
 
 /* ───────────────────────────────────────────── mensagens */
 
