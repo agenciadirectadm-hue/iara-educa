@@ -19,6 +19,7 @@ Feita primeiro para o celular: interativa, clicável e com visões diferentes pa
 | Inovação | A base está confiável? | Qualidade de dados, auditoria, indicadores |
 | Cidadão / Responsável | Onde meu filho será atendido e o que preciso fazer? | Chat com a IARA (WhatsApp simulado), Minha família, protocolos, unidades próximas |
 | Família recém-chegada a Maringá | Como garanto a vaga das crianças? | Cadastro da família, inclusão das crianças e inscrição na fila por transferência de outro município |
+| Controle externo · MP e Defensoria | A fila está sendo cumprida, com critérios claros? | Ordem conferida, exceções com justificativa, vagas paradas com fila, prazos, fila pública anonimizada, consulta de caso só por protocolo (registrada) |
 
 **Fluxo completo validado ponta a ponta:** a Central de Vagas oferta a vaga ao 1º da fila → a família aceita pela IARA →
 a secretaria escolar valida os documentos → a matrícula é confirmada. Tudo auditado.
@@ -91,6 +92,25 @@ oficial, o número exibido é de demonstração e o QR code/link abrem a convers
 número fictício). Para ativar o número oficial, sem novo deploy:
 `update iara.tenants set settings = settings || '{"iara_whatsapp_numero": "55449XXXXXXXX"}' where id = 1;` — a partir daí o
 QR code e o link viram `https://wa.me/<número>?text=<mensagem>` (mensagem em `iara_whatsapp_mensagem`).
+
+### Controle externo: Ministério Público e Defensoria Pública
+Perfil próprio, **somente leitura e sem dados pessoais** (escopo agregado, permissão `controle.read`), para quem fiscaliza o
+direito à vaga — a mesma visão fica disponível para o(a) Secretário(a) e a Superintendência ("o que o controle externo vê").
+
+- **Painel** (`#/inicio` do perfil, `#/controle` para a Secretaria): ordem conferida em cada fila (posição registrada = posição
+  calculada pela regra), crianças aguardando e tempo de espera por faixa, **vagas ofertáveis paradas em filas com crianças**,
+  ofertas × ordem da fila em 12 meses (ao 1º da fila, em outra unidade, fora da ordem por laudo), aceites, recusas, ofertas
+  expiradas (silêncio não é aceite), protocolos com prazo vencido, saldo por região, as três medidas de distância e a
+  **trilha de governança** (mudanças de regra, exceções, recálculos e as próprias consultas do controle externo).
+- **Exceções à ordem** vêm da auditoria imutável, com a justificativa registrada pela equipe — CIDs, CPFs e nomes são ocultados.
+- **Fila pública** (`#/controle/fila`): cada inscrição pelo **código público** (pseudônimo, ex.: `F-3A9C1B`), com posição,
+  pontos, critérios, entrada, espera, as três distâncias e a conferência da ordem; exporta CSV (até 5 mil linhas) para análise própria.
+- **Consulta de caso** (`#/controle/caso`): só com o **protocolo informado pela família** e o motivo (atendimento da Defensoria,
+  procedimento do MP, Conselho Tutelar) — mostra situação, posição, critérios, quem está à frente (por código, sem identificação),
+  ofertas, documentos (só a situação) e a linha do tempo. **Cada consulta, inclusive de protocolo inexistente, fica na auditoria.**
+- **Simulação da medida da distância** liberada para o controle externo (exemplos por código público, sem nomes); trocar a medida
+  continua sendo decisão do(a) Secretário(a), com justificativa.
+- Teste: `supabase/tests/controle_externo.sql` (11 passos, revertido).
 
 ### Distância casa–unidade: linha reta, a pé e de carro
 Pedido do Ministério Público e da Defensoria: a proximidade não pode se basear só na linha reta. A IARA Educa calcula e mostra
@@ -180,8 +200,8 @@ Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_d
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
 após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
 `supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql`, `supabase/tests/conversas_unidades.sql`,
-`supabase/tests/cadastro_pessoas.sql` e `supabase/tests/distancias_rota.sql` (os seis últimos rodam numa transação revertida
-e não deixam resíduo na demonstração;
+`supabase/tests/cadastro_pessoas.sql`, `supabase/tests/distancias_rota.sql` e `supabase/tests/controle_externo.sql` (os sete
+últimos rodam numa transação revertida e não deixam resíduo na demonstração;
 para ver o resultado completo, use `SQL_OUT_LIMIT=200000`).
 Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
 `node scripts/teste-iara.mjs maria` (família já cadastrada) — cria dados de demonstração.

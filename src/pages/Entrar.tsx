@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
-import { Baby, BarChart3, Building2, ChevronRight, Crown, Database, Headset, Landmark, MapPin, Plane, Search, ShieldCheck, Sparkles, UserRound, Users } from 'lucide-react';
+import { Baby, BarChart3, Building2, ChevronRight, Crown, Database, Headset, Landmark, MapPin, Plane, Scale, Search, ShieldCheck, Sparkles, UserRound, Users } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import type { Bootstrap, Persona, Role } from '@/lib/types';
@@ -15,15 +15,16 @@ import { WhatsAppCard } from '@/components/whatsapp';
 const ICON: Record<Role, typeof Crown> = {
   PREFEITO: Landmark, SECRETARIO: Crown, SUPERINTENDENCIA: BarChart3, ANALISTA_CENTRAL: Search, GERENCIA_EI: Baby,
   DIRETOR_UNIDADE: Building2, SECRETARIA_ESCOLAR: Users, ATENDIMENTO: Headset, INOVACAO: Database, CIDADAO: UserRound, CIDADAO_NOVO: Plane,
+  CONTROLE_EXTERNO: Scale,
 };
 const GRAD: Record<Role, string> = {
   PREFEITO: 'from-blue-700 to-blue-900', SECRETARIO: 'from-purple-500 to-purple-800', SUPERINTENDENCIA: 'from-indigo-500 to-blue-800',
   ANALISTA_CENTRAL: 'from-teal-500 to-green-700', GERENCIA_EI: 'from-fuchsia-500 to-purple-700', DIRETOR_UNIDADE: 'from-orange-400 to-rose-500',
   SECRETARIA_ESCOLAR: 'from-sky-500 to-blue-700', ATENDIMENTO: 'from-emerald-500 to-teal-700', INOVACAO: 'from-slate-500 to-slate-800',
-  CIDADAO: 'from-purple-500 to-pink-500', CIDADAO_NOVO: 'from-amber-400 to-pink-500',
+  CIDADAO: 'from-purple-500 to-pink-500', CIDADAO_NOVO: 'from-amber-400 to-pink-500', CONTROLE_EXTERNO: 'from-slate-700 to-indigo-900',
 };
 const SCOPE: Record<string, string> = { AGGREGATE: 'Visão agregada', NETWORK: 'Rede inteira', UNIT: 'Uma unidade', GUARDIAN: 'Minha família' };
-const FEATURED: Role[] = ['CIDADAO', 'CIDADAO_NOVO', 'PREFEITO', 'SECRETARIO', 'ANALISTA_CENTRAL', 'DIRETOR_UNIDADE', 'SECRETARIA_ESCOLAR'];
+const FEATURED: Role[] = ['CIDADAO', 'CIDADAO_NOVO', 'PREFEITO', 'SECRETARIO', 'CONTROLE_EXTERNO', 'ANALISTA_CENTRAL', 'DIRETOR_UNIDADE', 'SECRETARIA_ESCOLAR'];
 
 export default function Entrar() {
   const boot = useRpc<Bootstrap>('bootstrap', {}, { staleTime: 5 * 60_000 });

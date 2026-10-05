@@ -1,4 +1,4 @@
-import { Backpack, Building2, ChartColumn, CircleHelp, ClipboardList, Contact, Database, FileCheck, GraduationCap, House, Inbox, ListOrdered, Map as MapIcon, MessageCircle, ScrollText, Search, ShieldCheck, Smartphone, Users } from 'lucide-react';
+import { Backpack, Building2, ChartColumn, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, Inbox, ListChecks, ListOrdered, Map as MapIcon, MessageCircle, Route, Scale, ScrollText, Search, ShieldCheck, Smartphone, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -21,6 +21,10 @@ const I = {
   whatsapp: { to: '/canal-whatsapp', label: 'WhatsApp da IARA', icon: Smartphone },
   alunos: { to: '/alunos', label: 'Alunos', icon: Backpack },
   responsaveis: { to: '/responsaveis', label: 'Responsáveis', icon: Contact },
+  controle: { to: '/controle', label: 'Controle externo', icon: Scale },
+  controleFila: { to: '/controle/fila', label: 'Fila pública', icon: ListChecks },
+  controleCaso: { to: '/controle/caso', label: 'Consultar caso', icon: FileSearch },
+  distancias: { to: '/regras#distancia', label: 'Distâncias', icon: Route, match: '/regras' },
 } satisfies Record<string, NavItem>;
 
 export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
@@ -34,7 +38,14 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras, I.ajuda],
+        more: [I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras,
+          // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
+          ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.ajuda],
+      };
+    case 'CONTROLE_EXTERNO':
+      return {
+        primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.controleFila, I.controleCaso, I.regras],
+        more: [I.distancias, I.mapa, I.unidades, I.indicadores, I.qualidade, I.ajuda],
       };
     case 'INOVACAO':
       return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.unidades, I.indicadores, I.regras, I.ajuda] };

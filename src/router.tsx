@@ -38,6 +38,9 @@ const Help = lazy(() => import('./pages/Help'));
 const CanalWhatsApp = lazy(() => import('./pages/CanalWhatsApp'));
 const WhatsAppEntry = lazy(() => import('./pages/WhatsApp'));
 const WhatsAppPoster = lazy(() => import('./pages/WhatsApp').then((m) => ({ default: m.WhatsAppPoster })));
+const PainelControle = lazy(() => import('./pages/controle/PainelControle'));
+const FilaPublica = lazy(() => import('./pages/controle/FilaPublica'));
+const ConsultaCaso = lazy(() => import('./pages/controle/ConsultaCaso'));
 
 function Loader() {
   return (
@@ -132,6 +135,9 @@ export const router = createHashRouter([
       { path: '/auditoria', element: <RequireSession>{S(<Audit />)}</RequireSession> },
       { path: '/qualidade', element: S(<Quality />) },
       { path: '/regras', element: S(<Rules />) },
+      { path: '/controle', element: <RequireSession>{S(<PainelControle />)}</RequireSession>, handle: { wide: true } },
+      { path: '/controle/fila', element: <RequireSession>{S(<FilaPublica />)}</RequireSession>, handle: { wide: true } },
+      { path: '/controle/caso', element: <RequireSession>{S(<ConsultaCaso />)}</RequireSession> },
       { path: '/ajuda', element: S(<Help />) },
       { path: '*', element: <NotFound /> },
     ],

@@ -28,14 +28,14 @@ type Resumo = {
 type Simulacao = {
   medida: MedidaDistancia; medida_atual: MedidaDistancia; limite_m: number; peso: number; total: number; ganham: number; perdem: number;
   sem_rota: number; mudam_posicao: number; atende_hoje: number; atenderia: number;
-  exemplos: { entry_id: string; crianca: string; unidade: string; faixa: string; reta_m: number | null; a_pe_m: number | null; carro_m: number | null;
+  exemplos: { entry_id: string | null; codigo: string; crianca: string; unidade: string; faixa: string; reta_m: number | null; a_pe_m: number | null; carro_m: number | null;
     aplica_hoje: boolean; aplica_nova: boolean; posicao: number | null; posicao_nova: number }[];
 };
 
 export function ComoMedimosDistancia() {
   const { me, can } = useSession();
   const res = useRpc<Resumo>('distancias_resumo', {}, { staleTime: 60_000 });
-  const rede = !!me && (me.scope === 'NETWORK' || me.scope === 'AGGREGATE') && can('queue.read');
+  const rede = !!me && (me.scope === 'NETWORK' || me.scope === 'AGGREGATE') && (can('queue.read') || can('controle.read'));
   const [sim, setSim] = useState<MedidaDistancia | null>(null);
   const r = res.data;
   return (
@@ -140,7 +140,7 @@ function SimulacaoMedida({ medida, resumo, onFechar }: { medida: MedidaDistancia
                   <span>Critério</span><span className="text-right">Posição</span>
                 </TCabecalho>
                 {s.exemplos.map((x) => (
-                  <TLinha key={x.entry_id} to={`/fila/${x.entry_id}`} rotulo={`${x.crianca}, ${x.unidade}`}>
+                  <TLinha key={x.codigo} to={x.entry_id ? `/fila/${x.entry_id}` : undefined} rotulo={`${x.crianca}, ${x.unidade}`}>
                     <TCelula fixa className="font-semibold">{x.crianca}</TCelula>
                     <TCelula titulo={x.unidade}>{x.unidade}</TCelula>
                     <TCelula className="text-muted">{x.faixa}</TCelula>
@@ -159,7 +159,7 @@ function SimulacaoMedida({ medida, resumo, onFechar }: { medida: MedidaDistancia
               </Tabela>
             )}
             <div className="flex flex-wrap items-center gap-3 border-t border-line bg-slate-50 px-4 py-3 text-[12.5px] text-muted">
-              <span className="min-w-0 flex-1">Mostrando até 30 crianças com maior mudança de posição. Nomes abreviados.</span>
+              <span className="min-w-0 flex-1">Mostrando até 30 crianças com maior mudança de posição. {s.exemplos[0]?.entry_id ? 'Nomes abreviados.' : 'Identificadas pelo código público da inscrição.'}</span>
               {can('rules.manage') ? (
                 <Button size="sm" variant="purple" icon={Scale} onClick={() => setAplicar(true)}>Passar a medir {MEDIDA[medida].curto}</Button>
               ) : <span>A troca da medida é decisão do(a) Secretário(a) de Educação, com justificativa registrada.</span>}
