@@ -70,6 +70,7 @@ const BuscaAtiva = lazy(() => import('./pages/BuscaAtiva'));
 const GestaoRede = lazy(() => import('./pages/GestaoRede'));
 const Guarda = lazy(() => import('./pages/Guarda'));
 const Suporte = lazy(() => import('./pages/Suporte'));
+const Biblioteca = lazy(() => import('./pages/Biblioteca'));
 const RegrasFrequencia = lazy(() => import('./pages/RegrasFrequencia'));
 
 function Loader() {
@@ -151,6 +152,7 @@ export const router = createHashRouter([
       { path: '/transporte', element: <RequireSession>{S(<Transporte />)}</RequireSession>, handle: { wide: true } },
       { path: '/gestao', element: <RequireSession>{S(<GestaoRede />)}</RequireSession>, handle: { wide: true } },
       { path: '/guarda', element: <RequireSession>{S(<Guarda />)}</RequireSession>, handle: { wide: true } },
+      { path: '/biblioteca', element: <RequireSession>{S(<Biblioteca />)}</RequireSession>, handle: { wide: true } },
       { path: '/suporte', element: <RequireSession>{S(<Suporte />)}</RequireSession>, handle: { wide: true } },
       { path: '/busca-ativa', element: <RequireSession>{S(<BuscaAtiva />)}</RequireSession>, handle: { wide: true } },
       { path: '/busca-ativa/regras', element: <RequireSession>{S(<RegrasFrequencia />)}</RequireSession>, handle: { wide: true } },

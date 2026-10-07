@@ -17,8 +17,10 @@ import { GRAVIDADE, SITUACAO_OCORRENCIA, TIPO_OCORRENCIA } from '@/lib/escola';
 import { AeeFamilia, BoletimView, DeclaracoesFamilia } from '@/components/pedagogico';
 import { TransporteFamilia } from '@/components/transporte';
 import { AusenciasFamilia } from '@/components/busca-ativa';
+import { HistoricoFamilia } from '@/components/conselho';
+import { AntropometriaFamilia, BibliotecaFamilia } from '@/components/sprint4';
 
-type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte';
+type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -42,6 +44,9 @@ export default function Escola() {
         { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
         { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
         { value: 'boletim', label: 'Boletim' },
+        { value: 'historico', label: 'Histórico' },
+        { value: 'biblioteca', label: 'Biblioteca' },
+        { value: 'medidas', label: 'Peso e altura' },
         ...(aee.data?.length ? [{ value: 'aee' as Aba, label: 'AEE', count: aee.data.filter((x) => !x.plano.familia_ciente_em).length || null }] : []),
         { value: 'frequencia', label: 'Frequência' },
         { value: 'cardapio', label: 'Cardápio' },
@@ -55,6 +60,9 @@ export default function Escola() {
         {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
         {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
         {aba === 'boletim' && <BoletimFamilia />}
+        {aba === 'historico' && <HistoricoFamilia />}
+        {aba === 'biblioteca' && <BibliotecaFamilia />}
+        {aba === 'medidas' && <AntropometriaFamilia />}
         {aba === 'aee' && <AeeFamilia />}
         {aba === 'declaracoes' && <DeclaracoesFamilia />}
         {aba === 'transporte' && <TransporteFamilia />}

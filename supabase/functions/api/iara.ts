@@ -62,6 +62,9 @@ const ESCOLA_MENU: QuickReply[] = [
   { label: "Declaração escolar", action: "intent:declaracao" },
   { label: "Plano do AEE", action: "intent:aee_plano" },
   { label: "Transporte escolar", action: "intent:transporte" },
+  { label: "Biblioteca", action: "intent:biblioteca" },
+  { label: "Peso e altura", action: "intent:medidas" },
+  { label: "Histórico escolar", action: "intent:historico" },
 ];
 /** Sprint 2 (pedagógico): rótulos usados no boletim, no AEE e nas declarações. */
 const PORTAL = (Deno.env.get("PORTAL_URL") ?? "https://agenciadirectadm-hue.github.io/iara-educa/").replace(/\/?$/, "/");
@@ -74,7 +77,7 @@ const MODALIDADE_AEE: Record<string, string> = {
   SRM_PROPRIA: "Sala de recursos na própria escola", SRM_POLO: "Sala de recursos em escola-polo", ITINERANTE: "Professor(a) itinerante na unidade", DOMICILIAR: "Atendimento domiciliar",
 };
 const DIA_AEE: Record<string, string> = { SEG: "segunda", TER: "terça", QUA: "quarta", QUI: "quinta", SEX: "sexta" };
-const TIPO_DECLARACAO: Record<string, string> = { MATRICULA: "Declaração de matrícula", FREQUENCIA: "Declaração de frequência", INSCRICAO_FILA: "Inscrição na fila de espera" };
+const TIPO_DECLARACAO: Record<string, string> = { MATRICULA: "Declaração de matrícula", FREQUENCIA: "Declaração de frequência", INSCRICAO_FILA: "Inscrição na fila de espera", HISTORICO: "Histórico escolar" };
 const fmtNota = (n: number | string) => Number(n).toFixed(1).replace(".", ",");
 const TIPO_AGENDA_LABEL: Record<string, string> = { RECADO: "Recado", TAREFA: "Tarefa de casa", LEMBRETE: "Lembrete", MATERIAL: "Material", EVENTO: "Evento", BILHETE: "Bilhete" };
 const TIPO_OCORRENCIA_LABEL: Record<string, string> = {
@@ -191,6 +194,9 @@ function detectIntent(t: string): string {
   if (/((enviar|mandar|anexar|subir) (o |a |os |as |um |uma )?(documento|certidao|comprovante|pdf|laudo|carteira de vacina|cartao sus))/.test(t)) return "enviar_documento";
   if (/((atualizar|trocar|mandar|enviar|mudar|colocar) (a )?foto)/.test(t)) return "foto";
   if (/((corrigir|atualizar|alterar|trocar|mudar) (o |a )?(cpf|nis|cartao sus|sus|nome social|certidao|naturalidade|cidade onde nasceu) (da|do|de))/.test(t)) return "alterar_dados";
+  if (/(historico escolar|\bhistorico\b(?! de (falta|frequencia|presenca)))/.test(t)) return "historico";
+  if (/(biblioteca|\blivros?\b|emprestimo de livro|sacola literaria)/.test(t)) return "biblioteca";
+  if (/(\bpeso\b|altura|\bimc\b|quanto (ela|ele) (pesa|mede)|esta (magr|acima do peso|gordinh))/.test(t)) return "medidas";
   if (/((declaracao|atestado|comprovante) (escolar|de (matricula|frequencia|escolaridade|inscricao)|da (matricula|frequencia|fila)|para o bolsa|do bolsa|que (ele|ela) estuda)|declaracao (para|pro|pra) (o |a )?(bolsa|trabalho|empresa|beneficio|inss|cras))/.test(t)) return "declaracao";
   if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(telefone|numero|celular|whatsapp|e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
@@ -532,6 +538,12 @@ export class Agent {
         return await this.startDeclaracao(norm(text));
       case "transporte":
         return await this.transporte();
+      case "biblioteca":
+        return await this.biblioteca();
+      case "medidas":
+        return await this.medidas();
+      case "historico":
+        return await this.startDeclaracao("historico escolar");
       case "transporte_aviso":
         return await this.startTransporteAviso(norm(text));
       case "conhecimento":
@@ -634,6 +646,8 @@ export class Agent {
         return await this.aeeCiente(value);
       case "aus":
         return await this.ausenciaResponder(value);
+      case "bib_ren":
+        return await this.bibliotecaRenovar(value);
       case "oc_rev":
         return await this.ocorrenciaRevisao(value);
       case "enq": {
@@ -2025,7 +2039,7 @@ export class Agent {
       return this.say("A declaração sai para criança matriculada na rede ou inscrita na fila de espera, e não encontrei nenhuma das duas situações. Um atendente pode ajudar.",
         { quick_replies: [MENU[6], MENU[0]] });
     }
-    const tipo = /frequencia|bolsa|beneficio|cras|inss/.test(t) ? "FREQUENCIA" : /fila|inscricao|espera/.test(t) ? "INSCRICAO_FILA"
+    const tipo = /historico/.test(t) ? "HISTORICO" : /frequencia|bolsa|beneficio|cras|inss/.test(t) ? "FREQUENCIA" : /fila|inscricao|espera/.test(t) ? "INSCRICAO_FILA"
       : /matricula|estuda|escolar|escolaridade/.test(t) ? "MATRICULA" : null;
     this.ctx = { flow: "declaracao", step: "dc_child", data: { kids: kids.map((k) => ({ id: k.student_id, nome: k.primeiro_nome, tipos: k.disponiveis })), tipo } };
     if (kids.length === 1) return await this.declaracaoStep(kids[0].student_id);
@@ -2040,13 +2054,13 @@ export class Agent {
       if (!kid) return this.say("Toque no nome da criança, por favor.");
       this.ctx.data = { ...d, kid };
       if (d.tipo && kid.tipos.includes(d.tipo)) return await this.declaracaoEmitir(d.tipo);
-      if (d.tipo) this.say(d.tipo === "INSCRICAO_FILA" ? `${kid.nome} não está na fila de espera.` : `${kid.nome} não tem matrícula ativa na rede.`);
+      if (d.tipo) this.say(d.tipo === "INSCRICAO_FILA" ? `${kid.nome} não está na fila de espera.` : d.tipo === "HISTORICO" ? `${kid.nome} ainda não tem ano concluído para o histórico escolar.` : `${kid.nome} não tem matrícula ativa na rede.`);
       if (kid.tipos.length === 1) return await this.declaracaoEmitir(kid.tipos[0]);
       return this.ask("dc_tipo", `Qual declaração de ${kid.nome}?`, { quick_replies: (kid.tipos as string[]).map((x) => ({ label: TIPO_DECLARACAO[x] ?? x, action: `ans:${x}` })) });
     }
     if (this.ctx.step === "dc_tipo") {
       const tipo = /^[A-Z_]+$/.test(text.trim()) ? text.trim()
-        : /frequencia|bolsa/.test(t) ? "FREQUENCIA" : /fila|inscri/.test(t) ? "INSCRICAO_FILA" : /matricula/.test(t) ? "MATRICULA" : "";
+        : /historico/.test(t) ? "HISTORICO" : /frequencia|bolsa/.test(t) ? "FREQUENCIA" : /fila|inscri/.test(t) ? "INSCRICAO_FILA" : /matricula/.test(t) ? "MATRICULA" : "";
       if (!d.kid.tipos.includes(tipo)) {
         return this.say("Toque no tipo de declaração, por favor.", { quick_replies: (d.kid.tipos as string[]).map((x) => ({ label: TIPO_DECLARACAO[x] ?? x, action: `ans:${x}` })) });
       }
@@ -2070,6 +2084,66 @@ export class Agent {
   }
 
   // ================================================================== Sprint 3: transporte escolar
+  // ================================================================== Sprint 4: biblioteca e peso e altura
+  private async biblioteca(): Promise<void> {
+    if (!this.needGuardian("intent:biblioteca")) return;
+    if (!this.ensureVerified("intent:biblioteca")) return;
+    const kids = ((await this.tool("get_library_loans", "familia_biblioteca", {})) as any[]) ?? [];
+    if (!kids.length) {
+      this.done();
+      return this.say("Não encontrei criança matriculada sob sua responsabilidade.", { quick_replies: [MENU[0]] });
+    }
+    const quick: QuickReply[] = [];
+    const cards: Card[] = kids.map((k) => {
+      const ativos = (k.ativos ?? []) as any[];
+      for (const x of ativos) if (x.pode_renovar) quick.push({ label: `Renovar: ${x.titulo}`.slice(0, 24), action: `bib_ren:${x.id}` });
+      return {
+        title: `Biblioteca · ${k.primeiro_nome}`,
+        subtitle: `${k.unidade ?? ""} · ${(k.lidos ?? []).length} livro(s) lido(s) no ano`,
+        lines: ativos.length
+          ? ativos.map((x) => `${x.titulo} (${x.autor}) — ${x.atrasado ? `atrasado desde ${diaBr(x.prevista)}, devolva na escola` : `devolver até ${diaBr(x.prevista)}`}`)
+          : [`Nenhum livro com ${k.primeiro_nome} agora.`],
+        tone: ativos.some((x) => x.atrasado) ? "amber" : "purple",
+      };
+    });
+    this.say("Livros da biblioteca da escola:", { cards, quick_replies: [...quick.slice(0, 4), ESCOLA_MENU[8]],
+      notice: "Para reservar um livro, use Vida escolar › Biblioteca no portal." });
+    this.done("Consultou os livros da biblioteca.");
+  }
+
+  private async bibliotecaRenovar(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`bib_ren:${id}`)) return;
+    const r = await this.tool("renew_library_loan", "biblioteca_renovar", { id }, `bib_ren:${id}`);
+    this.done("Renovou um empréstimo da biblioteca.");
+    this.say(`Renovado ✅ “${r.titulo}” pode ficar em casa até ${diaBr(r.prevista)}.`);
+  }
+
+  private async medidas(): Promise<void> {
+    if (!this.needGuardian("intent:medidas")) return;
+    if (!this.ensureVerified("intent:medidas")) return;
+    const kids = ((await this.tool("get_growth", "familia_antropometria", {})) as any[]) ?? [];
+    const cards: Card[] = kids.map((k) => {
+      const ms = (k.medidas ?? []) as any[];
+      const u = ms[ms.length - 1];
+      const a = ms.length > 1 ? ms[ms.length - 2] : null;
+      return {
+        title: `Peso e altura · ${k.primeiro_nome}`,
+        subtitle: u ? `Medido na escola em ${diaBr(u.data)}` : "Ainda sem medida na escola",
+        lines: u ? [`${String(u.altura).replace(".", ",")} cm e ${String(u.peso).replace(".", ",")} kg (IMC ${String(u.imc).replace(".", ",")})`,
+          ...(a ? [`Desde ${diaBr(a.data)}: ${(Number(u.altura) - Number(a.altura)).toFixed(1).replace(".", ",")} cm a mais`] : []),
+          ...(u.leitura ? [u.leitura] : [])] : ["A escola mede peso e altura duas vezes por ano."],
+        tone: "blue",
+      };
+    });
+    if (!cards.length) {
+      this.done();
+      return this.say("Não encontrei criança matriculada sob sua responsabilidade.", { quick_replies: [MENU[0]] });
+    }
+    this.say("As medidas feitas na escola:", { cards, notice: "A nutricionista da rede acompanha as medidas; dúvidas sobre a saúde, procure a UBS." });
+    this.done("Consultou peso e altura.");
+  }
+
   private async transporte(): Promise<void> {
     if (!this.needGuardian("intent:transporte")) return;
     if (!this.ensureVerified("intent:transporte")) return;

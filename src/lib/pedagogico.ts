@@ -50,6 +50,7 @@ export const TIPO_DECLARACAO: Record<string, { label: string; hint: string }> = 
   MATRICULA: { label: 'Declaração de matrícula', hint: 'Comprova que a criança estuda na rede (vale 90 dias).' },
   FREQUENCIA: { label: 'Declaração de frequência', hint: 'Percentual de presença no ano — usada no Bolsa Família e em benefícios (vale 30 dias).' },
   INSCRICAO_FILA: { label: 'Inscrição na fila de espera', hint: 'Comprova a inscrição na Central de Vagas (vale 30 dias).' },
+  HISTORICO: { label: 'Histórico escolar', hint: 'Anos cursados, médias, frequência e resultado — para matrícula em outra escola.' },
 };
 export const SITUACAO_DECLARACAO: Record<string, { label: string; tone: Tone }> = {
   VALIDA: { label: 'Válida', tone: 'green' }, EXPIRADA: { label: 'Expirada', tone: 'gray' }, REVOGADA: { label: 'Revogada', tone: 'red' },

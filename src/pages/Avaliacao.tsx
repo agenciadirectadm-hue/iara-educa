@@ -11,8 +11,10 @@ import { Badge, Button, Card, EmptyState, ErrorState, Field, PageHeader, Segment
 import { Sheet, useToast } from '@/components/overlays';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { NivelBadge, PlanoCard, PlanoSheet, useRecarregarPedagogico } from '@/components/pedagogico';
+import { ConselhoTurma } from '@/components/conselho';
+import { AntropometriaTurma } from '@/components/sprint4';
 
-type Aba = 'notas' | 'alfabetizacao' | 'risco' | 'aee';
+type Aba = 'notas' | 'alfabetizacao' | 'risco' | 'aee' | 'conselho' | 'medidas';
 
 /** Avaliação da turma: notas por componente (ou pareceres na educação infantil), sondagem de alfabetização, alunos em risco e orientações do AEE. */
 export default function Avaliacao() {
@@ -31,6 +33,8 @@ export default function Avaliacao() {
     ...(alfa ? [{ value: 'alfabetizacao' as Aba, label: 'Alfabetização' }] : []),
     ...(!d.parecer ? [{ value: 'risco' as Aba, label: 'Em risco' }] : []),
     ...(can('aee.orientacoes') ? [{ value: 'aee' as Aba, label: 'AEE na sala' }] : []),
+    { value: 'conselho' as Aba, label: 'Conselho de classe' },
+    ...(can('antropometria.read') ? [{ value: 'medidas' as Aba, label: 'Peso e altura' }] : []),
   ];
   return (
     <div>
@@ -46,6 +50,8 @@ export default function Avaliacao() {
         {aba === 'alfabetizacao' && alfa && <Alfabetizacao classId={id!} />}
         {aba === 'risco' && <RiscoTurma classId={id!} />}
         {aba === 'aee' && <AeeSala classId={id!} />}
+        {aba === 'conselho' && <ConselhoTurma classId={id!} />}
+        {aba === 'medidas' && <AntropometriaTurma classId={id!} />}
       </div>
     </div>
   );

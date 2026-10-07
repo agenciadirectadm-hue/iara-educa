@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PatrimonioAba } from '@/components/sprint4';
 import { useSearchParams } from 'react-router';
 import { keepPreviousData, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -22,7 +23,7 @@ const ESTADO: Record<string, string> = { NOVO: 'Novo', BOM: 'Bom', REGULAR: 'Reg
 const POR_PAGINA = 60;
 const num = (n: number | string | null | undefined) => (n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 }));
 
-type Aba = 'estoque' | 'pedidos' | 'validade' | 'alimentos';
+type Aba = 'estoque' | 'patrimonio' | 'pedidos' | 'validade' | 'alimentos';
 
 /** Materiais e almoxarifado: estoque e patrimônio, pedidos (escola → almoxarifado → remessa → recebimento), validade e cobertura de alimentos. */
 export default function Materiais() {
@@ -54,8 +55,9 @@ export default function Materiais() {
           {aba === 'estoque' && d?.pode_editar && <Button icon={PackagePlus} onClick={() => setNovo(true)}>Novo material</Button>}
         </>} />
       <Tabs value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })} className="mb-3"
-        items={[{ value: 'estoque', label: 'Estoque e patrimônio' }, { value: 'pedidos', label: 'Pedidos e remessas' }, { value: 'validade', label: 'Validade' }, { value: 'alimentos', label: 'Alimentos (cobertura)' }]} />
+        items={[{ value: 'estoque', label: 'Estoque' }, { value: 'patrimonio', label: 'Patrimônio' }, { value: 'pedidos', label: 'Pedidos e remessas' }, { value: 'validade', label: 'Validade' }, { value: 'alimentos', label: 'Alimentos (cobertura)' }]} />
       {aba === 'pedidos' && <PedidosAba unitId={rede ? unit : me?.unit?.id ?? null} rede={rede} />}
+      {aba === 'patrimonio' && <div className="mt-3"><PatrimonioAba unitId={rede ? unit : me?.unit?.id ?? null} /></div>}
       {aba === 'validade' && <ValidadeAba unitId={rede ? (central ? null : unit) : me?.unit?.id ?? null} central={rede && central} />}
       {aba === 'alimentos' && <CoberturaAba unitId={rede ? unit : me?.unit?.id ?? null} />}
       {aba === 'estoque' && <>

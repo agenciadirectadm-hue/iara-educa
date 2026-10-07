@@ -1,4 +1,4 @@
-import { Accessibility, Apple, Backpack, Bus, ChartLine, Gavel, LifeBuoy, Network, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, Backpack, Bus, ChartLine, Gavel, LibraryBig, LifeBuoy, Network, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -46,6 +46,7 @@ const I = {
   gestao: { to: '/gestao', label: 'Gestão da rede', icon: Network },
   guarda: { to: '/guarda', label: 'Guarda e restrições', icon: Gavel },
   suporte: { to: '/suporte', label: 'Suporte técnico', icon: LifeBuoy },
+  biblioteca: { to: '/biblioteca', label: 'Biblioteca', icon: LibraryBig },
   mapaRotas: { to: '/transporte?aba=mapa', label: 'Mapa das rotas', icon: Route, match: '/transporte' },
   almoxarifado: { to: '/materiais?aba=pedidos', label: 'Pedidos de material', icon: Warehouse, match: '/materiais' },
 } satisfies Record<string, NavItem>;
@@ -61,7 +62,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.gestao, I.buscaAtiva, I.guarda, I.desempenho, I.aee, I.transporte, I.mapaRotas, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.nutricao, I.manutencao, I.mural, I.calendario,
+        more: [I.gestao, I.buscaAtiva, I.guarda, I.biblioteca, I.desempenho, I.aee, I.transporte, I.mapaRotas, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.nutricao, I.manutencao, I.mural, I.calendario,
           I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.suporte, I.ajuda],
@@ -88,7 +89,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.atendimentos,
         ],
         more: [
-          I.buscaAtiva, I.guarda, I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.buscaAtiva, I.guarda, I.biblioteca, I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
           I.alunos, I.responsaveis, I.suporte, I.gestao,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda,
@@ -103,7 +104,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.iara,
         ],
         more: [
-          I.buscaAtiva, I.guarda, I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.buscaAtiva, I.guarda, I.biblioteca, I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
           I.responsaveis, I.atendimentos, I.verificar, I.suporte,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda,
         ],
@@ -113,13 +114,14 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
       return {
         primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList }],
         more: [{ to: '/escola', label: 'Vida escolar', icon: School }, { to: '/escola?aba=boletim', label: 'Boletim', icon: GraduationCap, match: '/escola' },
-          { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola' }, { to: '/escola?aba=transporte', label: 'Transporte escolar', icon: Bus, match: '/escola' }, { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen }, { ...I.calendario, to: '/escola?aba=calendario', match: '/escola' },
+          { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola' }, { to: '/escola?aba=historico', label: 'Histórico escolar', icon: GraduationCap, match: '/escola' },
+          { to: '/escola?aba=biblioteca', label: 'Biblioteca', icon: LibraryBig, match: '/escola' }, { to: '/escola?aba=transporte', label: 'Transporte escolar', icon: Bus, match: '/escola' }, { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen }, { ...I.calendario, to: '/escola?aba=calendario', match: '/escola' },
           { ...I.mapa, label: 'Unidades no mapa' }, { ...I.vagas, label: 'Consultar vagas' }, I.regras, I.ajuda],
       };
     case 'PROFESSOR':
       return {
         primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.ocorrencias, I.mural, I.calendario],
-        more: [I.suporte, I.ajuda, I.regras],
+        more: [I.biblioteca, I.suporte, I.ajuda, I.regras],
       };
     case 'NUTRICAO':
       return {

@@ -21,12 +21,14 @@ import QuadroDistancias from '@/components/QuadroDistancias';
 import { AgendaLista, NovaOcorrenciaSheet, NovoRecadoSheet, OcorrenciaSheet, OcorrenciasTabela, useRecarregarVidaEscolar } from '@/components/vida-escolar';
 import { MOTIVO_RESTRICAO, SITUACAO_RESTRICAO } from '@/lib/escola';
 import { GuardaAlerta, GuardaAlunoSheet } from '@/components/guarda';
+import { HistoricoAluno } from '@/components/conselho';
+import { AntropometriaAluno } from '@/components/sprint4';
 import { Foto, TrocarFoto } from '@/components/arquivos';
 import { DocumentosAluno, ExcluirCadastro } from '@/components/documentos';
 import { BoletimView, DeclaracoesAluno } from '@/components/pedagogico';
 
 type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
-  | 'alimentacao' | 'ocorrencias' | 'agenda' | 'boletim' | 'declaracoes';
+  | 'alimentacao' | 'ocorrencias' | 'agenda' | 'boletim' | 'declaracoes' | 'historico' | 'medidas';
 
 export default function StudentPage() {
   const { id } = useParams();
@@ -55,7 +57,8 @@ export default function StudentPage() {
       { value: 'ocorrencias' as Tab, label: 'Ocorrências', count: (ve.data.ocorrencias as any[]).filter((o) => o.situacao !== 'ENCERRADA').length || null },
       ...(ve.data.class_id ? [{ value: 'agenda' as Tab, label: 'Agenda' }] : []),
     ] : []),
-    ...(d.school && can('notas.read') ? [{ value: 'boletim' as Tab, label: 'Boletim' }] : []),
+    ...(d.school && can('notas.read') ? [{ value: 'boletim' as Tab, label: 'Boletim' }, { value: 'historico' as Tab, label: 'Histórico escolar' }] : []),
+    ...(d.school && can('antropometria.read') ? [{ value: 'medidas' as Tab, label: 'Peso e altura' }] : []),
     ...(!['PROFESSOR', 'PROFESSOR_AEE'].includes(me?.role ?? '') ? [{ value: 'declaracoes' as Tab, label: 'Declarações' }] : []),
     { value: 'aee', label: 'AEE/Inclusão' },
     ...(d.audit ? [{ value: 'auditoria' as Tab, label: 'Auditoria' }] : []),
@@ -109,6 +112,8 @@ export default function StudentPage() {
         {tab === 'fila' && <QueueOffers d={d} />}
         {tab === 'aee' && <Aee d={d} />}
         {tab === 'boletim' && <BoletimAluno id={s.id} />}
+        {tab === 'historico' && <HistoricoAluno studentId={s.id} />}
+        {tab === 'medidas' && <AntropometriaAluno studentId={s.id} />}
         {tab === 'declaracoes' && <DeclaracoesAluno studentId={s.id} />}
         {tab === 'frequencia' && <FrequenciaAluno id={s.id} />}
         {tab === 'alimentacao' && ve.data && <AlimentacaoAluno v={ve.data} studentId={s.id} />}

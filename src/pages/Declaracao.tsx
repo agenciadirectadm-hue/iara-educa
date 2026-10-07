@@ -56,6 +56,21 @@ export default function Declaracao() {
             </tbody>
           </table>
         )}
+        {c.historico && (
+          <table className="mt-6 w-full text-[12.5px]">
+            <thead><tr className="border-b border-line text-left text-muted"><th className="py-1">Ano</th><th>Série</th><th>Escola</th><th>CH</th><th>Freq.</th><th>Médias / parecer</th><th>Resultado</th></tr></thead>
+            <tbody>
+              {(c.historico as any[]).map((a) => (
+                <tr key={a.ano} className="border-b border-line/60 align-top">
+                  <td className="py-1.5 font-semibold">{a.ano}</td><td>{a.serie}</td><td>{a.unidade}</td><td>{a.carga_horaria}</td><td>{String(a.frequencia ?? '—').replace('.', ',')}%</td>
+                  <td>{(a.componentes as any[]).length ? (a.componentes as any[]).map((x) => `${x.nome} ${Number(x.media).toFixed(1).replace('.', ',')}`).join(' · ') : 'Parecer descritivo'}</td>
+                  <td>{({ APROVADO: 'Aprovado', APROVADO_CONSELHO: 'Aprovado pelo conselho', PROGRESSAO: 'Progressão', RETIDO: 'Retido', TRANSFERIDO: 'Transferido' } as Record<string, string>)[a.situacao] ?? a.situacao}</td>
+                </tr>
+              ))}
+              {c.em_curso && <tr><td className="py-1.5 font-semibold">{c.em_curso.ano}</td><td>{c.em_curso.serie}</td><td>{c.em_curso.unidade}</td><td colSpan={4}>Cursando</td></tr>}
+            </tbody>
+          </table>
+        )}
         <p className="mt-10 text-[15px]">{c.municipio}, {fmtDate(d.emitida_em)}.</p>
         <footer className="mt-12 rounded-2xl bg-slate-50 p-4 text-[12.5px] leading-relaxed text-ink-2 print:bg-white print:ring-1 print:ring-line">
           <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="size-4 text-green-700" />Documento emitido eletronicamente pelo IARA Educa. A autenticidade se confere pelo código abaixo.</div>

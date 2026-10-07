@@ -72,3 +72,5 @@ export function naUnidade(name: string | null | undefined) {
 export function cleanLabel(label: string | null | undefined) {
   return (label ?? '').replace(/\s*\(demo #[0-9A-F]+\)/gi, '').trim();
 }
+const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+export const fmtBRL = (n: number | string | null | undefined) => (n == null || n === '' || Number.isNaN(Number(n)) ? '—' : brl.format(Number(n)));

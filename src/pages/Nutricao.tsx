@@ -12,8 +12,9 @@ import { Tabela, TCabecalho, TCelula, TLinha } from '@/components/tabela';
 import { AreaChart } from '@/components/charts';
 import { useToast } from '@/components/overlays';
 import { UnitSelect } from '@/components/escola';
+import { AntropometriaPainel } from '@/components/sprint4';
 
-type Aba = 'cardapio' | 'restricoes' | 'refeicoes';
+type Aba = 'cardapio' | 'restricoes' | 'refeicoes' | 'medidas';
 const REFEICOES = ['DESJEJUM', 'ALMOCO', 'LANCHE', 'JANTAR'];
 
 function somaDias(iso: string, n: number) {
@@ -53,11 +54,12 @@ export default function Nutricao() {
       )}
 
       <Tabs className="mt-4" value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })}
-        items={[{ value: 'cardapio', label: 'Cardápio da semana' }, { value: 'restricoes', label: 'Restrições', count: aguardando || null }, { value: 'refeicoes', label: 'Refeições servidas' }]} />
+        items={[{ value: 'cardapio', label: 'Cardápio da semana' }, { value: 'restricoes', label: 'Restrições', count: aguardando || null }, { value: 'refeicoes', label: 'Refeições servidas' }, { value: 'medidas', label: 'Peso e medidas' }]} />
       <div className="mt-3">
         {aba === 'cardapio' && <CardapioSemana />}
         {aba === 'restricoes' && (painel.isLoading ? <SkeletonList rows={6} /> : <Restricoes p={p} />)}
         {aba === 'refeicoes' && (painel.isLoading ? <SkeletonList rows={4} /> : <Refeicoes p={p} />)}
+        {aba === 'medidas' && <AntropometriaPainel unitId={null} />}
       </div>
     </div>
   );

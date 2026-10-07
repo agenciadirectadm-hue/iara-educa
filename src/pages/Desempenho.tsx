@@ -10,8 +10,9 @@ import { BarList } from '@/components/charts';
 import { UnitSelect } from '@/components/escola';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { RiscoTurma } from './Avaliacao';
+import { ResultadoPrevia } from '@/components/conselho';
 
-type Aba = 'notas' | 'alfabetizacao' | 'risco';
+type Aba = 'notas' | 'alfabetizacao' | 'risco' | 'resultado';
 
 /** Desempenho da rede ou da unidade: notas por componente, alfabetização no 1º e 2º ano e alunos em risco com plano de intervenção. */
 export default function Desempenho() {
@@ -41,7 +42,7 @@ export default function Desempenho() {
             <Kpi compact icon={AlarmClock} tone="amber" label="Reavaliações atrasadas" value={fmtInt(d.planos_atrasados)} onClick={() => setSp({ aba: 'risco' }, { replace: true })} />
           </div>
           <Tabs className="mt-4" value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })}
-            items={[{ value: 'notas', label: 'Notas' }, { value: 'alfabetizacao', label: 'Alfabetização' }, { value: 'risco', label: 'Alunos em risco' }]} />
+            items={[{ value: 'notas', label: 'Notas' }, { value: 'alfabetizacao', label: 'Alfabetização' }, { value: 'risco', label: 'Alunos em risco' }, { value: 'resultado', label: 'Resultado final (prévia)' }]} />
           <div className="mt-3">
             {aba === 'notas' && (
               <div className="space-y-4">
@@ -77,6 +78,7 @@ export default function Desempenho() {
               </div>
             )}
             {aba === 'alfabetizacao' && <AlfabetizacaoRede d={d} />}
+            {aba === 'resultado' && <ResultadoPrevia unitId={unit ?? me?.unit?.id ?? null} />}
             {aba === 'risco' && (rede && !unit ? <PlanosRede d={d} /> : <RiscoTurma unitId={unit ?? me?.unit?.id ?? null} />)}
           </div>
         </>
