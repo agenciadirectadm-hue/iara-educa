@@ -6,6 +6,7 @@ import { Baby, BarChart3, Building2, ChevronRight, Crown, Database, Headset, Lan
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import type { Bootstrap, Persona, Role } from '@/lib/types';
+import { avisoMensagens } from '@/lib/avisos';
 import { Sheet, useToast } from '@/components/overlays';
 import { IaraBubble, IaraMascot } from '@/components/iara';
 import { Badge, Skeleton, inputCls } from '@/components/ui';
@@ -111,7 +112,7 @@ export default function Entrar() {
           <p>
             Unidades, endereços, turmas e matrículas agregadas vêm de fontes públicas (Censo Escolar 2025/INEP e Consulta Escolas/SEED-PR).
             Alunos, responsáveis, fila, ofertas, protocolos e conversas são <b className="text-ink">fictícios</b> e marcados com uma bandeirinha.
-            Nenhuma mensagem real é enviada.
+            {' '}{avisoMensagens(boot.data?.whatsapp?.canal_ativo)}
           </p>
         </div>
       </div>

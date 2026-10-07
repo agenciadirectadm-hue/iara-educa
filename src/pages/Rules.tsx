@@ -8,6 +8,7 @@ import { Badge, Card, ErrorState, PageHeader, Section, SkeletonList, SourceChip,
 import { IaraBubble } from '@/components/iara';
 import { ComoMedimosDistancia } from '@/components/MetodologiaDistancia';
 import { MEDIDA } from '@/components/distancias';
+import { useSession } from '@/lib/session';
 
 const GROUPS: { type: string; title: string; subtitle: string; icon: typeof Scale }[] = [
   { type: 'PRIORIDADE_FILA', title: 'Pontuação da fila', subtitle: 'Critérios de pontuação do Anexo I da IN nº 025/2025 — somam até 100 pontos. Maior pontuação vem primeiro.', icon: ListOrdered },
@@ -119,6 +120,8 @@ export default function Rules() {
 
 function RuleCard({ r }: { r: any }) {
   const cond = describeCondition(r.code, r.condition);
+  // identificador interno do teste só para a administração técnica
+  const tecnico = useSession().me?.role === 'INOVACAO';
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
@@ -141,7 +144,7 @@ function RuleCard({ r }: { r: any }) {
         <SourceChip kind={KIND[r.source_kind] ?? 'demo'} detail={[r.source, r.source_kind === 'OFICIAL' ? r.justification : null].filter(Boolean).join('\n\n')} />
         {r.source_kind === 'OFICIAL' && <span className="font-semibold text-green-800">{r.source}</span>}
         {r.valid_from && <span>vigente no sistema desde {fmtDate(r.valid_from)}</span>}
-        {r.test && <span className="inline-flex items-center gap-1"><Check className="size-3.5 text-green-700" />teste {r.test}</span>}
+        {r.test && <span className="inline-flex items-center gap-1"><Check className="size-3.5 text-green-700" />{tecnico ? `teste ${r.test}` : 'conferida por teste automático'}</span>}
       </div>
     </Card>
   );

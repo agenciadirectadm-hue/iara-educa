@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Accessibility, BookOpen, ChevronDown, Database, FileText, Search, ShieldCheck, Sigma, X } from 'lucide-react';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useBootstrap } from '@/lib/data';
+import { avisoMensagens } from '@/lib/avisos';
 import { fmtDate, fmtInt } from '@/lib/format';
 import { DOC, LEVEL_LABEL } from '@/lib/labels';
 import { Badge, Card, EmptyState, PageHeader, Section, SkeletonList, SourceChip, inputCls, type SourceKind } from '@/components/ui';
@@ -150,7 +151,7 @@ export default function Help() {
               <li>• Dados sensíveis (saúde, deficiência, rede de proteção) ficam separados, com acesso restrito e consulta registrada.</li>
               <li>• A IARA só mostra dados pessoais depois de verificar a identidade e o vínculo com a criança.</li>
               <li>• Toda ação relevante fica na trilha de auditoria, que não pode ser alterada.</li>
-              <li>• Nesta demonstração, todas as pessoas, telefones e documentos são fictícios e nenhuma mensagem real é enviada.</li>
+              <li>• Nesta demonstração, todas as pessoas, telefones e documentos são fictícios. {avisoMensagens(boot.data?.whatsapp?.canal_ativo)}</li>
             </ul>
           </Card>
         </Section>

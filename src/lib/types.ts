@@ -49,7 +49,7 @@ export type Bootstrap = {
     official_reference_date: string; city_center: [number, number]; demo_mode: boolean; demo_unit: number;
   };
   /** Contato da IARA no WhatsApp. Sem número oficial, o QR code e o link abrem a conversa simulada. */
-  whatsapp?: { numero: string | null; numero_demo: string; mensagem: string; url_publica: string | null };
+  whatsapp?: { numero: string | null; numero_demo: string; mensagem: string; url_publica: string | null; canal_ativo?: boolean };
   flags: Record<string, boolean>;
   personas: Persona[];
   stages: { id: number; code: string; name: string; short_name: string; color: string }[];

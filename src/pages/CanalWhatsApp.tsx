@@ -2,11 +2,13 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertTriangle, CheckCircle2, Link2, MessageCircle, Mic, Power, PowerOff, QrCode, RefreshCw, Smartphone, Terminal, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Link2, ListChecks, MessageCircle, Mic, Power, PowerOff, QrCode, RefreshCw, Smartphone, Terminal, Users } from 'lucide-react';
 import { API_URL, rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
 import { fmtInt, timeAgo } from '@/lib/format';
-import { Badge, Button, Card, ErrorState, PageHeader, Section, SkeletonList } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, PageHeader, Section, SkeletonList, inputCls } from '@/components/ui';
+import { Alternar } from '@/components/cadastro';
+import { useSession } from '@/lib/session';
 import { useConfirm, useToast } from '@/components/overlays';
 import { IaraQr, WhatsAppGlyph } from '@/components/whatsapp';
 
@@ -15,6 +17,7 @@ type Canal = {
   ultimo_sinal_em: string | null; pareado_em: string | null; ligado_em: string | null; desligado_em: string | null; alterado_por: string | null;
   compartilhado_com: string | null; observacoes: string | null; ponte_configurada: boolean; pode_gerenciar: boolean;
   contatos: number; familias_vinculadas: number; mensagens_24h: number; saida_pendente: number; enviadas_24h: number;
+  demo_mode?: boolean; somente_autorizados?: boolean; autorizados?: string[] | null; autorizados_qtd?: number; bloqueados_24h?: number;
 };
 
 const PONTE: Record<string, { label: string; tone: 'green' | 'amber' | 'gray' | 'red' }> = {
@@ -35,6 +38,8 @@ export default function CanalWhatsApp() {
   const confirm = useConfirm();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // comandos, scripts e portas são da administração técnica (Diretoria de Inovação); a gestão vê só o interruptor
+  const tecnico = useSession().me?.role === 'INOVACAO';
 
   if (q.isLoading) return <SkeletonList rows={4} />;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -122,7 +127,17 @@ export default function CanalWhatsApp() {
         ))}
       </div>
 
+      <ListaAutorizados c={c} />
+
       <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
+        {!tecnico ? (
+          <Section title={<span className="inline-flex items-center gap-2"><Power className="size-5 text-green-700" />Quem liga a ponte</span>}>
+            <Card className="p-4 text-[14px] text-ink-2">
+              A ponte de teste roda no computador da equipe técnica (Diretoria de Inovação), que a liga para apresentações e testes.
+              Aqui, use o botão <b>Ligar/Desligar</b> acima e, fora das apresentações, a <b>lista de números autorizados</b>.
+            </Card>
+          </Section>
+        ) : (
         <Section title={<span className="inline-flex items-center gap-2"><Terminal className="size-5 text-green-700" />Como ligar e desligar</span>}
           subtitle="No computador onde a ponte roda (o mesmo da IARA Saúde serve).">
           <Card className="p-4 text-[14px]">
@@ -146,6 +161,7 @@ export default function CanalWhatsApp() {
             </p>
           </Card>
         </Section>
+        )}
 
         <Section title={<span className="inline-flex items-center gap-2"><QrCode className="size-5 text-green-700" />Contato para as famílias</span>}
           subtitle={c.ativo ? 'Com o canal ligado, o QR code do portal já abre este WhatsApp.' : 'Desligado: o QR code do portal abre a conversa de demonstração.'}>
@@ -163,6 +179,56 @@ export default function CanalWhatsApp() {
         Mensagens reais trazem dados pessoais reais: trate como produção (LGPD).
       </p>
     </div>
+  );
+}
+
+/** Demonstração: quem pode conversar com a IARA pelo número de teste. Fora da lista, só um aviso a cada 6 h (sem cadastro). */
+function ListaAutorizados({ c }: { c: Canal }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [on, setOn] = useState(!!c.somente_autorizados);
+  const [texto, setTexto] = useState((c.autorizados ?? []).join('\n'));
+  const [salvando, setSalvando] = useState(false);
+  const numeros = texto.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+  const mudou = on !== !!c.somente_autorizados || numeros.join('|') !== (c.autorizados ?? []).join('|');
+
+  const salvar = async () => {
+    setSalvando(true);
+    try {
+      await rpc('whatsapp_autorizados_salvar', { somente_autorizados: on, numeros });
+      await qc.invalidateQueries();
+      toast({ title: on ? 'Lista ligada' : 'Lista desligada', description: on ? `Só ${numeros.length} número(s) conversam com a IARA.` : 'Qualquer número conversa com a IARA enquanto o canal estiver ligado.', tone: 'success' });
+    } catch (e) {
+      toast({ title: 'Não foi possível salvar', description: (e as Error).message, tone: 'error' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Section title={<span className="inline-flex items-center gap-2"><ListChecks className="size-5 text-green-700" />Quem pode conversar com a IARA</span>}
+      subtitle="Para períodos sem apresentação: com a lista ligada, outros números recebem só um aviso (no máximo um a cada 6 h) e nada é cadastrado.">
+      <Card className="p-4 text-[14px]">
+        {c.pode_gerenciar ? (
+          <div className="space-y-3">
+            <Alternar checked={on} onChange={setOn} label="Só números autorizados"
+              dica={on ? 'Ligada: apenas os números abaixo conversam com a IARA.' : 'Desligada: qualquer número conversa com a IARA enquanto o canal estiver ligado.'} />
+            <label className="block">
+              <span className="text-[13px] font-semibold">Números autorizados (um por linha, com país e DDD)</span>
+              <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={4} placeholder={'55 44 99999-0000'} className={clsx(inputCls, 'mt-1 font-mono')} />
+            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[12.5px] text-muted">{fmtInt(c.bloqueados_24h ?? 0)} número(s) fora da lista escreveram nas últimas 24 h.</span>
+              <Button variant="success" loading={salvando} disabled={!mudou} onClick={salvar}>Salvar</Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-ink-2">
+            {c.somente_autorizados ? <>Lista <b>ligada</b>: {fmtInt(c.autorizados_qtd ?? 0)} número(s) autorizado(s).</> : <>Lista <b>desligada</b>: qualquer número conversa com a IARA enquanto o canal estiver ligado.</>}
+          </p>
+        )}
+      </Card>
+    </Section>
   );
 }
 

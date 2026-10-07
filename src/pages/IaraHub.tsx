@@ -140,7 +140,7 @@ function CitizenChat() {
       <div className="relative min-h-0 flex-1 overflow-y-auto bg-[#F4EFFA] px-3 py-3 [background-image:radial-gradient(circle_at_1px_1px,rgb(122_36_197/0.07)_1px,transparent_0)] [background-size:18px_18px] lg:border-x lg:border-line/70">
         <div className="mx-auto mb-3 max-w-md rounded-2xl bg-amber-50/95 px-3 py-2 text-center text-[11.5px] text-amber-900 ring-1 ring-amber-100">
           <ShieldCheck className="mr-1 inline size-3.5" />
-          Demonstração: nenhuma mensagem real é enviada. A IARA só informa dados oficiais e confirma ações depois do sistema.
+          Demonstração: conversa no portal, com famílias fictícias. A IARA só informa dados oficiais e confirma ações depois do sistema.
         </div>
         {conv.isLoading ? (
           <div className="px-2"><SkeletonList rows={3} /></div>

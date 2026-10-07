@@ -45,6 +45,16 @@ export async function asSystem<T>(userId: string | null, meta: RequestMeta, fn: 
 export const gravarRotas = (userId: string | null, meta: RequestMeta) => (itens: unknown[]) =>
   asSystem(userId, meta, (tx) => tx`select iara.rotas_gravar(${sql.json({ itens } as never)}::jsonb) as n`).then(() => undefined);
 
+/** Interruptor demo_mode do município (tenants.settings), lido a cada minuto no máximo. */
+let demoCache: { em: number; v: boolean } | null = null;
+export async function modoDemo(): Promise<boolean> {
+  if (!demoCache || Date.now() - demoCache.em > 60_000) {
+    const r = await sql`select coalesce((iara.setting('demo_mode'))::boolean, false) as d`;
+    demoCache = { em: Date.now(), v: r[0]?.d === true };
+  }
+  return demoCache.v;
+}
+
 let apiFunctions: Set<string> | null = null;
 let loadedAt = 0;
 

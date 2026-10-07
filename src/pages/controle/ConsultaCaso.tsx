@@ -11,6 +11,7 @@ import { CASE_STATUS, DOC, DOC_STATUS, FLAG, OFFER_STATUS, QUEUE_STATUS } from '
 import { Badge, Button, Card, DataPair, Field, MarcaSimulado, PageHeader, Section, inputCls } from '@/components/ui';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancias';
+import { PontosCriterio } from '@/components/PontosCriterio';
 
 const ORIGEM = [
   ['DEFENSORIA', 'Atendimento da Defensoria Pública'],
@@ -156,7 +157,7 @@ function Resultado({ r }: { r: any }) {
                     : b.applied ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-700" /> : <Circle className="mt-0.5 size-4 shrink-0 text-slate-300" />}
                   <div className="min-w-0 flex-1 text-[13.5px]">
                     <div className="flex justify-between gap-2"><span className={b.applied ? 'font-semibold' : 'text-muted'}>{b.name}</span>
-                      {b.analysis ? <Badge tone={b.applied ? 'purple' : 'gray'}>sob análise</Badge> : b.weight > 0 && <span className={b.applied ? 'font-bold text-green-700' : 'text-muted'}>+{b.weight}</span>}</div>
+                      {b.analysis ? <Badge tone={b.applied ? 'purple' : 'gray'}>sob análise</Badge> : <PontosCriterio weight={b.weight} applied={b.applied} />}</div>
                     <div className="text-[12px] text-muted">{b.evidence}</div>
                     {b.code === 'TERRITORIO_2KM' && b.distancias && (
                       <div className="mt-1 flex flex-wrap items-center gap-2"><TresDistanciasInscricao breakdown={f.criterios} /><LinkMetodologia className="text-[12px]">como medimos</LinkMetodologia></div>

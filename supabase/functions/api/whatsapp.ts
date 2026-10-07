@@ -119,6 +119,8 @@ async function transcrever(base64: string, tipo: string): Promise<string | null>
   }
 }
 const SEM_MIDIA = "Recebi o arquivo, obrigado! Por aqui eu ainda não consigo abrir anexos — os documentos são conferidos na unidade. Como posso ajudar?";
+const AVISO_DEMO = "🚩 *Demonstração da IARA Educa* (Secretaria Municipal de Educação de Maringá). As famílias e os dados deste atendimento são fictícios. Por favor, *não envie dados reais* (CPF, endereço, documentos ou fotos).";
+const FORA_DA_LISTA = "Olá! Neste momento este número está reservado a uma demonstração da IARA Educa (Secretaria Municipal de Educação de Maringá) e não atende ao público. Para assuntos da Educação, procure a unidade do seu filho ou a SEDUC. Se você procura a IARA Saúde, tente novamente mais tarde.";
 
 async function entrada(canal: Canal, body: Record<string, unknown>, meta: RequestMeta, json: Json): Promise<Response> {
   if (!canal.ativo) return json({ ativo: false, respostas: [] });
@@ -130,6 +132,11 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
 
   const nova = await asSystem(null, meta, (tx) => tx`select iara.whatsapp_registrar_entrada(${canal.id}::uuid, ${waId}) as n`);
   if (!nova[0]?.n) return json({ ativo: true, duplicada: true, respostas: [] });
+
+  // lista de números autorizados (interruptor do painel): fora dela não há contato, conversa nem cadastro — só um aviso a cada 6 h
+  const triagem = (await asSystem(null, meta, (tx) => tx`select iara.whatsapp_triagem(${canal.id}::uuid, ${tel}) as t`))[0]?.t as
+    { autorizado: boolean; avisar: boolean; demo: boolean } | undefined;
+  if (triagem && !triagem.autorizado) return json({ ativo: true, bloqueado: true, respostas: triagem.avisar ? [FORA_DA_LISTA] : [] });
 
   const contato = (await asSystem(null, meta, (tx) =>
     tx`select iara.whatsapp_contato(${canal.id}::uuid, ${tel}, ${String(body.nome ?? "")}, ${String(body.jid ?? "")}) as c`))[0]?.c as {
@@ -152,7 +159,8 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
     await callApi(userId, meta, "iara_send", { conversation_id: convId, body: recebido, payload: { canal: "whatsapp", wa_id: waId, ...extra } });
     const saud = ((await asSystem(userId, meta, (tx) => tx`select iara.whatsapp_saudacao(${convId}::uuid) as r`))[0]?.r ?? []) as Reply[];
     await guardarOpcoes(contato.contact_id, userId, meta, saud);
-    return json({ ativo: true, nova: true, respostas: renderWhatsApp(saud) });
+    // demonstração: o primeiro contato já avisa que os dados são fictícios e pede para não mandar dados reais
+    return json({ ativo: true, nova: true, respostas: [...(triagem?.demo ? [AVISO_DEMO] : []), ...renderWhatsApp(saud)] });
   }
 
   const opcoes = ((await sql`select iara.whatsapp_contato_opcoes(${contato.contact_id}::uuid) as o`)[0]?.o ?? []) as QuickReply[];
@@ -165,7 +173,7 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
   if (snap.state === "HUMAN_ACTIVE" || snap.state === "HUMAN_PENDING") return json({ ativo: true, humano: true, respostas: [] });
 
   const chamar = (fn: string, args: unknown) => callApi(userId, meta, fn, args);
-  const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)));
+  const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)), { demo: triagem?.demo === true });
   if (tipo === "audio" && !ouvido) agent.messages.push({ body: audioDisponivel() ? AUDIO_NAO_ENTENDI : SEM_AUDIO });
   else if (tipo === "midia" && !texto.trim()) agent.messages.push({ body: SEM_MIDIA });
   else {

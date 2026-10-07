@@ -12,8 +12,17 @@ const INTEGRATIONS = [
   { name: 'Conecta SEDUC (matrícula)', status: 'Adapter simulado', tone: 'amber' as const, detail: 'Fonte transacional prevista para matrículas e turmas nominais.' },
   { name: 'Central de Vagas', status: 'Adapter simulado', tone: 'amber' as const, detail: 'Fila, bloqueios, reservas e movimentações oficiais.' },
   { name: 'RH / lotação', status: 'Pendente', tone: 'gray' as const, detail: 'Professor e auxiliar por turma.' },
-  { name: 'WhatsApp (provedor oficial)', status: 'Simulador', tone: 'amber' as const, detail: 'Nenhuma mensagem real é enviada no modo demonstração.' },
 ];
+
+/** WhatsApp: ponte de teste real (Baileys), ligada só em apresentações; a API oficial com número próprio é da produção. */
+const whatsapp = (ativo?: boolean) => ({
+  name: 'WhatsApp (ponte de teste)',
+  status: ativo ? 'Ligado agora' : 'Desligado',
+  tone: ativo ? ('green' as const) : ('gray' as const),
+  detail: ativo
+    ? 'Ponte de teste ligada: quem conversa com o número de teste recebe respostas de verdade. Produção: API oficial com número próprio da Educação (pendente).'
+    : 'Ponte de teste desligada: nenhuma mensagem sai agora. Liga só em apresentações e testes. Produção: API oficial com número próprio da Educação (pendente).',
+});
 
 export default function HomeInovacao() {
   const q = useRpc<any>('data_quality');
@@ -38,7 +47,7 @@ export default function HomeInovacao() {
       </Section>
       <Section title="Integrações" subtitle="Adapters substituíveis — nenhuma integração é dada como concluída sem existir">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {INTEGRATIONS.map((i) => (
+          {[...INTEGRATIONS, whatsapp(boot.data?.whatsapp?.canal_ativo)].map((i) => (
             <Card key={i.name} className="flex items-start gap-3 p-4">
               <span className="inline-flex size-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-700"><PlugZap className="size-5" /></span>
               <div className="min-w-0 flex-1">

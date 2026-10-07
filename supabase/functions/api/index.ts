@@ -11,7 +11,7 @@
 //   POST   /rotas/fila       { unidades? }             → rotas da fila ativa em lote (Secretaria)
 //   GET    /rotas/status                               → situação do motor de rotas
 //   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
-import { asSystem, callApi, gravarRotas, mapDbError, sql, type RequestMeta } from "./db.ts";
+import { asSystem, callApi, gravarRotas, mapDbError, modoDemo, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot } from "./iara.ts";
 import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 import { localizarEndereco } from "./geo.ts";
@@ -157,7 +157,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const chamar = (fn: string, args: unknown) => callApi(userId, meta, fn, args);
-      const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)));
+      const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)), { demo: await modoDemo() });
       await agent.handle(text, action);
       const saved = await asSystem(userId, meta, (tx) =>
         tx`select iara.agent_reply(${snap.conversation_id}::uuid, ${sql.json(agent.messages as never)}::jsonb,

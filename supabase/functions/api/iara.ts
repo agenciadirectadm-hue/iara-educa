@@ -197,7 +197,9 @@ export class Agent {
   private fam: any = null;
 
   /** `rotas`: distâncias a pé e de carro pelo motor de rotas (mesmo cálculo do portal); sem ele, só a linha reta. */
-  constructor(private call: CallFn, private conv: ConvSnapshot, private rotas?: (pedido: Record<string, unknown>) => Promise<any>) {
+  /** `demo`: interruptor demo_mode do município. Desligado (produção), não há código simulado nem identidade presumida. */
+  constructor(private call: CallFn, private conv: ConvSnapshot, private rotas?: (pedido: Record<string, unknown>) => Promise<any>,
+              private opts: { demo: boolean } = { demo: false }) {
     this.ctx = { flow: null, step: null, data: {}, pending: null, ...(conv.context ?? {}) };
     this.ctx.data = this.ctx.data ?? {};
   }
@@ -278,6 +280,14 @@ export class Agent {
   /** Dados pessoais exigem identidade + vínculo verificados (cap. 74.5). */
   private ensureVerified(pending: string): boolean {
     if (this.verified()) return true;
+    if (!this.opts.demo) {
+      // produção: a verificação é por mecanismo aprovado (gov.br no portal + código de uso único); nada é presumido aqui
+      this.say(
+        "Para consultar ou mudar dados pessoais por aqui, sua identidade e seu vínculo com a criança precisam estar confirmados. Entre no portal da família com a sua conta gov.br para vincular este número. Enquanto isso, posso ajudar com informações gerais.",
+        { quick_replies: [{ label: "Falar com atendente", action: "handoff" }, { label: "Voltar ao início", action: "intent:saudacao" }] },
+      );
+      return false;
+    }
     this.ctx.pending = pending;
     this.say(
       "Para consultar ou mudar dados pessoais, preciso confirmar sua identidade e seu vínculo com a criança. Enviei um código de 6 dígitos para o telefone cadastrado.",
@@ -290,7 +300,7 @@ export class Agent {
     const t = norm(text);
     try {
       if (action) return await this.onAction(action, text);
-      if (/^\d{6}$/.test(t.replace(/\s/g, "")) && this.ctx.pending) return await this.onAction("verify:" + t.replace(/\s/g, ""), text);
+      if (this.opts.demo && /^\d{6}$/.test(t.replace(/\s/g, "")) && this.ctx.pending) return await this.onAction("verify:" + t.replace(/\s/g, ""), text);
       const intent = detectIntent(t);
       if (intent === "menu") {
         this.done();
@@ -388,6 +398,10 @@ export class Agent {
         if (value === "transferencia_reg") return await this.startTransfer();
         return await this.route(value, text);
       case "verify": {
+        if (!this.opts.demo) {
+          this.ctx.pending = null;
+          return void this.ensureVerified("");
+        }
         if (!this.needGuardian(this.ctx.pending ?? undefined)) return;
         await this.tool("verify_identity", null, { metodo: "codigo_sms_simulado" });
         this.patch.identity_verified = true;
@@ -546,7 +560,7 @@ export class Agent {
         });
         if (!res?.ok) throw new Error("o cadastro não foi confirmado.");
         this.conv.guardian_id = res.guardian_id;
-        this.patch.identity_verified = true;
+        if (this.opts.demo) this.patch.identity_verified = true; // produção: identidade só por mecanismo aprovado
         this.resetCache();
         const carry = d.carry ?? {};
         const next = d.next ?? null;

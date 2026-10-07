@@ -17,6 +17,8 @@ import { FamilyOnboarding } from '@/pages/Family';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { WhatsAppCard } from '@/components/whatsapp';
 import { LinkMetodologia, TresDistancias, TresDistanciasInscricao, useDistancias } from '@/components/distancias';
+import { PontosCriterio } from '@/components/PontosCriterio';
+import { AVISO_FAMILIA_FICTICIA } from '@/lib/avisos';
 
 // o quadro tem mapa: só carrega quando a família abre "ver o caminho"
 const QuadroDistancias = lazy(() => import('@/components/QuadroDistancias'));
@@ -107,7 +109,7 @@ function CitizenHome() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <UnidadesPerto d={d} />
-        <Section title={<span className="inline-flex items-center gap-1">Avisos<Simulado detail="Avisos simulados: nenhuma mensagem real é enviada." /></span>} subtitle="Notificações da rede para a sua família">
+        <Section title={<span className="inline-flex items-center gap-1">Avisos<Simulado detail={AVISO_FAMILIA_FICTICIA} /></span>} subtitle="Notificações da rede para a sua família">
           <Card className="divide-y divide-line">
             {d.notifications.length ? d.notifications.slice(0, 5).map((n: any) => (
               <div key={n.id} className="flex items-start gap-3 px-4 py-3">
@@ -251,7 +253,7 @@ function ChildCard({ c }: { c: any }) {
                   )}
                 </span>
                 {b.analysis ? <span className="shrink-0 text-[11.5px] font-bold text-purple-700">sob análise</span>
-                  : b.weight > 0 && <span className={b.applied ? 'shrink-0 font-bold text-green-700' : 'shrink-0 text-muted'}>+{b.weight}</span>}
+                  : <PontosCriterio weight={b.weight} applied={b.applied} />}
               </li>
             ))}
           </ul>

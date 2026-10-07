@@ -11,7 +11,7 @@ import { useUnitsMap } from '@/lib/data';
 import { fmtInt, fmtKm, fmtPct, timeAgo } from '@/lib/format';
 import { AUDIT_ACTION, CASE_STATUS, ENTITY, FLAG, QUEUE_CATEGORY, SHIFT } from '@/lib/labels';
 import {
-  Avatar, Badge, Card, DataPair, EmptyState, ErrorState, Kpi, ListRow, OccupancyBar, PageHeader, Section, SkeletonList, SourceChip, Tabs, inputCls,
+  Avatar, Badge, Card, DataPair, EmptyState, ErrorState, Kpi, ListRow, OccupancyBar, PageHeader, Section, SeloVagasTurma, SkeletonList, SourceChip, Tabs, inputCls,
 } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
 import MapView from '@/components/map/MapView';
@@ -274,7 +274,7 @@ function ClassesTab({ d, unitId }: { d: any; unitId: number }) {
                     <div className="font-display text-lg font-extrabold group-hover:text-purple-700">{c.name}</div>
                     <div className="text-[12.5px] text-muted">{SHIFT[c.shift]} · {c.room} · {c.teacher ?? 'regente a definir'}</div>
                   </div>
-                  <Badge tone={c.offerable > 0 ? 'green' : 'gray'}>{c.offerable > 0 ? `${c.offerable} vaga(s)` : 'lotada'}</Badge>
+                  <SeloVagasTurma capacity={c.capacity} enrolled={c.enrolled} offerable={c.offerable} />
                 </div>
                 <div className="mt-3"><OccupancyBar capacity={c.capacity} enrolled={c.enrolled} reserved={c.reserved} blocked={c.blocked} offerable={c.offerable} showLegend /></div>
                 <div className="mt-2 flex items-center justify-between text-[12.5px] text-muted">

@@ -8,6 +8,7 @@ import { useDebounced, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { CHANNEL } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, Field, PageHeader, Simulado, Spinner, inputCls } from '@/components/ui';
+import { AVISO_FAMILIA_FICTICIA } from '@/lib/avisos';
 import { useToast } from '@/components/overlays';
 import { Crumbs } from '@/components/Crumbs';
 
@@ -73,7 +74,7 @@ export default function CaseNew() {
         <Card className="mt-5 p-4 text-left">
           <div className="text-[12px] font-bold uppercase tracking-wide text-subtle">Próximos passos</div>
           <ul className="mt-2 space-y-1.5 text-[14.5px]">{(done.next_steps ?? []).filter(Boolean).map((s: string) => <li key={s}>• {s}</li>)}</ul>
-          <p className="mt-3 text-[12.5px] text-muted">O responsável recebeu a confirmação no portal<Simulado detail="Aviso simulado: nenhuma mensagem real é enviada." />. Tudo registrado na auditoria.</p>
+          <p className="mt-3 text-[12.5px] text-muted">O responsável recebeu a confirmação no portal<Simulado detail={AVISO_FAMILIA_FICTICIA} />. Tudo registrado na auditoria.</p>
         </Card>
         <div className="mt-5 flex flex-col gap-2">
           {type === 'SOLICITACAO_VAGA' && student && <ButtonLink to={`/vagas?aluno=${student.id}&protocolo=${done.case_id}`} variant="purple" size="lg">Buscar vaga agora</ButtonLink>}

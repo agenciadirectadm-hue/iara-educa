@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Simulado } from '@/components/ui';
+import { AVISO_FAMILIA_FICTICIA } from '@/lib/avisos';
 import { CheckCircle2, Clock, ShieldCheck, Sparkles, Stethoscope } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
@@ -85,7 +86,7 @@ export function OfferSheet({ entryId, open, onClose, onDone, priority }: {
           <div className="flex items-start gap-3 rounded-3xl bg-green-50 p-4 ring-1 ring-green-200">
             <CheckCircle2 className="mt-0.5 size-6 text-green-700" />
             <div className="text-[14.5px] text-green-900">
-              <b>{d.student.name}</b> recebeu a oferta. A família foi notificada<Simulado detail="Aviso simulado: nenhuma mensagem real é enviada." /> e tem até{' '}
+              <b>{d.student.name}</b> recebeu a oferta. A família foi notificada<Simulado detail={AVISO_FAMILIA_FICTICIA} /> e tem até{' '}
               <b>{new Date(result.expires_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</b> para responder.
             </div>
           </div>

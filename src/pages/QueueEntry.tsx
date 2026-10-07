@@ -11,6 +11,7 @@ import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, OccupancyBar, Page
 import { Crumbs } from '@/components/Crumbs';
 import { OfferSheet } from '@/components/OfferSheet';
 import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancias';
+import { PontosCriterio } from '@/components/PontosCriterio';
 import QuadroDistancias from '@/components/QuadroDistancias';
 import { useToast } from '@/components/overlays';
 
@@ -91,7 +92,7 @@ export default function QueueEntry() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2 text-[14px] font-semibold">
                       <span className={b.applied ? '' : 'text-muted'}>{b.name}</span>
-                      {b.analysis ? <Badge tone={b.applied ? 'purple' : 'gray'}>sob análise · fora da soma</Badge> : b.weight > 0 && <span className={b.applied ? 'text-green-700' : 'text-muted'}>+{b.weight}</span>}
+                      {b.analysis ? <Badge tone={b.applied ? 'purple' : 'gray'}>sob análise · fora da soma</Badge> : <PontosCriterio weight={b.weight} applied={b.applied} />}
                     </div>
                     <div className="text-[12.5px] text-muted">{b.evidence} · v{b.version}</div>
                     {b.code === 'TERRITORIO_2KM' && b.distancias && (

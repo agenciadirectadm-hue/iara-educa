@@ -6,6 +6,7 @@ import { AlertTriangle, ChevronRight, Flag, Info, Loader2, RefreshCw } from 'luc
 import { TONE_CLASSES, type Tone } from '@/lib/labels';
 import { colorFor, fmtInt, initials } from '@/lib/format';
 import { useExplain } from './overlays';
+import { useBootstrap } from '@/lib/data';
 
 type Icon = ComponentType<{ className?: string; strokeWidth?: number; 'aria-hidden'?: boolean }>;
 
@@ -153,6 +154,9 @@ const SOURCE: Record<SourceKind, { label: string; cls: string; title: string; bo
  */
 export function Simulado({ detail, className }: { detail?: string; className?: string }) {
   const explain = useExplain();
+  // fora do modo demonstração (produção) não existe simulação: a bandeirinha não aparece
+  const boot = useBootstrap();
+  if (boot.data && boot.data.tenant.demo_mode === false) return null;
   const s = SOURCE.demo;
   return (
     <button
@@ -408,8 +412,23 @@ export function OccupancyBar({ capacity, enrolled, reserved = 0, blocked = 0, of
           ))}
         </div>
       )}
+      {enrolled > capacity && capacity > 0 && (
+        <div role="note" className="mt-1.5 flex items-start gap-1.5 rounded-xl bg-red-50 px-2 py-1 text-[11.5px] text-red-800 ring-1 ring-red-100">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span>
+            <b>Acima da capacidade:</b> +{fmtInt(enrolled - capacity)} matrícula(s) além das {fmtInt(capacity)} autorizadas. Sem vaga física — o
+            excedente não vira vaga negativa. A exceção precisa de motivo e de quem autorizou.
+          </span>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Selo da turma: vagas, lotada ou acima da capacidade (excedente sinalizado, nunca escondido como "lotada"). */
+export function SeloVagasTurma({ capacity, enrolled, offerable }: { capacity: number; enrolled: number; offerable: number }) {
+  if (capacity > 0 && enrolled > capacity) return <Badge tone="red" icon={AlertTriangle}>acima da capacidade (+{fmtInt(enrolled - capacity)})</Badge>;
+  return <Badge tone={offerable > 0 ? 'green' : 'gray'}>{offerable > 0 ? `${offerable} vaga(s)` : 'lotada'}</Badge>;
 }
 
 export function Meter({ value, max = 100, tone = 'purple', className }: { value: number; max?: number; tone?: 'purple' | 'blue' | 'green' | 'amber' | 'red'; className?: string }) {
