@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  ArrowRightLeft, Baby, Building2, CheckCircle2, ClipboardList, Home, MapPin, MessageCircle, PencilLine, Plane, Search, Send, UserPlus, Users, X,
+  ArrowRightLeft, Baby, Building2, CheckCircle2, ClipboardList, Home, MapPin, MessageCircle, PencilLine, Plane, Search, Send, UserPlus, Users, X, FileUp,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
@@ -260,6 +260,14 @@ export default function Family() {
             })}
           </div>
         ) : <Card><EmptyState compact title="Nenhuma criança no cadastro" body="Inclua a criança para pedir vaga." action={<Button variant="purple" icon={Baby} onClick={() => setSheet('child')}>Incluir criança</Button>} /></Card>}
+      </Section>
+
+      <Section title="Documentos, fotos e dados das crianças" subtitle="Envie os documentos em PDF e a foto da criança; a escola confere e avisa aqui e pela IARA."
+        action={<Link to="/familia/documentos" className="text-[13px] font-semibold text-blue-700">Abrir</Link>}>
+        <Link to="/familia/documentos" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
+          <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white"><FileUp className="size-5" /></span>
+          <span className="min-w-0 flex-1"><span className="block font-semibold">Enviar documentos e fotos</span><span className="block text-[12.5px] text-muted">Certidão, vacinação, comprovantes (PDF) e a foto de cada criança</span></span>
+        </Link>
       </Section>
 
       <Section title="Vida escolar" subtitle="Frequência, justificativa de faltas, cardápio com as restrições e avisos da escola"

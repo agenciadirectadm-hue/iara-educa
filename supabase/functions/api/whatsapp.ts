@@ -9,6 +9,7 @@
 // Autenticação: cabeçalho x-iara-canal com o segredo da ponte (o banco guarda só o hash).
 import { asSystem, callApi, gravarRotas, sql, type RequestMeta } from "./db.ts";
 import { distanciasComPrazo } from "./rotas.ts";
+import { guardarArquivo } from "./arquivos.ts";
 import { Agent, type ConvSnapshot, type QuickReply, type Reply } from "./iara.ts";
 
 type Canal = { id: string; numero_e164: string; ativo: boolean; estado: string };
@@ -118,7 +119,7 @@ async function transcrever(base64: string, tipo: string): Promise<string | null>
     return null;
   }
 }
-const SEM_MIDIA = "Recebi o arquivo, obrigado! Por aqui eu ainda não consigo abrir anexos — os documentos são conferidos na unidade. Como posso ajudar?";
+const SEM_MIDIA = "Recebi o arquivo, mas só consigo guardar documento em PDF ou foto (JPEG/PNG) da criança, de até 10 MB. Pode mandar de novo nesse formato?";
 const AVISO_DEMO = "🚩 *Demonstração da IARA Educa* (Secretaria Municipal de Educação de Maringá). As famílias e os dados deste atendimento são fictícios. Por favor, *não envie dados reais* (CPF, endereço, documentos ou fotos).";
 const FORA_DA_LISTA = "Olá! Neste momento este número está reservado a uma demonstração da IARA Educa (Secretaria Municipal de Educação de Maringá) e não atende ao público. Para assuntos da Educação, procure a unidade do seu filho ou a SEDUC. Se você procura a IARA Saúde, tente novamente mais tarde.";
 
@@ -178,8 +179,24 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
 
   const chamar = (fn: string, args: unknown) => callApi(userId, meta, fn, args);
   const agent = new Agent(chamar, snap, distanciasComPrazo(chamar, gravarRotas(userId, meta)), { demo: triagem?.demo === true });
+  // anexo (PDF ou foto): guardado no bucket privado como anexo da conversa; a IARA pergunta de quem é e o que é
+  let anexo: string | null = null;
+  let falhaAnexo: string | null = null;
+  if (tipo === "midia" && body.midia_base64) {
+    try {
+      const bin = atob(String(body.midia_base64));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const r = await guardarArquivo(userId, meta, bytes, { finalidade: "CONVERSA", origem: "WHATSAPP", nome: String(body.midia_nome ?? "") || null });
+      anexo = `arquivo:${r.arquivo_id}|${bytes[0] === 0x25 ? "pdf" : "foto"}`;
+    } catch (e) {
+      falhaAnexo = (e as Error).message;
+    }
+  }
   if (tipo === "audio" && !ouvido) agent.messages.push({ body: audioDisponivel() ? AUDIO_NAO_ENTENDI : SEM_AUDIO });
-  else if (tipo === "midia" && !texto.trim()) agent.messages.push({ body: SEM_MIDIA });
+  else if (anexo) await agent.handle(texto, anexo);
+  else if (tipo === "midia" && falhaAnexo && !/sem permiss|vinculad|famílias/i.test(falhaAnexo)) agent.messages.push({ body: `${falhaAnexo} ${SEM_MIDIA}` });
+  else if (tipo === "midia" && !texto.trim()) agent.messages.push({ body: falhaAnexo ? "Para guardar documentos e fotos, preciso primeiro do cadastro da família. Quer fazer agora?" : SEM_MIDIA });
   else {
     if (ouvido) agent.messages.push({ body: `🎧 Ouvi: “${ouvido.length > 280 ? ouvido.slice(0, 280) + "…" : ouvido}”` });
     await agent.handle(text, action);

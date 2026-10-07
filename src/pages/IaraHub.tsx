@@ -3,8 +3,9 @@ import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { Bot, Clock, Headset, MessageCirclePlus, SendHorizontal, ShieldCheck, Wrench, Zap } from 'lucide-react';
+import { Bot, Clock, Headset, Loader2, MessageCirclePlus, Paperclip, SendHorizontal, ShieldCheck, Wrench, Zap } from 'lucide-react';
 import { iaraMessage, rpc, type ApiError } from '@/lib/api';
+import { enviarArquivo, prepararFoto } from '@/lib/arquivos';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { cleanLabel, fmtInt } from '@/lib/format';
@@ -102,6 +103,25 @@ function CitizenChat() {
     }
   };
 
+  // anexo (família): PDF vai como documento; imagem só como foto da criança — a IARA pergunta de quem é e o que é
+  const anexoRef = useRef<HTMLInputElement>(null);
+  const [anexando, setAnexando] = useState(false);
+  const anexar = async (f: File | undefined) => {
+    if (!f) return;
+    setAnexando(true);
+    try {
+      const pdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      const corpo = pdf ? f : await prepararFoto(f);
+      const r = await enviarArquivo({ finalidade: 'CONVERSA', origem: 'IARA', nome: f.name }, corpo);
+      await send(`📎 ${f.name}`, `arquivo:${r.arquivo_id}|${pdf ? 'pdf' : 'foto'}`);
+    } catch (e) {
+      toast({ title: 'Arquivo não enviado', description: (e as Error).message, tone: 'error' });
+    } finally {
+      setAnexando(false);
+      if (anexoRef.current) anexoRef.current.value = '';
+    }
+  };
+
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     send(text);
@@ -161,6 +181,16 @@ function CitizenChat() {
         )}
         <QuickReplies items={quick} disabled={sending} onPick={(q) => send(q.label, q.action ?? null)} />
         <form onSubmit={onSubmit} className="mt-1 flex items-center gap-2">
+          {me?.scope === 'GUARDIAN' && me.guardian && (
+            <>
+              <input ref={anexoRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={(e) => anexar(e.target.files?.[0])} />
+              <button type="button" onClick={() => anexoRef.current?.click()} disabled={anexando || sending || !conv.data}
+                className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-white text-purple-700 ring-1 ring-line transition hover:bg-purple-50 disabled:opacity-40"
+                aria-label="Anexar documento (PDF) ou foto da criança" title="Anexar documento (PDF) ou foto da criança">
+                {anexando ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
+              </button>
+            </>
+          )}
           <input
             ref={inputRef}
             value={text}

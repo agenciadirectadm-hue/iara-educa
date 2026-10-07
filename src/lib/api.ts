@@ -18,6 +18,10 @@ let expiredHandler: (() => void) | null = null;
 export function setApiToken(t: string | null) {
   token = t;
 }
+/** Token da sessão para chamadas que não são JSON (envio e leitura de arquivos). */
+export function apiToken() {
+  return token;
+}
 export function onSessionExpired(cb: () => void) {
   expiredHandler = cb;
 }

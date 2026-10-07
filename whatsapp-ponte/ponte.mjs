@@ -43,6 +43,7 @@ const BATIMENTO_MS = 60_000
 const FILA_MS = 5_000
 /** Áudio maior que isto não é transcrito (≈ 10 min de mensagem de voz). */
 const AUDIO_MAX_BYTES = 8 * 1024 * 1024
+const ANEXO_MAX_BYTES = 10 * 1024 * 1024 // documento (PDF) ou foto da criança
 /** Saídas que o vigia (manter.mjs) NÃO deve religar: aparelho removido no celular e sessão aberta em outro lugar. */
 const SAIDA_DESPAREADO = 3
 const SAIDA_SUBSTITUIDA = 4
@@ -130,6 +131,9 @@ function extrair(m) {
     texto: texto ?? '', tipo, ts: quandoChegou(m), key,
     // o áudio só o Baileys sabe descriptografar: a mensagem inteira vai junto para o download
     audio: audio ? { bruta: m, tipo: String(audio.mimetype ?? 'audio/ogg').split(';')[0].trim(), segundos: Number(audio.seconds ?? 0) } : null,
+    // PDF e foto vão para a ficha (documento ou foto da criança); vídeo não
+    anexo: midia && !msg.videoMessage && Number(midia.fileLength ?? 0) <= ANEXO_MAX_BYTES
+      ? { bruta: m, tipo: String(midia.mimetype ?? '').split(';')[0].trim(), nome: midia.fileName ?? null } : null,
   }
 }
 
@@ -145,13 +149,26 @@ async function baixarAudio(e) {
   }
 }
 
+async function baixarAnexo(e) {
+  try {
+    const buf = await downloadMediaMessage(e.anexo.bruta, 'buffer', {}, { logger: P({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage })
+    if (!buf?.length || buf.length > ANEXO_MAX_BYTES) return null
+    return buf.toString('base64')
+  } catch (err) {
+    log(`⚠ não baixei o anexo de ${mascara(e.de)}: ${err.message}`)
+    return null
+  }
+}
+
 async function responder(e) {
   let r
   try {
     const audio = e.tipo === 'audio' && e.audio ? await baixarAudio(e) : null
+    const anexo = e.tipo === 'midia' && e.anexo ? await baixarAnexo(e) : null
     r = await api('POST', '/whatsapp/entrada', {
       de: e.de, jid: e.jid, nome: e.nome, texto: e.texto, wa_id: e.wa_id, ts: e.ts, tipo: e.tipo,
       ...(audio ? { audio_base64: audio, audio_tipo: e.audio.tipo, audio_segundos: e.audio.segundos } : {}),
+      ...(anexo ? { midia_base64: anexo, midia_tipo: e.anexo.tipo, midia_nome: e.anexo.nome } : {}),
     })
   } catch (err) {
     log(`✗ ${mascara(e.de)}: ${err.message}`)

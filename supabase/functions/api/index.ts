@@ -15,6 +15,7 @@ import { asSystem, callApi, gravarRotas, mapDbError, modoDemo, sql, type Request
 import { Agent, type ConvSnapshot } from "./iara.ts";
 import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 import { localizarEndereco } from "./geo.ts";
+import { ARQUIVO_MAX_BYTES, descartarArquivos, guardarArquivo, lerArquivo } from "./arquivos.ts";
 import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
 
 // CORS restrito (SEC-AT-03): só o portal publicado, o ambiente local e os domínios de CORS_ORIGINS (produção).
@@ -51,6 +52,7 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   if (token) l.push([`sessao:${token.slice(0, 16)}`, 900, 60]);
   if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
   if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
+  if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
   if (path.startsWith("/rotas") || path === "/geo/localizar") l.push([`rotas:${ip}`, 120, 60]);
   return l;
 }
@@ -95,6 +97,7 @@ function housekeeping(meta: RequestMeta) {
   if (housekeepingRunning || Date.now() - lastHousekeeping < 5 * 60_000) return housekeepingRunning;
   lastHousekeeping = Date.now();
   housekeepingRunning = asSystem(null, meta, (tx) => tx`select iara.housekeeping() as r`)
+    .then(() => descartarArquivos(meta).catch((e) => console.error("descarte de arquivos", e?.message)))
     .then(() => undefined)
     .catch((e) => console.error("housekeeping", e?.message))
     .finally(() => {
@@ -141,7 +144,7 @@ Deno.serve(async (req: Request) => {
   };
 
   // tamanho do corpo (SEC-AT-02): 1 MB; a entrada do WhatsApp aceita áudio (até 16 MB)
-  const limiteCorpo = path === "/whatsapp/entrada" ? 16_000_000 : 1_000_000;
+  const limiteCorpo = path === "/whatsapp/entrada" ? 16_000_000 : path === "/arquivo" ? ARQUIVO_MAX_BYTES + 4096 : 1_000_000;
   if (Number(req.headers.get("content-length") ?? "0") > limiteCorpo) {
     // o proxy da plataforma só devolve a resposta depois que o corpo é lido: descarta sem guardar
     try { for await (const _ of req.body ?? []) { /* descarta */ } } catch { /* conexão encerrada */ }
@@ -182,6 +185,32 @@ Deno.serve(async (req: Request) => {
       const token = req.headers.get("x-iara-session");
       if (token) await sql`select iara.session_revoke(${await sha256(token)})`;
       return json({ ok: true });
+    }
+
+    // arquivos: envio (PDF ou foto) e leitura, sempre com a sessão e o escopo conferidos no banco
+    if (path === "/arquivo" && req.method === "POST") {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      const q = url.searchParams;
+      const bytes = new Uint8Array(await req.arrayBuffer());
+      if (bytes.length > ARQUIVO_MAX_BYTES) return json({ error: "Arquivo maior que 10 MB." }, 413);
+      const r = await guardarArquivo(userId, meta, bytes, {
+        finalidade: q.get("finalidade") ?? "", student_id: q.get("student_id"), staff_id: q.get("staff_id"), doc_type: q.get("doc_type"),
+        origem: q.get("origem"), nome: q.get("nome"),
+      });
+      return json(r);
+    }
+    const arq = path.match(/^\/arquivo\/([0-9a-f-]{36})$/);
+    if (arq && req.method === "GET") {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      const a = await lerArquivo(userId, meta, arq[1]);
+      return new Response(a.corpo, {
+        headers: {
+          ...cors(req), "content-type": a.mime, "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(a.nome)}`,
+          "cache-control": "private, max-age=300", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer",
+        },
+      });
     }
 
     if (path.startsWith("/rpc/") && req.method === "POST") {

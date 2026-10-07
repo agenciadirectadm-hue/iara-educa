@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, Upload, X,
+  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, Upload, X, FolderOpen,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
@@ -47,6 +47,7 @@ function CitizenHome() {
     { icon: School, label: 'Minhas matrículas', to: '#criancas', tone: 'from-teal-500 to-green-700' },
     { icon: MapPin, label: 'Unidades próximas', to: '/mapa?perto=1', tone: 'from-sky-500 to-blue-700' },
     { icon: FilePen, label: 'Minha família', to: '/familia', tone: 'from-orange-400 to-rose-500' },
+    { icon: FolderOpen, label: 'Documentos e fotos', to: '/familia/documentos', tone: 'from-emerald-500 to-teal-700' },
   ];
 
   return (
@@ -64,7 +65,7 @@ function CitizenHome() {
 
       {pendingOffer && <OfferHero offer={pendingOffer} now={now} />}
 
-      <div className="mt-4 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+      <div className="mt-4 grid grid-cols-3 gap-2.5 sm:grid-cols-7">
         {actions.map((a) => (
           <motion.div key={a.label} whileTap={{ scale: 0.95 }}>
             <Link

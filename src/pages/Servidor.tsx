@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { BookOpen, Clock, GraduationCap, School } from 'lucide-react';
+import { BookOpen, Clock, GraduationCap, Pencil, School } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { fmtDate, fmtInt } from '@/lib/format';
 import { SHIFT } from '@/lib/labels';
 import { FUNCAO_SERVIDOR } from '@/lib/escola';
-import { Avatar, Badge, Card, DataPair, EmptyState, ErrorState, PageHeader, Section, Simulado, SkeletonList } from '@/components/ui';
+import { Badge, Button, Card, DataPair, EmptyState, ErrorState, PageHeader, Section, Simulado, SkeletonList } from '@/components/ui';
+import { Foto, TrocarFoto } from '@/components/arquivos';
+import { ExcluirCadastro } from '@/components/documentos';
+import { ServidorForm } from '@/components/servidor-form';
 import { Tabela, TCabecalho, TCelula, TLinha } from '@/components/tabela';
 import { GradeHorario } from '@/components/escola';
 import { CargaBarra } from './Pessoal';
@@ -13,22 +17,31 @@ import { CargaBarra } from './Pessoal';
 export default function Servidor() {
   const { id } = useParams();
   const res = useRpc<any>('pessoal_ficha', { id });
+  const [editar, setEditar] = useState(false);
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const s = res.data;
   return (
     <div>
       <PageHeader eyebrow={s.unidade?.name} title={<span className="inline-flex items-center gap-2">{s.nome}{s.is_demo && <Simulado detail="Servidor fictício: nome, matrícula, jornada e formação são de demonstração." />}</span>}
-        subtitle={`${s.cargo ?? FUNCAO_SERVIDOR[s.funcao] ?? s.funcao} · ${s.vinculo ?? ''}${s.area ? ' · ' + s.area : ''}`} />
+        subtitle={`${s.cargo ?? FUNCAO_SERVIDOR[s.funcao] ?? s.funcao} · ${s.vinculo ?? ''}${s.area ? ' · ' + s.area : ''}`}
+        actions={s.pode_editar ? <>
+          <Button variant="secondary" icon={Pencil} onClick={() => setEditar(true)}>Alterar cadastro</Button>
+          <ExcluirCadastro fn="pessoal_excluir" id={s.id} nome={s.nome} voltarPara="/pessoal" rotulo="Desligar ou excluir" />
+        </> : undefined} />
+      <ServidorForm open={editar} onClose={() => setEditar(false)} servidor={s} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.4fr]">
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <Avatar name={s.nome} seed={s.id} size={52} />
+            <div className="flex shrink-0 flex-col items-center gap-1">
+              <Foto arquivoId={s.foto_arquivo_id} name={s.nome} seed={s.id} size={64} />
+              {(s.pode_editar || s.proprio) && <TrocarFoto finalidade="FOTO_SERVIDOR" alvo={s.id} rotulo="Foto" variant="ghost" />}
+            </div>
             <div className="min-w-0">
               <div className="font-display text-lg font-extrabold">{s.nome}</div>
               <div className="flex flex-wrap gap-1.5">
-                <Badge tone={s.situacao === 'ATIVO' ? 'green' : 'amber'}>{s.situacao === 'ATIVO' ? 'Em exercício' : s.situacao === 'LICENCA' ? 'Licença' : 'Afastado'}</Badge>
+                <Badge tone={s.situacao === 'ATIVO' ? 'green' : s.situacao === 'DESLIGADO' ? 'gray' : 'amber'}>{s.situacao === 'ATIVO' ? 'Em exercício' : s.situacao === 'LICENCA' ? 'Licença' : s.situacao === 'DESLIGADO' ? 'Desligado' : 'Afastado'}</Badge>
                 <Badge tone="blue">{FUNCAO_SERVIDOR[s.funcao] ?? s.funcao}</Badge>
               </div>
             </div>

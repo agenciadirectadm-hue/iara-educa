@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { keepPreviousData } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertTriangle, CalendarClock, IdCard, Users, UserX, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, IdCard, UserPlus, Users, UserX, X } from 'lucide-react';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtInt } from '@/lib/format';
@@ -10,6 +10,7 @@ import { DIA_CURTO, FUNCAO_SERVIDOR, RELATORIO_PESSOAL } from '@/lib/escola';
 import { Badge, Button, Card, EmptyState, ErrorState, Kpi, PageHeader, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
 import { Selecao } from '@/components/cadastro';
 import { Paginacao } from './Alunos';
+import { ServidorForm } from '@/components/servidor-form';
 import { Tabela, TCabecalho, TCelula, TLinha } from '@/components/tabela';
 import { UnitSelect } from '@/components/escola';
 
@@ -17,7 +18,8 @@ type Aba = 'servidores' | string;
 
 /** Pessoal: cadastro funcional, carga horária e os relatórios de acompanhamento (seção 13 do documento do portal). */
 export default function Pessoal() {
-  const { me } = useSession();
+  const { me, can } = useSession();
+  const [novo, setNovo] = useState(false);
   const [sp, setSp] = useSearchParams();
   const aba = (sp.get('aba') ?? 'servidores') as Aba;
   const rede = me?.scope !== 'UNIT';
@@ -32,7 +34,8 @@ export default function Pessoal() {
     <div>
       <PageHeader eyebrow={rede ? 'SEDUC · rede municipal' : me?.unit?.name} title={<span className="inline-flex items-center gap-2">Pessoal<Simulado detail="Servidores, matrículas funcionais, jornadas e horários são fictícios; as turmas seguem o Censo 2025." /></span>}
         subtitle="Quem está em cada turma, a carga horária de cada servidor e o que falta cobrir na grade."
-        actions={rede ? <UnitSelect value={unit} onChange={setUnit} /> : undefined} />
+        actions={<>{rede && <UnitSelect value={unit} onChange={setUnit} />}{can('pessoal.write') && <Button icon={UserPlus} onClick={() => setNovo(true)}>Novo servidor</Button>}</>} />
+      <ServidorForm open={novo} onClose={() => setNovo(false)} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi compact icon={Users} tone="blue" label="Professores e educadores" value={fmtInt(r?.professores)} sub={`${fmtInt(r?.servidores)} servidores`} />

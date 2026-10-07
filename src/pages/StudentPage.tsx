@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  AlertTriangle, Bus, CheckCircle2, ClipboardPlus, FileCheck2, HeartPulse, Home, IdCard, Lock, MapPin, Pencil, Phone, School, Search, ShieldCheck, Sparkles, Users,
+  AlertTriangle, Bus, CheckCircle2, ClipboardPlus, HeartPulse, Home, IdCard, Lock, MapPin, Pencil, Phone, School, Search, ShieldCheck, Sparkles, Users,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtDate, fmtDateTime, fmtInt, fmtKm, timeAgo } from '@/lib/format';
-import { AUDIT_ACTION, CASE_STATUS, CHANNEL, DOC, DOC_STATUS, ENTITY, OFFER_STATUS, QUEUE_CATEGORY, QUEUE_STATUS, SHIFT } from '@/lib/labels';
+import { AUDIT_ACTION, CASE_STATUS, CHANNEL, ENTITY, OFFER_STATUS, QUEUE_CATEGORY, QUEUE_STATUS, SHIFT } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, DataPair, EmptyState, ErrorState, ListRow, Section, Simulado, SkeletonList, SourceChip, Tabs } from '@/components/ui';
 import { Completude } from '@/components/cadastro';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
@@ -21,6 +20,8 @@ import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancia
 import QuadroDistancias from '@/components/QuadroDistancias';
 import { AgendaLista, NovaOcorrenciaSheet, NovoRecadoSheet, OcorrenciaSheet, OcorrenciasTabela, useRecarregarVidaEscolar } from '@/components/vida-escolar';
 import { MOTIVO_RESTRICAO, SITUACAO_RESTRICAO } from '@/lib/escola';
+import { Foto, TrocarFoto } from '@/components/arquivos';
+import { DocumentosAluno, ExcluirCadastro } from '@/components/documentos';
 
 type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
   | 'alimentacao' | 'ocorrencias' | 'agenda';
@@ -31,6 +32,7 @@ export default function StudentPage() {
   const tab = (sp.get('aba') as Tab) ?? 'resumo';
   const res = useRpc<any>('student_detail', { student_id: id });
   const ve = useRpc<any>('aluno_vida_escolar', { student_id: id }, { enabled: !!id, retry: false });
+  const docs = useRpc<any>('aluno_documentos', { student_id: id }, { enabled: !!id, retry: false });
   const { can } = useSession();
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
@@ -60,7 +62,10 @@ export default function StudentPage() {
     <div>
       <Crumbs items={crumbs} />
       <div className="mb-4 flex items-start gap-4">
-        <Avatar name={s.full_name} seed={s.avatar_seed} size={72} className="shadow-soft" />
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <Foto arquivoId={docs.data?.foto_arquivo_id} name={s.full_name} seed={s.avatar_seed} size={72} className="shadow-soft" />
+          {docs.data?.pode_enviar && <TrocarFoto finalidade="FOTO_ALUNO" alvo={s.id} rotulo="Foto" variant="ghost" />}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="text-[12px] font-bold uppercase tracking-[0.12em] text-purple-700">Ficha do aluno · 360º</div>
           <h1 className="font-display text-[24px] font-extrabold leading-tight sm:text-3xl">{s.full_name}</h1>
@@ -82,16 +87,17 @@ export default function StudentPage() {
             )}
           </div>
         </div>
-        {d.registry?.can_edit && (
-          <ButtonLink to={`/alunos/${s.id}/cadastro`} variant="secondary" icon={Pencil} className="hidden shrink-0 sm:inline-flex">Editar cadastro</ButtonLink>
-        )}
+        <div className="hidden shrink-0 flex-col gap-2 sm:flex">
+          {d.registry?.can_edit && <ButtonLink to={`/alunos/${s.id}/cadastro`} variant="secondary" icon={Pencil}>Editar cadastro</ButtonLink>}
+          {can('students.write') && <ExcluirCadastro fn="aluno_excluir" id={s.id} nome={s.full_name} voltarPara="/alunos" />}
+        </div>
       </div>
       <Tabs value={tab} onChange={(t) => setSp({ aba: t }, { replace: true })} items={tabs} />
       <div className="mt-4">
         {tab === 'resumo' && <Resumo d={d} primary={primary} />}
         {tab === 'responsaveis' && <Guardians d={d} />}
         {tab === 'matriculas' && <Enrollments d={d} />}
-        {tab === 'documentos' && <Documents d={d} canManage={can('documents.manage')} />}
+        {tab === 'documentos' && <DocumentosAluno studentId={s.id} />}
         {tab === 'atendimentos' && <Cases d={d} canCreate={can('cases.write')} />}
         {tab === 'fila' && <QueueOffers d={d} />}
         {tab === 'aee' && <Aee d={d} />}
@@ -287,41 +293,6 @@ function Enrollments({ d }: { d: any }) {
           subtitle={`${e.school_year} · ${SHIFT[e.shift]} · ${e.entry_type?.toLowerCase().replace('_', ' ')} em ${fmtDate(e.enrollment_date)}${e.end_date ? ` · até ${fmtDate(e.end_date)}` : ''}`}
           meta={<Badge tone={e.status === 'ACTIVE' ? 'green' : 'gray'}>{e.status === 'ACTIVE' ? 'Ativa' : e.status.toLowerCase()}</Badge>} />
       ))}
-    </Card>
-  );
-}
-
-function Documents({ d, canManage }: { d: any; canManage: boolean }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [busy, setBusy] = useState<string | null>(null);
-  const validate = async (type: string) => {
-    setBusy(type);
-    try {
-      await rpc('document_set', { student_id: d.student.id, doc_type: type, status: 'VALIDADO' });
-      toast({ title: 'Documento validado', tone: 'success' });
-      qc.invalidateQueries({ queryKey: ['student_detail'] });
-    } catch (e) {
-      toast({ title: 'Não foi possível validar', description: (e as Error).message, tone: 'error' });
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <Card className="divide-y divide-line overflow-hidden">
-      {(d.documents as any[]).map((doc) => (
-        <div key={doc.id} className="flex items-center gap-3 px-4 py-3">
-          {doc.status === 'VALIDADO' ? <CheckCircle2 className="size-5 text-green-700" /> : <FileCheck2 className="size-5 text-subtle" />}
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold">{DOC[doc.type] ?? doc.type}</div>
-            <div className="text-[12.5px] text-muted">{doc.file ?? 'sem arquivo'} {doc.received_at ? `· recebido ${fmtDate(doc.received_at)}` : ''}</div>
-          </div>
-          <Badge tone={DOC_STATUS[doc.status]?.tone}>{DOC_STATUS[doc.status]?.label}</Badge>
-          {canManage && doc.status !== 'VALIDADO' && <Button size="sm" variant="secondary" loading={busy === doc.type} onClick={() => validate(doc.type)}>Validar</Button>}
-        </div>
-      ))}
-      {!d.documents.length && <EmptyState compact title="Nenhum documento" />}
-      <p className="bg-slate-50 px-4 py-2 text-[12px] text-muted">Somente metadados no ambiente de demonstração — nenhum arquivo real é armazenado.</p>
     </Card>
   );
 }

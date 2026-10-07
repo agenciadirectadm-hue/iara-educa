@@ -111,7 +111,13 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo"]);
+const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor"]);
+/** Dados da criança que a família pode pedir para corrigir (mudam na ficha depois da conferência da área responsável). */
+const CAMPOS_ALUNO: Record<string, string> = {
+  social_name: "Nome social", cpf: "CPF", nis: "NIS", sus_card: "Cartão SUS", birth_certificate: "Certidão de nascimento (matrícula)",
+  birth_city: "Cidade onde nasceu", birth_state: "Estado onde nasceu (sigla)",
+};
+const DOCS_ENVIO = ["CERTIDAO", "CPF", "COMPROVANTE_ENDERECO", "CARTAO_SUS", "VACINACAO", "CADUNICO", "DECLARACAO_TRABALHO", "LAUDO", "TRANSFERENCIA", "GUARDA"];
 
 const STATUS_LABEL: Record<string, string> = {
   NOVO: "recebido", EM_ANALISE: "em análise", AGUARDANDO_DOCUMENTOS: "aguardando documentos", AGUARDANDO_FAMILIA: "aguardando sua resposta",
@@ -151,6 +157,9 @@ function detectIntent(t: string): string {
   if (/(nasceu|recem.?nascid|novo membro|novo filho|nova filha|outro filho|outra filha|mais um filho|incluir (meu|minha|um|uma|o|a) |adotei|adocao|tenho a guarda|ganhei a guarda)/.test(t)) return "novo_membro";
   if (/(mudei|me mudei|mudamos|mudanca de endereco|mudar de endereco|mudar de casa|novo endereco|endereco novo|alterar (o )?endereco|trocar (o )?endereco)/.test(t)) return "mudanca";
   if (/(desist|tirar d[ao] fila|sair da fila|cancelar (a )?inscricao|nao quero mais a vaga)/.test(t)) return "desistencia";
+  if (/((enviar|mandar|anexar|subir) (o |a |os |as |um |uma )?(documento|certidao|comprovante|pdf|laudo|carteira de vacina|cartao sus))/.test(t)) return "enviar_documento";
+  if (/((atualizar|trocar|mandar|enviar|mudar|colocar) (a )?foto)/.test(t)) return "foto";
+  if (/((corrigir|atualizar|alterar|trocar|mudar) (o |a )?(cpf|nis|cartao sus|sus|nome social|certidao|naturalidade|cidade onde nasceu) (da|do|de))/.test(t)) return "alterar_dados";
   if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(telefone|numero|celular|whatsapp|e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
   // vida escolar (Sprint 1)
@@ -420,6 +429,12 @@ export class Agent {
         return await this.offers();
       case "documentos":
         return await this.documents();
+      case "enviar_documento":
+        return await this.startDocumento();
+      case "foto":
+        return await this.startFoto();
+      case "alterar_dados":
+        return await this.startAlterarDados();
       case "unidade":
         this.ctx = { flow: "unidade", step: "bairro", data: {} };
         this.say("Me diga o bairro (ou o nome da unidade) e eu mostro as unidades mais próximas.", { quick_replies: [{ label: "Jardim Alvorada" }, { label: "Zona 7" }, { label: "Vila Morangueira" }] });
@@ -572,6 +587,8 @@ export class Agent {
       }
       case "doc_send":
         return await this.sendDocument(value);
+      case "arquivo":
+        return await this.onArquivo(value);
       case "handoff":
         return await this.handoff(value || "Pedido do cidadão");
       case "nothing":
@@ -1302,6 +1319,8 @@ export class Agent {
     if (flow === "justificar") return await this.justificarStep(text);
     if (flow === "restricao") return await this.restricaoStep(text);
     if (flow === "bilhete") return await this.bilheteStep(text);
+    if (flow === "documento" || flow === "foto" || flow === "anexo") return await this.arquivoStep(text);
+    if (flow === "alterar_dados") return await this.alterarDadosStep(text);
     if (flow === "ocorrencia") return await this.ocorrenciaStep(text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
@@ -1912,31 +1931,157 @@ export class Agent {
       });
       return;
     }
-    const home = await this.citizen();
-    const pend: QuickReply[] = [];
-    const lines: string[] = [];
-    for (const kid of home?.children ?? []) {
-      const missing = ((kid.documents ?? []) as any[]).filter((d) => !["VALIDADO", "RECEBIDO"].includes(d.status));
-      if (missing.length && (kid.offers?.length || kid.queue?.length)) {
-        lines.push(`${kid.first_name}: ${missing.map((d: any) => DOC_LABEL[d.type] ?? d.type).join(", ")}`);
-        for (const d of missing) pend.push({ label: `Enviar ${DOC_LABEL[d.type] ?? d.type} (${kid.first_name})`, action: `doc_send:${kid.id}|${d.type}` });
-      }
+    const r = await this.tool("get_documents", "familia_documentos", {});
+    const cards: Card[] = [];
+    for (const k of (r?.criancas ?? []) as any[]) {
+      const docs = (k.documentos ?? []) as any[];
+      const lines = docs.filter((d) => d.status !== "VALIDADO").map((d) => {
+        const nome = DOC_LABEL[d.tipo] ?? d.tipo;
+        if (d.status === "REJEITADO") return `✗ ${nome}: recusado — ${d.motivo_recusa ?? ""}. Como proceder: ${d.orientacao ?? "fale com a escola"}`;
+        if (d.status === "RECEBIDO") return `⏳ ${nome}: recebido, aguardando conferência`;
+        return `• ${nome}: falta enviar`;
+      });
+      const ok = docs.filter((d) => d.status === "VALIDADO").length;
+      if (k.foto_pendente) lines.push("⏳ Foto nova aguardando conferência");
+      cards.push({ title: k.primeiro_nome, subtitle: `${ok} documento(s) conferido(s)`, lines: lines.length ? lines : ["Tudo certo com os documentos. 🎉"],
+        tone: docs.some((d) => d.status === "REJEITADO") ? "red" : lines.length ? "amber" : "green" });
     }
-    if (!lines.length) {
-      this.say("Não há documentos pendentes para as solicitações em andamento. 🎉");
+    if (!cards.length) {
       this.done();
-      return;
+      return this.say("Não encontrei crianças no seu cadastro.", { quick_replies: [MENU[7]] });
     }
-    this.say(`Documentos pendentes:\n${lines.map((l) => "• " + l).join("\n")}`, { quick_replies: pend.slice(0, 4), notice: "Envio de arquivo simulado na demonstração." });
+    this.say("Documentos das crianças:", {
+      cards, notice: "Documento só em PDF; foto (JPEG ou PNG) só como foto da criança. Pode mandar o arquivo aqui mesmo.",
+      quick_replies: [{ label: "Enviar documento", action: "intent:enviar_documento" }, { label: "Atualizar foto", action: "intent:foto" },
+        { label: "Corrigir dados da criança", action: "intent:alterar_dados" }],
+    });
+    this.done("Consultou os documentos.");
   }
 
   private async sendDocument(value: string): Promise<void> {
     if (!this.ensureVerified(`doc_send:${value}`)) return;
     const [studentId, docType] = value.split("|");
-    const res = await this.tool("submit_document", "document_set", { student_id: studentId, doc_type: docType, status: "RECEBIDO" });
-    if (!res?.ok) throw new Error("o envio não foi confirmado.");
-    this.say(`Recebemos ${DOC_LABEL[docType] ?? docType} ✅ (envio simulado). A unidade fará a validação e eu aviso o resultado.`, { quick_replies: [MENU[4], MENU[2]] });
-    this.done(`Documento ${docType} enviado.`);
+    const fam = await this.family();
+    const kid = ((fam?.children ?? []) as any[]).find((k) => k.id === studentId);
+    this.ctx = { flow: "documento", step: "doc_arquivo", data: { kid: { id: studentId, nome: kid?.first_name ?? "a criança" }, tipo: docType } };
+    this.say(`Pode mandar aqui o PDF de ${DOC_LABEL[docType] ?? docType} de ${kid?.first_name ?? "a criança"} (até 10 MB). Ele entra na ficha e a área responsável confere.`);
+  }
+
+  // ------------------------------------------------------------------ arquivos: documento (PDF), foto da criança e dados
+  private async criancasDaFamilia(): Promise<{ id: string; nome: string }[]> {
+    const r = await this.tool("get_documents", "familia_documentos", {});
+    return ((r?.criancas ?? []) as any[]).map((k) => ({ id: k.student_id, nome: k.primeiro_nome }));
+  }
+
+  private async startDocumento(): Promise<void> {
+    if (!this.needGuardian("intent:enviar_documento")) return;
+    if (!this.ensureVerified("intent:enviar_documento")) return;
+    const kids = await this.criancasDaFamilia();
+    this.ctx = { flow: "documento", step: "doc_child", data: { kids } };
+    if (kids.length === 1) return await this.arquivoStep(kids[0].id);
+    this.say("O documento é de qual criança?", { quick_replies: kids.map((k) => ({ label: k.nome, action: `ans:${k.id}` })) });
+  }
+
+  private async startFoto(): Promise<void> {
+    if (!this.needGuardian("intent:foto")) return;
+    if (!this.ensureVerified("intent:foto")) return;
+    const kids = await this.criancasDaFamilia();
+    this.ctx = { flow: "foto", step: "doc_child", data: { kids } };
+    if (kids.length === 1) return await this.arquivoStep(kids[0].id);
+    this.say("A foto é de qual criança?", { quick_replies: kids.map((k) => ({ label: k.nome, action: `ans:${k.id}` })) });
+  }
+
+  /** Arquivo chegou (WhatsApp ou anexo no chat): vai para o pedido em andamento ou a IARA pergunta de quem é e o que é. */
+  private async onArquivo(value: string): Promise<void> {
+    const [id, tipo] = value.split("|");
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`arquivo:${value}`)) return;
+    const d = this.ctx.data ?? {};
+    if (this.ctx.flow === "documento" && this.ctx.step === "doc_arquivo") {
+      if (tipo === "foto") return this.say("Documento só em PDF. Foto (imagem) é aceita apenas como foto da criança. Pode mandar o PDF?");
+      return await this.destinar(id, d.kid, "DOC", d.tipo);
+    }
+    if (this.ctx.flow === "foto" && this.ctx.step === "foto_arquivo") {
+      if (tipo === "pdf") return this.say("A foto precisa ser uma imagem (JPEG ou PNG). Pode mandar a foto?");
+      return await this.destinar(id, d.kid, "FOTO", null);
+    }
+    const kids = await this.criancasDaFamilia();
+    this.ctx = { flow: "anexo", step: "doc_child", data: { kids, arquivo_id: id, arquivo_tipo: tipo } };
+    if (kids.length === 1) return await this.arquivoStep(kids[0].id);
+    this.say(tipo === "foto" ? "Recebi a foto. É de qual criança? (Ela entra na ficha depois da conferência.)" : "Recebi o PDF. É documento de qual criança?",
+      { quick_replies: kids.map((k) => ({ label: k.nome, action: `ans:${k.id}` })) });
+  }
+
+  private async arquivoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "doc_child") {
+      const kid = ((d.kids ?? []) as any[]).find((k) => k.id === text || norm(k.nome) === t);
+      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, kid };
+      if (this.ctx.flow === "foto" || (this.ctx.flow === "anexo" && d.arquivo_tipo === "foto")) {
+        if (this.ctx.flow === "anexo") return await this.destinar(d.arquivo_id, kid, "FOTO", null);
+        return this.ask("foto_arquivo", `Mande a foto de ${kid.nome}: de frente, com fundo claro e sem outras pessoas. A secretaria confere antes de entrar na ficha.`);
+      }
+      return this.ask("doc_tipo", "Qual é o documento?", { quick_replies: DOCS_ENVIO.map((k) => ({ label: DOC_LABEL[k] ?? k, action: `ans:${k}` })) });
+    }
+    if (this.ctx.step === "doc_tipo") {
+      const tipo = DOCS_ENVIO.find((k) => k === text.trim() || norm(DOC_LABEL[k] ?? "") === t);
+      if (!tipo) return this.say("Toque no tipo de documento, por favor.");
+      if (this.ctx.flow === "anexo") return await this.destinar(d.arquivo_id, d.kid, "DOC", tipo);
+      this.ctx.data = { ...d, tipo };
+      return this.ask("doc_arquivo", `Pode mandar o PDF de ${DOC_LABEL[tipo] ?? tipo} de ${d.kid.nome} aqui mesmo (até 10 MB).`);
+    }
+    if (this.ctx.step === "doc_arquivo" || this.ctx.step === "foto_arquivo") {
+      return this.say(this.ctx.step === "doc_arquivo" ? "Estou esperando o arquivo em PDF. Se preferir, envie pelo portal: Família → Documentos." : "Estou esperando a foto (JPEG ou PNG).");
+    }
+  }
+
+  private async destinar(arquivoId: string, kid: { id: string; nome: string }, destino: "DOC" | "FOTO", tipo: string | null): Promise<void> {
+    const r = await this.tool("attach_file", "arquivo_destinar", { arquivo_id: arquivoId, student_id: kid.id, destino, doc_type: tipo }, `arquivo:${arquivoId}`);
+    this.done(destino === "FOTO" ? `Foto de ${kid.nome} enviada para conferência.` : `Documento ${tipo} de ${kid.nome} recebido para conferência.`);
+    this.say(`${r.mensagem ?? "Recebido."} ✅`, { quick_replies: [{ label: "Ver documentos", action: "intent:documentos" }] });
+  }
+
+  private async startAlterarDados(): Promise<void> {
+    if (!this.needGuardian("intent:alterar_dados")) return;
+    if (!this.ensureVerified("intent:alterar_dados")) return;
+    const kids = await this.criancasDaFamilia();
+    this.ctx = { flow: "alterar_dados", step: "ad_child", data: { kids } };
+    if (kids.length === 1) return await this.alterarDadosStep(kids[0].id);
+    this.say("É sobre qual criança?", { quick_replies: kids.map((k) => ({ label: k.nome, action: `ans:${k.id}` })) });
+  }
+
+  private async alterarDadosStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "ad_child") {
+      const kid = ((d.kids ?? []) as any[]).find((k) => k.id === text || norm(k.nome) === t);
+      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, kid };
+      return this.ask("ad_campo", `O que precisa corrigir de ${kid.nome}?`, { quick_replies: Object.entries(CAMPOS_ALUNO).map(([k, l]) => ({ label: l, action: `ans:${k}` })) });
+    }
+    if (this.ctx.step === "ad_campo") {
+      const campo = Object.keys(CAMPOS_ALUNO).find((k) => k === text.trim() || norm(CAMPOS_ALUNO[k]) === t);
+      if (!campo) return this.say("Toque no dado que quer corrigir, por favor.");
+      this.ctx.data = { ...d, campo };
+      return this.ask("ad_valor", `Qual é o ${CAMPOS_ALUNO[campo].toLowerCase()} correto?`);
+    }
+    if (this.ctx.step === "ad_valor") {
+      const valor = text.trim().slice(0, 120);
+      if (!valor) return this.say("Escreva o valor correto, por favor.");
+      this.ctx.data = { ...d, valor };
+      return this.ask("ad_ok", `Vou pedir a correção de ${CAMPOS_ALUNO[d.campo].toLowerCase()} de ${d.kid.nome} para “${valor}”. A área responsável confere antes de mudar na ficha. Confirma?`, { quick_replies: YES_NO });
+    }
+    if (this.ctx.step === "ad_ok") {
+      if (yesNo(t) === false) {
+        this.done();
+        return this.say("Tudo bem, nada foi pedido.");
+      }
+      const r = await this.tool("request_student_data_change", "familia_alterar_aluno", { student_id: d.kid.id, campos: { [d.campo]: d.valor }, origem: "IARA" });
+      this.done(`Pedido de correção de ${d.campo} enviado para conferência.`);
+      return this.say(`${r.mensagem ?? "Pedido enviado."} ✅`, { quick_replies: [{ label: "Ver documentos", action: "intent:documentos" }] });
+    }
   }
 
   // ================================================================== conhecimento / humano

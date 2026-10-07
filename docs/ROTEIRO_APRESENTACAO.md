@@ -43,6 +43,8 @@ Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfi
 | 15 | Manutenção (e Direção) | Direção abre um chamado com risco à segurança (prazo de 24 h); a infraestrutura tria e conclui; a escola valida com nota | O que está quebrado e quem está resolvendo? |
 | 16 | Direção → Alunos → Ana | Ficha com **Alimentação**, **Ocorrências** (o joelho ralado aguardando a ciência da família) e **Agenda**; **Alunos → Mais filtros** (idade, sexo, série, turma, restrição, ocorrências, AEE) e **Pessoal** com filtros (função, vínculo, região, carga) | Encontro rápido quem preciso? |
 | 17 | Cidadão (Maria) e IARA | **Vida escolar → Agenda** (“Estou ciente” no passeio, bilhete para a escola) e **Ocorrências** (ciência e relato); pela IARA: “tem recado na agenda?”, “mandar bilhete para a professora”, “a Ana se machucou na escola” | A família e a escola conversam sem papel? |
+| 18 | Cidadão (Maria) | **Documentos e fotos**: enviar um PDF e a foto da Ana (sai sem a localização); **Corrigir dados**; pela IARA, mandar o PDF na conversa (clipe) e dizer de quem é | A família manda tudo sem ir à escola? |
+| 19 | Direção | **Validações**: abrir o PDF, validar ou recusar com motivo e “como proceder” (a família recebe na hora); **Pessoal → Novo servidor**, alterar, desligar; **Materiais**: entrada, saída e baixa | A escola confere e cuida do cadastro? |
 
 Os dados da vida escolar são fictícios (servidores, faltas, cardápios, restrições, chamados e publicações), sobre o calendário
 real de 2026 (feriados de lei). A explicação para a plateia: os dados reais substituem estes na carga oficial.

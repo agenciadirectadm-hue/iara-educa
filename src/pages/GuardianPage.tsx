@@ -10,6 +10,7 @@ import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { Crumbs } from '@/components/Crumbs';
 import { Completude } from '@/components/cadastro';
 import MapView from '@/components/map/MapView';
+import { ExcluirCadastro } from '@/components/documentos';
 
 export default function GuardianPage() {
   const { id } = useParams();
@@ -38,7 +39,12 @@ export default function GuardianPage() {
             {g.is_demo && <Simulado detail="Pessoa fictícia (simulação)." />}
           </div>
         </div>
-        {reg?.can_edit && <ButtonLink to={`/responsaveis/${g.id}/cadastro`} variant="secondary" icon={Pencil} className="hidden shrink-0 sm:inline-flex">Editar cadastro</ButtonLink>}
+        {reg?.can_edit && (
+          <div className="hidden shrink-0 flex-col gap-2 sm:flex">
+            <ButtonLink to={`/responsaveis/${g.id}/cadastro`} variant="secondary" icon={Pencil}>Editar cadastro</ButtonLink>
+            <ExcluirCadastro fn="responsavel_excluir" id={g.id} nome={g.full_name ?? g.name ?? 'responsável'} voltarPara="/responsaveis" />
+          </div>
+        )}
       </div>
       {reg && (
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
