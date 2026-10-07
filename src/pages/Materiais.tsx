@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { keepPreviousData, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowDownToLine, ArrowUpFromLine, Boxes, PackagePlus, Pencil, Scale, Trash2, TriangleAlert } from 'lucide-react';
@@ -6,7 +7,8 @@ import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtDateTime, fmtInt } from '@/lib/format';
-import { Badge, Button, Card, Chip, EmptyState, ErrorState, Field, Kpi, PageHeader, Segmented, Simulado, SkeletonList, inputCls } from '@/components/ui';
+import { Badge, Button, Card, Chip, EmptyState, ErrorState, Field, Kpi, PageHeader, Segmented, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
+import { CoberturaAba, PedidosAba, ValidadeAba } from '@/components/almoxarifado';
 import { Tabela, TCabecalho, TCelula, TLinha } from '@/components/tabela';
 import { Sheet, useToast } from '@/components/overlays';
 import { UnitSelect } from '@/components/escola';
@@ -20,10 +22,14 @@ const ESTADO: Record<string, string> = { NOVO: 'Novo', BOM: 'Bom', REGULAR: 'Reg
 const POR_PAGINA = 60;
 const num = (n: number | string | null | undefined) => (n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 }));
 
-/** Materiais, estoque e patrimônio da unidade (ou do almoxarifado central): incluir, movimentar, alterar e dar baixa. */
+type Aba = 'estoque' | 'pedidos' | 'validade' | 'alimentos';
+
+/** Materiais e almoxarifado: estoque e patrimônio, pedidos (escola → almoxarifado → remessa → recebimento), validade e cobertura de alimentos. */
 export default function Materiais() {
   const { me } = useSession();
   const rede = me?.scope !== 'UNIT';
+  const [sp, setSp] = useSearchParams();
+  const aba = (sp.get('aba') ?? (me?.role === 'ALMOXARIFADO' ? 'pedidos' : 'estoque')) as Aba;
   const [unit, setUnit] = useState<number | null>(null);
   const [central, setCentral] = useState(false);
   const [cat, setCat] = useState('');
@@ -40,13 +46,19 @@ export default function Materiais() {
   return (
     <div>
       <PageHeader eyebrow={rede ? 'SEDUC · almoxarifado e patrimônio' : me?.unit?.name}
-        title={<span className="inline-flex items-center gap-2">Materiais<Simulado detail="Itens e quantidades de demonstração." /></span>}
-        subtitle="Estoque de material pedagógico, limpeza, escritório, alimentos e uniformes, e o patrimônio (equipamentos e mobiliário) com estado e localização."
+        title={<span className="inline-flex items-center gap-2">{me?.role === 'ALMOXARIFADO' ? 'Almoxarifado' : 'Materiais'}<Simulado detail="Itens, pedidos, lotes e quantidades de demonstração." /></span>}
+        subtitle="Estoque de material pedagógico, limpeza, escritório, alimentos e uniformes; pedidos ao almoxarifado com remessa e recebimento conferido; lotes e validade; patrimônio."
         actions={<>
-          {rede && <Segmented value={central ? 'C' : 'U'} onChange={(v) => filtro(() => setCentral(v === 'C'))} items={[{ value: 'U', label: 'Unidades' }, { value: 'C', label: 'Almoxarifado central' }]} />}
-          {rede && !central && <UnitSelect value={unit} onChange={(v) => filtro(() => setUnit(v))} />}
-          {d?.pode_editar && <Button icon={PackagePlus} onClick={() => setNovo(true)}>Novo material</Button>}
+          {rede && (aba === 'estoque' || aba === 'validade') && <Segmented value={central ? 'C' : 'U'} onChange={(v) => filtro(() => setCentral(v === 'C'))} items={[{ value: 'U', label: 'Unidades' }, { value: 'C', label: 'Almoxarifado central' }]} />}
+          {rede && !(central && (aba === 'estoque' || aba === 'validade')) && <UnitSelect value={unit} onChange={(v) => filtro(() => setUnit(v))} />}
+          {aba === 'estoque' && d?.pode_editar && <Button icon={PackagePlus} onClick={() => setNovo(true)}>Novo material</Button>}
         </>} />
+      <Tabs value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })} className="mb-3"
+        items={[{ value: 'estoque', label: 'Estoque e patrimônio' }, { value: 'pedidos', label: 'Pedidos e remessas' }, { value: 'validade', label: 'Validade' }, { value: 'alimentos', label: 'Alimentos (cobertura)' }]} />
+      {aba === 'pedidos' && <PedidosAba unitId={rede ? unit : me?.unit?.id ?? null} rede={rede} />}
+      {aba === 'validade' && <ValidadeAba unitId={rede ? (central ? null : unit) : me?.unit?.id ?? null} central={rede && central} />}
+      {aba === 'alimentos' && <CoberturaAba unitId={rede ? unit : me?.unit?.id ?? null} />}
+      {aba === 'estoque' && <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi compact icon={Boxes} tone="blue" label="Itens cadastrados" value={fmtInt(d?.total)} />
         <Kpi compact icon={TriangleAlert} tone="red" label="Abaixo do mínimo" value={fmtInt(d?.abaixo_minimo)} onClick={() => filtro(() => setBaixo(!baixo))} />
@@ -82,6 +94,7 @@ export default function Materiais() {
           </Card>
         )}
       </div>
+      </>}
       <MaterialSheet id={aberto} onClose={() => setAberto(null)} podeEditar={!!d?.pode_editar} />
       <MaterialForm open={novo} onClose={() => setNovo(false)} unidade={rede ? (central ? null : unit) : me?.unit?.id ?? null} />
     </div>
@@ -100,6 +113,8 @@ function MaterialSheet({ id, onClose, podeEditar }: { id: string | null; onClose
   const [tipo, setTipo] = useState('ENTRADA');
   const [qtd, setQtd] = useState('');
   const [motivo, setMotivo] = useState('');
+  const [lote, setLote] = useState('');
+  const [validade, setValidade] = useState('');
   const [editar, setEditar] = useState(false);
   const [excluir, setExcluir] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -107,9 +122,9 @@ function MaterialSheet({ id, onClose, podeEditar }: { id: string | null; onClose
   const movimentar = async () => {
     setBusy(true);
     try {
-      await rpc('material_movimentar', { id, tipo, quantidade: qtd, motivo });
+      await rpc('material_movimentar', { id, tipo, quantidade: qtd, motivo, lote, validade: validade || null });
       toast({ title: 'Movimento registrado', tone: 'success' });
-      setQtd(''); setMotivo('');
+      setQtd(''); setMotivo(''); setLote(''); setValidade('');
       recarregar();
     } catch (e) {
       toast({ title: 'Não registrado', description: (e as Error).message, tone: 'error' });
@@ -149,10 +164,35 @@ function MaterialSheet({ id, onClose, podeEditar }: { id: string | null; onClose
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[140px_1fr_auto]">
                 <input type="number" min={0} step="any" value={qtd} onChange={(e) => setQtd(e.target.value)} placeholder={tipo === 'AJUSTE' ? 'Contado' : 'Quantidade'} className={inputCls} aria-label="Quantidade" />
                 <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={tipo === 'SAIDA' ? 'Para onde / por quê' : tipo === 'AJUSTE' ? 'Motivo do ajuste (obrigatório)' : 'Origem (nota, doação, remessa…)'} className={inputCls} aria-label="Motivo" />
-                <Button loading={busy} disabled={!qtd} icon={tipo === 'SAIDA' ? ArrowUpFromLine : ArrowDownToLine} onClick={movimentar}>Registrar</Button>
+                <Button loading={busy} disabled={!qtd || (m.controla_validade && tipo === 'ENTRADA' && !validade)} icon={tipo === 'SAIDA' ? ArrowUpFromLine : ArrowDownToLine} onClick={movimentar}>Registrar</Button>
               </div>
+              {m.controla_validade && tipo === 'ENTRADA' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={lote} onChange={(e) => setLote(e.target.value)} placeholder="Lote" className={inputCls} aria-label="Lote" />
+                  <input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} className={inputCls} aria-label="Validade" />
+                </div>
+              )}
+              {m.controla_validade && tipo === 'SAIDA' && <p className="text-[12px] text-muted">A saída usa primeiro o lote que vence antes.</p>}
             </Card>
           )}
+          {m.consumo_dia > 0 && (
+            <p className="text-[13px] text-muted">Consumo estimado pelas refeições servidas: <b className="text-ink">{num(m.consumo_dia)} {m.unidade_medida}/dia</b> — dá para cerca de <b className="text-ink">{Math.floor(m.quantidade / m.consumo_dia)} dias</b>.</p>
+          )}
+          {(m.lotes as any[] | undefined)?.length ? (
+            <div>
+              <div className="mb-1 text-[12px] font-bold uppercase tracking-wide text-subtle">Lotes</div>
+              <Card className="divide-y divide-line overflow-hidden">
+                {(m.lotes as any[]).map((l) => (
+                  <div key={l.id} className="flex items-center gap-3 px-3 py-2 text-[13px]">
+                    <span className="font-mono text-[12.5px]">{l.lote}</span>
+                    <span className="font-semibold tabular">{num(l.quantidade)} {m.unidade_medida}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted">{l.fornecedor ?? ''}</span>
+                    {l.validade && <Badge tone={l.vencido ? 'red' : l.dias <= 15 ? 'amber' : 'gray'}>{l.vencido ? 'vencido' : 'val.'} {new Date(l.validade + 'T12:00:00').toLocaleDateString('pt-BR')}</Badge>}
+                  </div>
+                ))}
+              </Card>
+            </div>
+          ) : null}
           <div>
             <div className="mb-1 text-[12px] font-bold uppercase tracking-wide text-subtle">Movimentação</div>
             <Card className="divide-y divide-line overflow-hidden">

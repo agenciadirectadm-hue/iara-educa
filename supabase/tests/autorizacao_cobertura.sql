@@ -50,7 +50,7 @@ begin
   where n.nspname = 'api' and has_function_privilege('anon', p.oid, 'execute')
     and p.proname not in ('bootstrap', 'units_map', 'geo_layers', 'units_list', 'unit_detail', 'territory_detail', 'network_kpis',
                           'grade_for_birthdate', 'search_vacancies', 'geo_search', 'knowledge_search', 'service_catalog', 'rules_list',
-                          'data_quality', 'persona_units');
+                          'data_quality', 'persona_units', 'declaracao_verificar');
   v_out := v_out || jsonb_build_object('passo', 'E3. Visitante sem login só chama as funções públicas', 'ok', v_lista = '[]', 'lista', v_lista);
 
   -- leitura pelo visitante só nas tabelas de referência pública aprovadas (usadas pelas funções públicas); escrita, nenhuma.

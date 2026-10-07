@@ -13,6 +13,8 @@ const HomeProfessor = lazy(() => import('./home/HomeProfessor'));
 const Nutricao = lazy(() => import('./Nutricao'));
 const Manutencao = lazy(() => import('./Manutencao'));
 const Aee = lazy(() => import('./Aee'));
+const Transporte = lazy(() => import('./Transporte'));
+const Materiais = lazy(() => import('./Materiais'));
 
 /** A mesma base gera visões diferentes por perfil (spec §6) — cada início responde à pergunta do perfil. */
 export default function Home() {
@@ -30,6 +32,8 @@ export default function Home() {
                 : role === 'NUTRICAO' ? <Nutricao />
                 : role === 'MANUTENCAO' ? <Manutencao />
                 : role === 'PROFESSOR_AEE' ? <Aee />
+                : role === 'TRANSPORTE' ? <Transporte />
+                : role === 'ALMOXARIFADO' ? <Materiais />
                 : <HomeSecretario />;
   return <Suspense fallback={<SkeletonList rows={5} />}>{el}</Suspense>;
 }

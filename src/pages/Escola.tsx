@@ -15,8 +15,9 @@ import { GradeCardapio } from './Nutricao';
 import { AgendaLista, NovaOcorrenciaSheet, OcorrenciaSheet, useRecarregarVidaEscolar } from '@/components/vida-escolar';
 import { GRAVIDADE, SITUACAO_OCORRENCIA, TIPO_OCORRENCIA } from '@/lib/escola';
 import { AeeFamilia, BoletimView, DeclaracoesFamilia } from '@/components/pedagogico';
+import { TransporteFamilia } from '@/components/transporte';
 
-type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes';
+type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -44,6 +45,7 @@ export default function Escola() {
         { value: 'frequencia', label: 'Frequência' },
         { value: 'cardapio', label: 'Cardápio' },
         { value: 'declaracoes', label: 'Declarações' },
+        { value: 'transporte', label: 'Transporte' },
         { value: 'calendario', label: 'Calendário' },
       ]} />
       <div className="mt-3">
@@ -54,6 +56,7 @@ export default function Escola() {
         {aba === 'boletim' && <BoletimFamilia />}
         {aba === 'aee' && <AeeFamilia />}
         {aba === 'declaracoes' && <DeclaracoesFamilia />}
+        {aba === 'transporte' && <TransporteFamilia />}
         {aba === 'cardapio' && <CardapioFamilia />}
         {aba === 'calendario' && <ProximosEventos dias={120} limite={30} />}
       </div>

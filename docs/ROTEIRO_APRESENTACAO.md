@@ -57,6 +57,15 @@ Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfi
 | 24 | Cidadão (Maria) | **Vida escolar → Boletim** (pareceres da Ana) e **Declarações**: emitir a de matrícula, imprimir com QR code; pela IARA: “boletim da Ana”, “declaração de frequência para o Bolsa Família” | A família tem o boletim e a declaração na hora? |
 | 25 | Qualquer pessoa, sem login | **Verificar declaração** (menu ou QR code): autêntica e válida, com nome abreviado; um código errado não autentica; a revogada aparece como revogada | O papel apresentado é verdadeiro? |
 
+### Transporte e almoxarifado (Sprint 3) — mais 10 minutos
+
+| # | Perfil | O que mostrar | Pergunta que a tela responde |
+|---|---|---|---|
+| 26 | Transporte escolar · SEDUC | **Transporte hoje**: quantas viagens a caminho, atrasadas e não realizadas; **rota R-119** (a da Ana) no mapa com o veículo; **Registrar situação → Não realizada** (“pane mecânica”): as famílias recebem o aviso e a falta do dia fica abonada; **Aguardando rota** → incluir um aluno na rota sugerida; **Frota**: CNH, curso e vistoria vencidos | Cada aluno chegou à escola hoje? |
+| 27 | Cidadão (Maria) | **Vida escolar → Transporte**: o ponto da Ana, o horário e o veículo no mapa (sem os outros pontos); **Avisar que não vai usar**; pela IARA: “o ônibus da Ana já passou?”, “a Ana não vai de van amanhã” | A família sabe onde está o transporte? |
+| 28 | Direção | **Materiais → Pedidos e remessas**: novo pedido (o que está abaixo do mínimo aparece em vermelho); **Validade** (lotes vencendo); **Alimentos**: para quantos dias dá cada alimento, pelas refeições servidas | Vai faltar alguma coisa na minha escola? |
+| 29 | Almoxarifado central · SEDUC | Aprovar o pedido ajustando a quantidade, **despachar** (o lote que vence primeiro sai primeiro); a escola confere e recebe — divergência com motivo; escolas com alimento para menos de 7 dias | Alguma escola vai ficar sem produto? |
+
 Os dados da vida escolar são fictícios (servidores, faltas, cardápios, restrições, chamados e publicações), sobre o calendário
 real de 2026 (feriados de lei). A explicação para a plateia: os dados reais substituem estes na carga oficial.
 
@@ -64,7 +73,8 @@ real de 2026 (feriados de lei). A explicação para a plateia: os dados reais su
 
 1. **Rotina de apresentação → Limpar depois da apresentação**: apaga o que a plateia e os testes criaram e reinicia a família da Maria —
    inclusive o que foi lançado ao vivo na vida escolar (chamadas, justificativas, restrições, chamados, publicações e leituras) e no pedagógico
-   (notas, pareceres, sondagens, planos, AEE e declarações) — o que era de demonstração e foi alterado volta ao original.
+   (notas, pareceres, sondagens, planos, AEE e declarações), no transporte (viagens, avisos, ocorrências, inclusões) e no almoxarifado
+   (pedidos, remessas, lotes) — o que era de demonstração e foi alterado volta ao original.
    A trilha de auditoria permanece (é imutável).
 2. WhatsApp: pare a ponte da Educação (`Ctrl+C`) e, se for o caso, religue a da IARA Saúde. Com a ponte parada, o QR code do portal
    volta sozinho para a conversa simulada.

@@ -63,6 +63,9 @@ const Aee = lazy(() => import('./pages/Aee'));
 const AeePlano = lazy(() => import('./pages/AeePlano'));
 const Declaracao = lazy(() => import('./pages/Declaracao'));
 const Verificar = lazy(() => import('./pages/Declaracao').then((m) => ({ default: m.Verificar })));
+const Transporte = lazy(() => import('./pages/Transporte'));
+const Rota = lazy(() => import('./pages/Rota'));
+const Embarque = lazy(() => import('./pages/Rota').then((m) => ({ default: m.Embarque })));
 
 function Loader() {
   return (
@@ -140,6 +143,9 @@ export const router = createHashRouter([
       { path: '/desempenho', element: <RequireSession>{S(<Desempenho />)}</RequireSession>, handle: { wide: true } },
       { path: '/aee', element: <RequireSession>{S(<Aee />)}</RequireSession>, handle: { wide: true } },
       { path: '/aee/:id', element: <RequireSession>{S(<AeePlano />)}</RequireSession>, handle: { wide: true } },
+      { path: '/transporte', element: <RequireSession>{S(<Transporte />)}</RequireSession>, handle: { wide: true } },
+      { path: '/transporte/rotas/:id', element: <RequireSession>{S(<Rota />)}</RequireSession>, handle: { wide: true } },
+      { path: '/transporte/rotas/:id/embarque', element: <RequireSession>{S(<Embarque />)}</RequireSession> },
       // verificação pública de declaração (sem login)
       { path: '/verificar', element: S(<Verificar />) },
       { path: '/verificar/:codigo', element: S(<Verificar />) },

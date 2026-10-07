@@ -59,6 +59,8 @@ export type MapViewProps = {
   selectedLabel?: string;
   /** Rotas calculadas pelas ruas ([lng, lat]), da residência até cada unidade: a pé (tracejada) e de carro (contínua). */
   trajetos?: { id: number; modo: 'A_PE' | 'CARRO'; coords: [number, number][] }[] | null;
+  /** Pontos de uma rota de transporte: paradas (numeradas), o ponto da família, a escola e o veículo. */
+  pontos?: { lat: number; lng: number; rotulo?: string; tipo: 'PARADA' | 'MEU_PONTO' | 'VEICULO' | 'ESCOLA' }[] | null;
 };
 
 function circle(lat: number, lng: number, r: number, n = 72): GeoJSON.Feature<GeoJSON.Polygon> {
@@ -168,6 +170,7 @@ export function MapView(p: MapViewProps) {
       map.addSource('lines', { type: 'geojson', data: empty });
       map.addSource('rotas', { type: 'geojson', data: empty });
       map.addSource('ranks', { type: 'geojson', data: empty });
+      map.addSource('pontos', { type: 'geojson', data: empty });
 
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.55 } });
       map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': '#A846E8', 'fill-opacity': 0 } });
@@ -216,6 +219,19 @@ export function MapView(p: MapViewProps) {
         id: 'units-label', type: 'symbol', source: 'units', minzoom: 13.3,
         layout: { 'text-field': ['get', 'name'], 'text-size': 11.5, 'text-offset': [0, 1.25], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'], 'text-max-width': 9 },
         paint: { 'text-color': '#23334A', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
+      });
+      map.addLayer({
+        id: 'pontos-circle', type: 'circle', source: 'pontos',
+        paint: {
+          'circle-radius': ['match', ['get', 'tipo'], 'VEICULO', 12, 'MEU_PONTO', 11, 'ESCOLA', 10, 8],
+          'circle-color': ['match', ['get', 'tipo'], 'VEICULO', '#F28C38', 'MEU_PONTO', PURPLE, 'ESCOLA', '#0E1A2B', ROTA_COLOR.CARRO],
+          'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5,
+        },
+      });
+      map.addLayer({
+        id: 'pontos-label', type: 'symbol', source: 'pontos',
+        layout: { 'text-field': ['get', 'rotulo'], 'text-size': 11, 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true },
+        paint: { 'text-color': '#ffffff' },
       });
       map.addLayer({ id: 'ranks-circle', type: 'circle', source: 'ranks', paint: { 'circle-radius': 13, 'circle-color': PURPLE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
       map.addLayer({
@@ -348,6 +364,16 @@ export function MapView(p: MapViewProps) {
     }));
     (map.getSource('rotas') as GeoJSONSource).setData({ type: 'FeatureCollection', features: feats });
   }, [ready, p.trajetos]);
+
+  // pontos da rota de transporte (paradas, ponto da família, escola e veículo)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    (map.getSource('pontos') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: (p.pontos ?? []).map((x) => ({ type: 'Feature', properties: { tipo: x.tipo, rotulo: x.rotulo ?? '' }, geometry: { type: 'Point', coordinates: [x.lng, x.lat] } })),
+    });
+  }, [ready, p.pontos]);
 
   // seleção
   useEffect(() => {

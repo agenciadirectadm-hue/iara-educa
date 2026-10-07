@@ -61,6 +61,7 @@ const ESCOLA_MENU: QuickReply[] = [
   { label: "Boletim e notas", action: "intent:boletim" },
   { label: "Declaração escolar", action: "intent:declaracao" },
   { label: "Plano do AEE", action: "intent:aee_plano" },
+  { label: "Transporte escolar", action: "intent:transporte" },
 ];
 /** Sprint 2 (pedagógico): rótulos usados no boletim, no AEE e nas declarações. */
 const PORTAL = (Deno.env.get("PORTAL_URL") ?? "https://agenciadirectadm-hue.github.io/iara-educa/").replace(/\/?$/, "/");
@@ -195,7 +196,9 @@ function detectIntent(t: string): string {
   if (/(calendario|feriado|tem aula|vai ter aula|dia sem aula|recesso|ferias escolares)/.test(t)) return "calendario";
   if (/(troca de turno|trocar de turno|mudar de turno|mudar o turno|outro turno)/.test(t)) return "servico:TROCA_TURNO";
   if (/(periodo integral|educacao integral|contraturno|\bintegral\b)/.test(t)) return "servico:INTEGRAL";
-  if (/(transporte|onibus|van escolar)/.test(t)) return "servico:TRANSPORTE";
+  if (/(nao vai (de |no |na |usar o )?(onibus|van|transporte|perua)|nao vai usar o transporte|vou (buscar|levar) (ele|ela|na escola|a |o ))/.test(t)) return "transporte_aviso";
+  if (/(pedir|solicitar|preciso de|quero) (o )?(transporte|onibus|van)/.test(t)) return "servico:TRANSPORTE";
+  if (/(transporte|onibus|\bvan\b|perua|motorista)/.test(t)) return "transporte";
   if (/(historico escolar|declaracao de (transferencia|conclusao|vaga zero))/.test(t)) return "servico:DOCUMENTO";
   if (/(declaracao|atestado de matricula|comprovante de matricula)/.test(t)) return "declaracao";
   if (/((alterar|trocar|mudar) (o )?responsavel|termo de guarda)/.test(t)) return "servico:ALTERACAO_RESPONSAVEL";
@@ -511,6 +514,10 @@ export class Agent {
         return await this.aeePlano();
       case "declaracao":
         return await this.startDeclaracao(norm(text));
+      case "transporte":
+        return await this.transporte();
+      case "transporte_aviso":
+        return await this.startTransporteAviso(norm(text));
       case "conhecimento":
         if (!text.trim() || /^(tirar uma )?duvida( sobre a rede)?$/.test(norm(text))) return this.askQuestion();
         return await this.knowledge(text);
@@ -1351,6 +1358,7 @@ export class Agent {
     if (flow === "alterar_dados") return await this.alterarDadosStep(text);
     if (flow === "ocorrencia") return await this.ocorrenciaStep(text);
     if (flow === "declaracao") return await this.declaracaoStep(text);
+    if (flow === "transporte_aviso") return await this.transporteAvisoStep(text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
@@ -1971,6 +1979,113 @@ export class Agent {
       notice: "Para imprimir com o QR code, abra Vida escolar → Declarações no portal. Quem recebe confere pelo código, sem senha; a conferência mostra só o nome abreviado.",
       quick_replies: [{ label: "Outra declaração", action: "intent:declaracao" }, { label: "Boletim e notas", action: "intent:boletim" }],
     });
+  }
+
+  // ================================================================== Sprint 3: transporte escolar
+  private async transporte(): Promise<void> {
+    if (!this.needGuardian("intent:transporte")) return;
+    if (!this.ensureVerified("intent:transporte")) return;
+    const kids = ((await this.tool("get_school_transport", "familia_transporte", {})) as any[]) ?? [];
+    const comRota = kids.filter((k) => k.rota);
+    if (!comRota.length) {
+      this.done();
+      const aguardando = kids.find((k) => k.transporte_pedido);
+      return this.say(aguardando
+        ? `O pedido de transporte de ${aguardando.primeiro_nome} está com a Gerência de Transporte Escolar, aguardando vaga numa rota. Assim que for incluída, eu aviso.`
+        : "Suas crianças não usam o transporte escolar. Se precisar, eu abro o pedido para a Gerência de Transporte avaliar.",
+        { quick_replies: aguardando ? [MENU[3]] : [{ label: "Pedir transporte escolar", action: "svc:TRANSPORTE" }, MENU[0]] });
+    }
+    const hm = (t?: string | null) => (t ? String(t).slice(0, 5) : "—");
+    const mais = (t: string | null | undefined, min: number) => {
+      if (!t) return "—";
+      const [h, m] = String(t).split(":").map(Number);
+      const x = h * 60 + m + (min || 0);
+      return `${String(Math.floor(x / 60) % 24).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+    };
+    const cards: Card[] = comRota.map((k) => {
+      const r = k.rota;
+      const p = r.meu_ponto ?? {};
+      const linhaHoje = (e: any, sentido: "IDA" | "VOLTA") => {
+        const nome = sentido === "IDA" ? "Ida" : "Volta";
+        const noPonto = sentido === "IDA" ? p.horario_ida : p.horario_volta;
+        if (!e || e.situacao === "SEM_AULA") return `${nome}: hoje não tem aula.`;
+        if (e.situacao === "NAO_REALIZADA") return `⚠️ ${nome}: não vai passar hoje (${e.motivo ?? "imprevisto"}).${sentido === "IDA" ? " A falta fica abonada." : ""}`;
+        if (e.situacao === "CONCLUIDA") return `${nome}: concluída${e.atraso_min >= 10 ? ` com ${e.atraso_min} min de atraso` : " no horário"}.`;
+        if (e.situacao === "EM_ANDAMENTO") {
+          const prev = mais(noPonto, e.atraso_min);
+          const agora = new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+          return agora > prev ? `${nome}: já passou no seu ponto (~${prev}) e segue para ${sentido === "IDA" ? "a escola" : "os outros pontos"}.`
+            : `${nome}: a caminho — previsão no seu ponto às ${prev}${e.atraso_min >= 5 ? ` (${e.atraso_min} min de atraso)` : ""}.`;
+        }
+        return `${nome}: prevista para ${hm(noPonto)} no seu ponto.`;
+      };
+      const avisos = ((r.avisos ?? []) as any[]).map((a) => `Aviso: não usa o transporte em ${diaBr(a.data)} (${a.sentido === "AMBOS" ? "ida e volta" : a.sentido === "IDA" ? "ida" : "volta"}).`);
+      const rec = ((r.recentes ?? []) as any[]).slice(0, 2).map((o) => `${diaBr(o.data)}: ${o.descricao}`);
+      const tipo = r.veiculo?.tipo === "VAN" ? "van" : r.veiculo?.tipo === "MICRO" ? "micro-ônibus" : "ônibus";
+      return {
+        title: `${k.primeiro_nome} · rota ${r.codigo}`,
+        subtitle: `${tipo} ${r.veiculo?.placa ?? ""}${r.veiculo?.acessivel ? " (acessível)" : ""} · motorista ${r.motorista ?? "—"}${r.monitor ? ` · monitor(a) ${r.monitor}` : ""}`,
+        lines: [`Ponto: ${p.nome ?? "—"} — ida às ${hm(p.horario_ida)}, volta às ${hm(p.horario_volta)}`, linhaHoje(r.hoje?.ida, "IDA"), linhaHoje(r.hoje?.volta, "VOLTA"), ...avisos,
+          ...(rec.length ? ["Últimos registros da rota:", ...rec] : [])],
+        badge: [r.hoje?.ida?.situacao, r.hoje?.volta?.situacao].includes("NAO_REALIZADA") ? "Não vai passar" : (r.hoje?.ida?.atraso_min ?? 0) >= 10 ? "Atrasado" : "Normal",
+        tone: [r.hoje?.ida?.situacao, r.hoje?.volta?.situacao].includes("NAO_REALIZADA") ? "red" : (r.hoje?.ida?.atraso_min ?? 0) >= 10 ? "amber" : "green",
+      };
+    });
+    this.say("Transporte escolar:", {
+      cards, notice: "Sem GPS integrado, a posição e a previsão são estimadas pelo horário planejado e pelo atraso registrado. Você vê só o ponto da sua criança.",
+      quick_replies: [{ label: "Avisar que não vai usar", action: "intent:transporte_aviso" }, ESCOLA_MENU[0]],
+    });
+    this.done("Consultou o transporte escolar.");
+  }
+
+  private async startTransporteAviso(t: string): Promise<void> {
+    if (!this.needGuardian("intent:transporte_aviso")) return;
+    if (!this.ensureVerified("intent:transporte_aviso")) return;
+    const kids = (((await this.tool("get_school_transport", "familia_transporte", {})) as any[]) ?? []).filter((k) => k.rota);
+    if (!kids.length) {
+      this.done();
+      return this.say("Suas crianças não usam o transporte escolar.", { quick_replies: [MENU[0]] });
+    }
+    const quando = /amanha/.test(t) ? "amanha" : /hoje/.test(t) ? "hoje" : null;
+    const sentido = /\b(volta|voltar|buscar)\b/.test(t) ? "VOLTA" : /\b(ida|levar|levo)\b/.test(t) ? "IDA" : null;
+    this.ctx = { flow: "transporte_aviso", step: "ta_child", data: { kids: kids.map((k) => ({ id: k.student_id, nome: k.primeiro_nome })), quando, sentido } };
+    if (kids.length === 1) return await this.transporteAvisoStep(kids[0].student_id);
+    this.say("É sobre qual criança?", { quick_replies: kids.map((k) => ({ label: k.primeiro_nome, action: `ans:${k.student_id}` })) });
+  }
+
+  private async transporteAvisoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "ta_child") {
+      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
+      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, kid };
+      if (!d.quando) return this.ask("ta_dia", `${kid.nome} não vai usar o transporte quando?`, { quick_replies: [{ label: "Hoje", action: "ans:hoje" }, { label: "Amanhã", action: "ans:amanha" }] });
+      this.ctx.step = "ta_dia";
+      return await this.transporteAvisoStep(d.quando);
+    }
+    if (this.ctx.step === "ta_dia") {
+      const quando = /amanha/.test(t) ? "amanha" : /hoje/.test(t) ? "hoje" : null;
+      if (!quando) return this.say("Hoje ou amanhã?", { quick_replies: [{ label: "Hoje", action: "ans:hoje" }, { label: "Amanhã", action: "ans:amanha" }] });
+      this.ctx.data = { ...this.ctx.data, quando };
+      if (!d.sentido) {
+        return this.ask("ta_sentido", "Na ida, na volta ou nas duas?", {
+          quick_replies: [{ label: "Ida", action: "ans:IDA" }, { label: "Volta", action: "ans:VOLTA" }, { label: "Ida e volta", action: "ans:AMBOS" }],
+        });
+      }
+      this.ctx.step = "ta_sentido";
+      return await this.transporteAvisoStep(d.sentido);
+    }
+    if (this.ctx.step === "ta_sentido") {
+      const sentido = /^(IDA|VOLTA|AMBOS)$/.test(text.trim()) ? text.trim() : /ida e volta|as duas|ambos/.test(t) ? "AMBOS" : /volta/.test(t) ? "VOLTA" : /ida/.test(t) ? "IDA" : null;
+      if (!sentido) return this.say("Ida, volta ou as duas?");
+      const dd = this.ctx.data ?? {};
+      const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      const data = dd.quando === "amanha" ? new Date(new Date(hoje + "T12:00:00Z").getTime() + 86400000).toISOString().slice(0, 10) : hoje;
+      const r = await this.tool("notify_transport_absence", "familia_transporte_avisar", { student_id: dd.kid.id, data, sentido, canal: "IARA" }, `transporte-aviso:${dd.kid.id}:${data}`);
+      this.done("Avisou que a criança não vai usar o transporte.");
+      return this.say(`${r.mensagem ?? "Aviso registrado."} ✅`, { quick_replies: [{ label: "Transporte escolar", action: "intent:transporte" }] });
+    }
   }
 
   private async queueStatus(): Promise<void> {
