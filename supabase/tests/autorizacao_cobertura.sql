@@ -74,6 +74,9 @@ begin
          or has_table_privilege('authenticated', c.oid, 'delete'));
   v_out := v_out || jsonb_build_object('passo', 'E6. Usuário logado não escreve direto nas tabelas (só pelas funções)', 'ok', v_lista = '[]', 'lista', v_lista);
 
+  v_lista := iara.classificacao_pendente();
+  v_out := v_out || jsonb_build_object('passo', 'E7. Toda coluna com dado de pessoa está classificada (LGPD)', 'ok', v_lista = '[]', 'lista', v_lista);
+
   -- TENTATIVAS DE ACESSO INDEVIDO (IDOR) -----------------------------------------------------------------------------
   perform iara.session_create('CIDADAO', null, 'test-idor-cidadao', 'teste');
   perform iara.session_create('DIRETOR_UNIDADE', null, 'test-idor-diretor', 'teste');
