@@ -7,6 +7,7 @@ import { fmtInt } from '@/lib/format';
 import { Badge, Card, Chip, EmptyState, ErrorState, PageHeader, Section, SkeletonList, SourceChip } from '@/components/ui';
 import { BarList } from '@/components/charts';
 import { IaraBubble } from '@/components/iara';
+import { CargaDados } from '@/components/CargaDados';
 
 const TYPE: Record<string, { label: string; hint: string }> = {
   GEO_APROXIMADA: { label: 'Localização aproximada', hint: 'Coordenada pelo bairro/logradouro, sem geocodificação oficial do endereço' },
@@ -108,6 +109,7 @@ export default function Quality() {
           </div>
         ) : <Card><EmptyState compact title="Nenhuma pendência neste filtro" /></Card>}
       </Section>
+      <CargaDados />
       <IaraBubble compact className="mt-6">
         Quando a SEDUC enviar a extração oficial (capacidades, turmas, fila e normas), estas pendências são resolvidas na carga — e os números de demonstração dão lugar aos oficiais, com a mesma tela.
       </IaraBubble>
