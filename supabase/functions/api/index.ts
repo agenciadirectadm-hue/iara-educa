@@ -17,15 +17,64 @@ import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 import { localizarEndereco } from "./geo.ts";
 import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
 
-const CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, x-iara-session, x-request-id",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Max-Age": "86400",
-};
+// CORS restrito (SEC-AT-03): só o portal publicado, o ambiente local e os domínios de CORS_ORIGINS (produção).
+// A ponte do WhatsApp fala de servidor para servidor (sem Origin) e não depende disto.
+const ORIGENS = new Set(["https://agenciadirectadm-hue.github.io",
+  ...(Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean)]);
+const LOCAL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{2,5})?$/;
+function cors(req: Request): Record<string, string> {
+  const o = req.headers.get("origin");
+  return {
+    ...(o && (ORIGENS.has(o) || LOCAL.test(o)) ? { "Access-Control-Allow-Origin": o } : {}),
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "content-type, x-iara-session, x-request-id",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+const SEGURANCA = { "x-content-type-options": "nosniff", "referrer-policy": "no-referrer", "cache-control": "no-store" };
+type Json = (data: unknown, status?: number, extra?: Record<string, string>) => Response;
+const jsonPara = (req: Request): Json => (data, status = 200, extra = {}) =>
+  new Response(JSON.stringify(data), { status, headers: { ...cors(req), ...SEGURANCA, "content-type": "application/json; charset=utf-8", ...extra } });
 
-const json = (data: unknown, status = 200, extra: Record<string, string> = {}) =>
-  new Response(JSON.stringify(data), { status, headers: { ...CORS, "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
+// IP do cliente: a Cloudflare na frente do Supabase preenche cf-connecting-ip (forjar esse cabeçalho é recusado na borda;
+// x-forwarded-for enviado pelo cliente é substituído) — conferido em 07/10/2026
+function ipDe(req: Request): string {
+  return (req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? (req.headers.get("x-forwarded-for") ?? "").split(",")[0]).trim() || "desconhecido";
+}
+
+// Limites (SEC-AT-01), contados no banco (vale para todas as instâncias). Janela fixa: [chave, máximo, segundos].
+function limitesPara(path: string, ip: string, token: string | null): [string, number, number][] {
+  const l: [string, number, number][] = [];
+  if (path.startsWith("/whatsapp/")) return l; // ponte autenticada por segredo; o limite é por telefone (whatsapp.ts)
+  l.push([`ip:${ip}`, 3000, 300]);
+  if (token) l.push([`sessao:${token.slice(0, 16)}`, 900, 60]);
+  if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
+  if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
+  if (path.startsWith("/rotas") || path === "/geo/localizar") l.push([`rotas:${ip}`, 120, 60]);
+  return l;
+}
+// pré-limite por instância, em memória (barato, antes de tocar no banco): segura rajadas de um mesmo IP
+const rajadas = new Map<string, number[]>();
+function rajada(ip: string, max = 40, janelaMs = 10_000): boolean {
+  const agora = Date.now();
+  const h = (rajadas.get(ip) ?? []).filter((t) => agora - t < janelaMs);
+  h.push(agora);
+  rajadas.set(ip, h);
+  if (rajadas.size > 5000) rajadas.clear();
+  return h.length > max;
+}
+
+async function excedeu(limites: [string, number, number][]): Promise<string | null> {
+  if (!limites.length) return null;
+  try {
+    const r = await sql`select iara.taxa(${limites.map((x) => x[0])}::text[], ${limites.map((x) => x[1])}::int[], ${limites.map((x) => x[2])}::int[]) as k`;
+    return (r[0]?.k as string | null) ?? null;
+  } catch (e) {
+    console.error("limite", (e as Error).message); // falha do contador não derruba o atendimento
+    return null;
+  }
+}
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -35,16 +84,6 @@ async function sha256(text: string): Promise<string> {
 function newToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-// Limite simples por IP para criação de sessões (proteção do ambiente de demonstração)
-const sessionHits = new Map<string, number[]>();
-function rateLimited(ip: string, max = 40, windowMs = 10 * 60_000): boolean {
-  const now = Date.now();
-  const hits = (sessionHits.get(ip) ?? []).filter((t) => now - t < windowMs);
-  hits.push(now);
-  sessionHits.set(ip, hits);
-  return hits.length > max;
 }
 
 let statusRotas: { em: number; valor: unknown } | null = null;
@@ -91,16 +130,33 @@ async function resolveUser(req: Request): Promise<{ userId: string | null; expir
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(req) });
+  const json = jsonPara(req);
   const url = new URL(req.url);
   const path = url.pathname.replace(/^.*?\/api(?=\/|$)/, "") || "/";
   const meta: RequestMeta = {
-    rid: req.headers.get("x-request-id") ?? crypto.randomUUID(),
-    ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "desconhecido",
+    rid: (req.headers.get("x-request-id") ?? crypto.randomUUID()).slice(0, 80),
+    ip: ipDe(req),
     ua: (req.headers.get("user-agent") ?? "").slice(0, 300),
   };
 
+  // tamanho do corpo (SEC-AT-02): 1 MB; a entrada do WhatsApp aceita áudio (até 16 MB)
+  const limiteCorpo = path === "/whatsapp/entrada" ? 16_000_000 : 1_000_000;
+  if (Number(req.headers.get("content-length") ?? "0") > limiteCorpo) {
+    // o proxy da plataforma só devolve a resposta depois que o corpo é lido: descarta sem guardar
+    try { for await (const _ of req.body ?? []) { /* descarta */ } } catch { /* conexão encerrada */ }
+    return json({ error: "Conteúdo grande demais." }, 413);
+  }
+
   try {
+    if (path !== "/health") {
+      if (!path.startsWith("/whatsapp/") && rajada(meta.ip)) {
+        return json({ error: "Muitas requisições em pouco tempo. Aguarde um instante e tente de novo.", code: "RATE_LIMIT" }, 429, { "retry-after": "10" });
+      }
+      const k = await excedeu(limitesPara(path, meta.ip, req.headers.get("x-iara-session")));
+      if (k) return json({ error: "Muitas requisições em pouco tempo. Aguarde um instante e tente de novo.", code: "RATE_LIMIT" }, 429, { "retry-after": "60" });
+    }
+
     if (path === "/health") {
       const rows = await sql`select now() as now, iara.rule_version() as rules`;
       return json({ ok: true, ...rows[0], audio: audioDisponivel() });
@@ -111,7 +167,6 @@ Deno.serve(async (req: Request) => {
     if (hk && path.startsWith("/rpc/dashboard")) await hk;
 
     if (path === "/session" && req.method === "POST") {
-      if (rateLimited(meta.ip)) return json({ error: "Muitas sessões criadas a partir deste endereço. Aguarde alguns minutos." }, 429);
       const body = await req.json().catch(() => ({}));
       const persona = String(body?.persona ?? "");
       const unitId = body?.unit_id != null ? Number(body.unit_id) : null;

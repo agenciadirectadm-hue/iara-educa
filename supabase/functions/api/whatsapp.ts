@@ -133,6 +133,10 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
   const nova = await asSystem(null, meta, (tx) => tx`select iara.whatsapp_registrar_entrada(${canal.id}::uuid, ${waId}) as n`);
   if (!nova[0]?.n) return json({ ativo: true, duplicada: true, respostas: [] });
 
+  // limite por telefone (SEC-AT-01): rajada de mensagens é ignorada em silêncio
+  const excesso = (await sql`select iara.taxa(${[`wa:${tel}`]}::text[], ${[20]}::int[], ${[60]}::int[]) as k`)[0]?.k;
+  if (excesso) return json({ ativo: true, limitado: true, respostas: [] });
+
   // lista de números autorizados (interruptor do painel): fora dela não há contato, conversa nem cadastro — só um aviso a cada 6 h
   const triagem = (await asSystem(null, meta, (tx) => tx`select iara.whatsapp_triagem(${canal.id}::uuid, ${tel}) as t`))[0]?.t as
     { autorizado: boolean; avisar: boolean; demo: boolean } | undefined;

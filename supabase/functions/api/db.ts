@@ -6,13 +6,38 @@ import postgres from "npm:postgres@3.4.5";
 const DB_URL = Deno.env.get("SUPABASE_DB_URL");
 if (!DB_URL) throw new Error("SUPABASE_DB_URL ausente no ambiente da função.");
 
-export const sql = postgres(DB_URL, {
-  prepare: false,
-  max: 4,
-  idle_timeout: 20,
-  connect_timeout: 10,
-  onnotice: () => {},
-});
+// Conexões pelo pooler do Supabase (modo transação), quando DB_POOLER_HOST estiver configurado: uma rajada de requisições
+// abre muitas instâncias da função, e cada uma com conexão direta esgotava as 60 do banco (teste de 07/10/2026, SEC-AT-02).
+// Mesmo usuário e senha da conexão direta; usuário "postgres.<ref>". Se o pooler não responder, usa a conexão direta.
+function urlPooler(): string | null {
+  const host = Deno.env.get("DB_POOLER_HOST");
+  const ref = (Deno.env.get("SUPABASE_URL") ?? "").match(/^https:\/\/([a-z0-9]+)\./)?.[1];
+  if (!host || !ref) return null;
+  const u = new URL(DB_URL!);
+  u.hostname = host;
+  u.port = Deno.env.get("DB_POOLER_PORT") ?? "6543";
+  u.username = `postgres.${ref}`;
+  return u.toString();
+}
+
+const OPCOES = { prepare: false, max: 3, idle_timeout: 10, connect_timeout: 10, onnotice: () => {} };
+
+async function conectar() {
+  const pooler = urlPooler();
+  if (pooler) {
+    const p = postgres(pooler, OPCOES);
+    try {
+      await p`select 1`;
+      return p;
+    } catch (e) {
+      console.error("pooler indisponível; usando a conexão direta:", (e as Error).message);
+      await p.end({ timeout: 1 }).catch(() => {});
+    }
+  }
+  return postgres(DB_URL!, OPCOES);
+}
+
+export const sql = await conectar();
 
 export type RequestMeta = { rid: string; ip: string; ua: string };
 export type Tx = postgres.TransactionSql<Record<string, unknown>>;
@@ -20,6 +45,8 @@ export type Tx = postgres.TransactionSql<Record<string, unknown>>;
 export async function withUser<T>(userId: string | null, meta: RequestMeta, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return await sql.begin(async (tx) => {
     await tx.unsafe(userId ? "set local role authenticated" : "set local role anon");
+    // nenhuma consulta de usuário prende o banco (SEC-AT-02)
+    await tx.unsafe("set local statement_timeout = '20s'");
     const claims = JSON.stringify(userId ? { sub: userId, role: "authenticated" } : { role: "anon" });
     await tx`select set_config('request.jwt.claims', ${claims}, true),
                     set_config('iara.request_id', ${meta.rid}, true),
@@ -32,6 +59,7 @@ export async function withUser<T>(userId: string | null, meta: RequestMeta, fn: 
 /** Executa como o sistema (owner), mas registrando o usuário nas claims para auditoria. */
 export async function asSystem<T>(userId: string | null, meta: RequestMeta, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return await sql.begin(async (tx) => {
+    await tx.unsafe("set local statement_timeout = '120s'");
     const claims = JSON.stringify(userId ? { sub: userId, role: "authenticated" } : { role: "service" });
     await tx`select set_config('request.jwt.claims', ${claims}, true),
                     set_config('iara.request_id', ${meta.rid}, true),
