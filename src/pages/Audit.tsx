@@ -37,6 +37,8 @@ export default function Audit() {
   const [page, setPage] = useState(1);
   const unitId = me?.scope === 'UNIT' ? me.unit?.id : null;
   const res = useRpc<any>('audit_list', { business_only: business, entity_type: entity || null, unit_id: unitId, page });
+  // corrente de hashes recalculada no servidor: qualquer alteração ou remoção na trilha aparece aqui
+  const integ = useRpc<{ integra: boolean; verificados: number; primeira_quebra?: { seq: number; motivo: string } }>('auditoria_integridade', {}, { staleTime: 5 * 60_000 });
   return (
     <div>
       <PageHeader
@@ -44,6 +46,16 @@ export default function Audit() {
         title="Trilha de auditoria"
         subtitle="Quem fez o quê, quando e por quê. O registro é imutável: não pode ser editado nem apagado — nem por administradores."
       />
+      {integ.data && (
+        <div className={clsx('mb-3 flex items-start gap-2 rounded-2xl px-3 py-2 text-[13px] ring-1', integ.data.integra ? 'bg-green-50 text-green-900 ring-green-100' : 'bg-red-50 text-red-900 ring-red-100')}>
+          <Lock className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {integ.data.integra
+              ? <>Trilha íntegra: <b>{fmtInt(integ.data.verificados)}</b> registros conferidos agora pela corrente de hashes (cada registro carrega o hash do anterior).</>
+              : <>Trilha com quebra no registro <b>{integ.data.primeira_quebra?.seq}</b>: {integ.data.primeira_quebra?.motivo}. Acione a equipe de segurança.</>}
+          </span>
+        </div>
+      )}
       <Card className="mb-4 flex items-start gap-3 bg-gradient-to-br from-blue-50 to-purple-50 p-4 ring-1 ring-blue-100">
         <Lock className="mt-0.5 size-5 shrink-0 text-blue-800" />
         <p className="text-[13.5px] text-ink-2">
