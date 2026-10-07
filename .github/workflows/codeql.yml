@@ -1,0 +1,25 @@
+# Análise estática de segurança do código (SAST) — Fase 2, item 17 (SEC-DEV-02, SEC-AT-04).
+# Portal (TypeScript/React), gateway (Deno) e scripts. Resultados em Security → Code scanning.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3

@@ -1,0 +1,45 @@
+# Verificação a cada push e pull request (Fase 2, item 17 do documento de estrutura — SEC-DEV-02 e SEC-AT-11).
+# Tipos e build do portal + auditoria de dependências (portal e ponte do WhatsApp). Falha crítica bloqueia.
+# Os testes SQL (RLS, IDOR, carga, auditoria) rodam contra um banco: entram aqui quando houver ambiente de homologação
+# com segredo próprio — nunca o banco de produção nem o token pessoal.
+name: Verificação
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-fund
+      - name: Tipos e build
+        run: npm run build
+      - name: Dependências com falha crítica
+        run: npm audit --audit-level=critical
+      - name: Ponte do WhatsApp — dependências
+        working-directory: whatsapp-ponte
+        run: npm audit --package-lock-only --audit-level=critical
+      - name: Nenhum segredo nem dado no repositório
+        run: |
+          # arquivos que nunca podem ser versionados (sessão do WhatsApp, .env, documentos internos, planilhas de dados)
+          if git ls-files | grep -E '(^|/)\.env$|wa-sessao|IARA_EDUCA_ESTRUTURA_E_PRIORIDADES|\.xlsx$|microdados'; then
+            echo "Arquivo proibido no repositório." && exit 1
+          fi
+          # tokens com formato conhecido (Supabase, GitHub, chaves privadas)
+          if git grep -nE 'sbp_[0-9a-f]{40}|ghp_[A-Za-z0-9]{36}|-----BEGIN (RSA |EC )?PRIVATE KEY' -- . ':!package-lock.json'; then
+            echo "Possível segredo no repositório." && exit 1
+          fi

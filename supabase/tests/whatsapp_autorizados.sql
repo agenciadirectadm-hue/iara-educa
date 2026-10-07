@@ -41,7 +41,7 @@ begin
 
   -- 4. Inovação liga a lista com um número
   r := pg_temp.as_call('test-wa-inovacao', 'whatsapp_autorizados_salvar', '{"somente_autorizados": true, "numeros": ["+55 (44) 99999-0000"]}');
-  v_out := v_out || jsonb_build_object('passo', '4. Inovação liga a lista', 'ok', (r ->> 'somente_autorizados')::boolean and r -> 'autorizados' = '["5544999990000"]'::jsonb);
+  v_out := v_out || jsonb_build_object('passo', '4. Inovação liga a lista', 'ok', (r ->> 'somente_autorizados')::boolean and r -> 'autorizados' = '["5544999990000"]'::jsonb and not exists (select 1 from iara.tenants where settings ? 'whatsapp_autorizados'));
 
   -- 5. número autorizado conversa; outro número é barrado e avisado uma vez
   r := iara.whatsapp_triagem(v_canal, '+5544999990000');

@@ -1,0 +1,20 @@
+# Atualização de dependências com falhas conhecidas (SEC-AT-11). Semanal, agrupada para não poluir.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      portal:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /whatsapp-ponte
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
