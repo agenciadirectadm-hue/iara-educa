@@ -83,6 +83,17 @@ const TIPO_OCORRENCIA_LABEL: Record<string, string> = {
 };
 const SITUACAO_OCORRENCIA_LABEL: Record<string, string> = { ABERTA: "aberta", EM_ACOMPANHAMENTO: "em acompanhamento", ENCERRADA: "encerrada" };
 /** Palavras do relato → assunto da ocorrência (a família confirma). */
+/** Motivo da ausência dito com as palavras da família (resposta à mensagem do mesmo dia). */
+function motivoAusencia(t: string): string | null {
+  if (/(estava na escola|esteve na escola|foi (a|na|pra) escola|ela foi|ele foi|nao faltou)/.test(t)) return "ESTA_NA_ESCOLA";
+  if (/(consulta|medic|dentista|exame|posto de saude|\bubs\b|hospital|vacina|terapia|fono|psicolog)/.test(t)) return "CONSULTA";
+  if (/(doente|febre|gripe|gripad|vomit|dor de|passou mal|resfriad|tosse|diarr|virose|machucad|atestado|saude|indisposi)/.test(t)) return "SAUDE";
+  if (/(onibus|\bvan\b|transporte|perdeu o|nao passou|carro quebr|sem conducao)/.test(t)) return "TRANSPORTE";
+  if (/(nao quis|nao quer ir|recusou|medo da escola|nao gosta da escola)/.test(t)) return "RECUSA";
+  if (/(viagem|viaj|funeral|velorio|falec|mudanca|problema em casa|problema de familia|imprevisto)/.test(t)) return "DIFICULDADE_FAMILIAR";
+  return null;
+}
+
 function tipoOcorrencia(t: string): string | null {
   if (/bullying|apelido|zoam|zombam|intimid|ameaca/.test(t)) return "BULLYING";
   if (/machuc|mordid|mordeu|caiu|arranh|ralou|hematoma|roxo/.test(t)) return "ACIDENTE";
@@ -409,6 +420,8 @@ export class Agent {
       if (this.ctx.flow && this.ctx.step && FREE_TEXT_STEPS.has(this.ctx.step) && intent !== "atendente") return await this.continueFlow(text);
       if (this.ctx.flow && this.ctx.step && ["desconhecido", "saudacao"].includes(intent)) return await this.continueFlow(text);
       if (this.ctx.flow && this.ctx.step && intent === "procurar_vaga" && this.ctx.flow === "procurar_vaga") return await this.continueFlow(text);
+      if (!this.ctx.flow && this.conv.guardian_id && intent !== "atendente" && (intent === "desconhecido" || motivoAusencia(t))
+          && await this.ausenciaTextoLivre(text, t)) return;
       return await this.route(intent, text);
     } catch (e) {
       const msg = (e as Error).message ?? "erro";
@@ -1502,6 +1515,27 @@ export class Agent {
       quick_replies: MOTIVO_AUSENCIA.map(([k, l]) => ({ label: l, action: `aus:${a.id}|${k}` })),
       notice: "Não precisa contar diagnóstico. Atestado, se houver, vai em Documentos (área do responsável).",
     });
+    return true;
+  }
+
+  /** Resposta livre à mensagem de ausência (“ela está com febre”): registra o motivo das ausências do dia mais recente
+   *  ainda sem esclarecimento (irmãos juntos). Sem motivo reconhecível, pergunta com as opções. */
+  private async ausenciaTextoLivre(text: string, t: string): Promise<boolean> {
+    const pend = ((await this.tool("get_pending_absences", "familia_ausencias", {})) as any[]) ?? [];
+    const recentes = pend.filter((a) => a.data === pend[0]?.data && Date.now() - new Date(`${a.data}T12:00:00-03:00`).getTime() < 4 * 86400_000);
+    if (!recentes.length) return false;
+    const motivo = motivoAusencia(t);
+    if (!motivo) return await this.perguntarAusencia();
+    if (!this.ensureVerified(`aus:${recentes[0].id}|${motivo}`)) return true;
+    let risco = false;
+    for (const a of recentes) {
+      const r = await this.tool("answer_absence", "familia_ausencia_responder", { id: a.id, motivo, texto: text.trim().slice(0, 1000), canal: "IARA" }, `ausencia:${a.id}`);
+      risco = risco || !!r?.risco;
+    }
+    const nomes = recentes.map((a) => a.primeiro_nome).join(" e ");
+    this.done(`Informou o motivo da ausência (${motivo}).`);
+    this.say(`Obrigada por avisar. Registrei o motivo da ausência de ${nomes} em ${diaBr(recentes[0].data)} (${(MOTIVO_AUSENCIA.find(([k]) => k === motivo)?.[1] ?? "outro").toLowerCase()}) e a escola já vê.`,
+      risco ? { notice: "Seu relato foi encaminhado com prioridade à equipe da escola." } : { notice: "Atestado, se houver, vai em Documentos (área do responsável)." });
     return true;
   }
 
