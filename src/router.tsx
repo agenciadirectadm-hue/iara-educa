@@ -57,6 +57,12 @@ const Ocorrencias = lazy(() => import('./pages/Ocorrencias'));
 const Validacoes = lazy(() => import('./pages/Validacoes'));
 const DocumentosFamilia = lazy(() => import('./pages/DocumentosFamilia'));
 const Materiais = lazy(() => import('./pages/Materiais'));
+const Avaliacao = lazy(() => import('./pages/Avaliacao'));
+const Desempenho = lazy(() => import('./pages/Desempenho'));
+const Aee = lazy(() => import('./pages/Aee'));
+const AeePlano = lazy(() => import('./pages/AeePlano'));
+const Declaracao = lazy(() => import('./pages/Declaracao'));
+const Verificar = lazy(() => import('./pages/Declaracao').then((m) => ({ default: m.Verificar })));
 
 function Loader() {
   return (
@@ -117,6 +123,8 @@ export const router = createHashRouter([
   // início da conversa pelo WhatsApp (destino do QR code) e cartaz para imprimir — públicos
   { path: '/whatsapp', element: S(<WhatsAppEntry />) },
   { path: '/whatsapp/cartaz', element: S(<WhatsAppPoster />) },
+  // declaração para imprimir (com QR code de verificação)
+  { path: '/declaracao/:id', element: <RequireSession>{S(<Declaracao />)}</RequireSession> },
   {
     element: <AppShell />,
     errorElement: <RouteError />,
@@ -128,6 +136,13 @@ export const router = createHashRouter([
       { path: '/turmas/:id', element: <RequireSession>{S(<ClassPage />)}</RequireSession> },
       { path: '/turmas/:id/chamada', element: <RequireSession>{S(<Chamada />)}</RequireSession> },
       { path: '/turmas/:id/diario', element: <RequireSession>{S(<Diario />)}</RequireSession>, handle: { wide: true } },
+      { path: '/turmas/:id/avaliacao', element: <RequireSession>{S(<Avaliacao />)}</RequireSession>, handle: { wide: true } },
+      { path: '/desempenho', element: <RequireSession>{S(<Desempenho />)}</RequireSession>, handle: { wide: true } },
+      { path: '/aee', element: <RequireSession>{S(<Aee />)}</RequireSession>, handle: { wide: true } },
+      { path: '/aee/:id', element: <RequireSession>{S(<AeePlano />)}</RequireSession>, handle: { wide: true } },
+      // verificação pública de declaração (sem login)
+      { path: '/verificar', element: S(<Verificar />) },
+      { path: '/verificar/:codigo', element: S(<Verificar />) },
       { path: '/ocorrencias', element: <RequireSession>{S(<Ocorrencias />)}</RequireSession>, handle: { wide: true } },
       { path: '/validacoes', element: <RequireSession>{S(<Validacoes />)}</RequireSession>, handle: { wide: true } },
       { path: '/familia/documentos', element: <RequireSession>{S(<DocumentosFamilia />)}</RequireSession> },

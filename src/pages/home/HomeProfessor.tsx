@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { CalendarCheck, ChevronRight, Clock, IdCard, NotebookPen } from 'lucide-react';
+import { CalendarCheck, ChevronRight, Clock, GraduationCap, IdCard, NotebookPen } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { firstName, fmtInt } from '@/lib/format';
@@ -85,9 +85,14 @@ function TurmaHoje({ t }: { t: { id: string; name: string; shift: string; grade?
         ) : <Badge tone="amber" icon={Clock}>Fazer a chamada</Badge>}
       </div>
     </LinkCard>
-    <Link to={`/turmas/${t.id}/diario`} className="mt-1.5 flex items-center justify-center gap-1.5 rounded-2xl bg-white py-2 text-[13px] font-semibold text-purple-800 ring-1 ring-line hover:bg-purple-50">
-      <NotebookPen className="size-4" />Agenda e ocorrências
-    </Link>
+    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+      <Link to={`/turmas/${t.id}/avaliacao`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-white py-2 text-[13px] font-semibold text-blue-800 ring-1 ring-line hover:bg-blue-50">
+        <GraduationCap className="size-4" />Notas e avaliação
+      </Link>
+      <Link to={`/turmas/${t.id}/diario`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-white py-2 text-[13px] font-semibold text-purple-800 ring-1 ring-line hover:bg-purple-50">
+        <NotebookPen className="size-4" />Agenda e ocorrências
+      </Link>
+    </div>
     </div>
   );
 }

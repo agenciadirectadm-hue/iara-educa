@@ -33,7 +33,7 @@ grant execute on function iara.medida_distancia_fila(), iara.medida_rotulo(text)
 grant execute on function
   api.bootstrap(jsonb), api.units_map(jsonb), api.geo_layers(jsonb), api.units_list(jsonb), api.unit_detail(jsonb), api.territory_detail(jsonb),
   api.network_kpis(jsonb), api.grade_for_birthdate(jsonb), api.search_vacancies(jsonb), api.geo_search(jsonb), api.knowledge_search(jsonb),
-  api.service_catalog(jsonb), api.rules_list(jsonb), api.data_quality(jsonb), api.persona_units(jsonb)
+  api.service_catalog(jsonb), api.rules_list(jsonb), api.data_quality(jsonb), api.persona_units(jsonb), api.declaracao_verificar(jsonb)
   to anon, authenticated;
 
 -- API autenticada (permissão e escopo verificados dentro de cada função / pela RLS)

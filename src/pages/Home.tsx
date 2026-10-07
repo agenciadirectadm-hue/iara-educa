@@ -12,6 +12,7 @@ const PainelControle = lazy(() => import('./controle/PainelControle'));
 const HomeProfessor = lazy(() => import('./home/HomeProfessor'));
 const Nutricao = lazy(() => import('./Nutricao'));
 const Manutencao = lazy(() => import('./Manutencao'));
+const Aee = lazy(() => import('./Aee'));
 
 /** A mesma base gera visões diferentes por perfil (spec §6) — cada início responde à pergunta do perfil. */
 export default function Home() {
@@ -28,6 +29,7 @@ export default function Home() {
                 : role === 'PROFESSOR' ? <HomeProfessor />
                 : role === 'NUTRICAO' ? <Nutricao />
                 : role === 'MANUTENCAO' ? <Manutencao />
+                : role === 'PROFESSOR_AEE' ? <Aee />
                 : <HomeSecretario />;
   return <Suspense fallback={<SkeletonList rows={5} />}>{el}</Suspense>;
 }

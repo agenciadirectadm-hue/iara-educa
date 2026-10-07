@@ -14,8 +14,9 @@ import { ProximosEventos } from '@/components/escola';
 import { GradeCardapio } from './Nutricao';
 import { AgendaLista, NovaOcorrenciaSheet, OcorrenciaSheet, useRecarregarVidaEscolar } from '@/components/vida-escolar';
 import { GRAVIDADE, SITUACAO_OCORRENCIA, TIPO_OCORRENCIA } from '@/lib/escola';
+import { AeeFamilia, BoletimView, DeclaracoesFamilia } from '@/components/pedagogico';
 
-type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias';
+type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -25,6 +26,7 @@ export default function Escola() {
   const avisos = useRpc<any>('familia_avisos', {}, { enabled: !!me?.guardian });
   const agenda = useRpc<any>('familia_agenda', {}, { enabled: !!me?.guardian });
   const ocorr = useRpc<any>('familia_ocorrencias', {}, { enabled: !!me?.guardian });
+  const aee = useRpc<any[]>('familia_aee', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
   const pend = (avisos.data?.nao_lidos ?? 0) + (avisos.data?.enquetes_abertas ?? 0);
@@ -37,8 +39,11 @@ export default function Escola() {
         { value: 'avisos', label: 'Avisos', count: pend || null },
         { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
         { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
+        { value: 'boletim', label: 'Boletim' },
+        ...(aee.data?.length ? [{ value: 'aee' as Aba, label: 'AEE', count: aee.data.filter((x) => !x.plano.familia_ciente_em).length || null }] : []),
         { value: 'frequencia', label: 'Frequência' },
         { value: 'cardapio', label: 'Cardápio' },
+        { value: 'declaracoes', label: 'Declarações' },
         { value: 'calendario', label: 'Calendário' },
       ]} />
       <div className="mt-3">
@@ -46,9 +51,29 @@ export default function Escola() {
         {aba === 'agenda' && <AgendaFamilia res={agenda} />}
         {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
         {aba === 'frequencia' && <FrequenciaFamilia />}
+        {aba === 'boletim' && <BoletimFamilia />}
+        {aba === 'aee' && <AeeFamilia />}
+        {aba === 'declaracoes' && <DeclaracoesFamilia />}
         {aba === 'cardapio' && <CardapioFamilia />}
         {aba === 'calendario' && <ProximosEventos dias={120} limite={30} />}
       </div>
+    </div>
+  );
+}
+
+function BoletimFamilia() {
+  const res = useRpc<any[]>('familia_boletim', {});
+  if (res.isLoading) return <SkeletonList rows={4} />;
+  if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
+  if (!res.data?.length) return <Card><EmptyState compact title="Nenhuma criança matriculada" body="Quando houver matrícula, o boletim aparece aqui." /></Card>;
+  return (
+    <div className="space-y-6">
+      {res.data.map((b) => (
+        <Section key={b.student_id} title={b.primeiro_nome}>
+          <BoletimView b={b} familia />
+        </Section>
+      ))}
+      <p className="text-[12.5px] text-muted">Pela IARA: “boletim da Ana” ou “como ela está na escola?”.</p>
     </div>
   );
 }

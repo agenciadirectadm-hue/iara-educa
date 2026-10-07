@@ -53,6 +53,8 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
   if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
   if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
+  // verificação pública de declaração: poucas tentativas por IP (o código tem 60 bits; isto barra varredura)
+  if (path === "/rpc/declaracao_verificar") l.push([`verificar:${ip}`, 30, 600]);
   if (path.startsWith("/rotas") || path === "/geo/localizar") l.push([`rotas:${ip}`, 120, 60]);
   return l;
 }

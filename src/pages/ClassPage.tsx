@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, Calculator, CalendarCheck, Clock, Lock, NotebookPen, Sparkles, Unlock, Users } from 'lucide-react';
+import { Ban, Calculator, CalendarCheck, Clock, GraduationCap, Lock, NotebookPen, Sparkles, Unlock, Users } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
@@ -54,6 +54,7 @@ export default function ClassPage() {
         actions={<>
           {can('frequencia.read') && <ButtonLink to={`/turmas/${c.id}/chamada`} variant="success" icon={CalendarCheck}>Chamada</ButtonLink>}
           {can('ocorrencias.read') && <ButtonLink to={`/turmas/${c.id}/diario`} variant="secondary" icon={NotebookPen}>Agenda e ocorrências</ButtonLink>}
+          {can('notas.read') && <ButtonLink to={`/turmas/${c.id}/avaliacao`} variant="secondary" icon={GraduationCap}>Avaliação</ButtonLink>}
           {can('vacancy.block') && <Button variant="secondary" icon={Ban} onClick={() => setBlockOpen(true)} disabled={k.offerable < 1}>Bloquear vaga</Button>}
         </>}
       />

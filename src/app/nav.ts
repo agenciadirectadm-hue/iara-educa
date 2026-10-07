@@ -1,4 +1,4 @@
-import { Apple, Backpack, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, Backpack, ChartLine, ScanQrCode, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -36,6 +36,10 @@ const I = {
   ocorrencias: { to: '/ocorrencias', label: 'Ocorrências', icon: ShieldAlert },
   validacoes: { to: '/validacoes', label: 'Validações', icon: BadgeCheck },
   materiais: { to: '/materiais', label: 'Materiais', icon: Boxes },
+  // pedagógico (Sprint 2)
+  desempenho: { to: '/desempenho', label: 'Desempenho escolar', icon: ChartLine },
+  aee: { to: '/aee', label: 'AEE', icon: Accessibility },
+  verificar: { to: '/verificar', label: 'Verificar declaração', icon: ScanQrCode },
 } satisfies Record<string, NavItem>;
 
 export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
@@ -49,7 +53,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.nutricao, I.manutencao, I.mural, I.calendario,
+        more: [I.desempenho, I.aee, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.nutricao, I.manutencao, I.mural, I.calendario,
           I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.ajuda],
@@ -65,7 +69,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'ATENDIMENTO':
       return {
         primary: [I.inicio, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
-        more: [I.validacoes, I.alunos, I.responsaveis, I.fila, I.whatsapp, I.ofertas, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
+        more: [I.validacoes, I.alunos, I.responsaveis, I.fila, I.whatsapp, I.ofertas, I.verificar, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
@@ -76,7 +80,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.atendimentos,
         ],
         more: [
-          I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.desempenho, I.aee, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
           I.alunos, I.responsaveis,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda,
@@ -91,8 +95,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.iara,
         ],
         more: [
-          I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
-          I.responsaveis, I.atendimentos,
+          I.desempenho, I.aee, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.responsaveis, I.atendimentos, I.verificar,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda,
         ],
       };
@@ -100,7 +104,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'CIDADAO_NOVO':
       return {
         primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList }],
-        more: [{ to: '/escola', label: 'Vida escolar', icon: School }, { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen }, { ...I.calendario, to: '/escola?aba=calendario', match: '/escola' },
+        more: [{ to: '/escola', label: 'Vida escolar', icon: School }, { to: '/escola?aba=boletim', label: 'Boletim', icon: GraduationCap, match: '/escola' },
+          { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola' }, { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen }, { ...I.calendario, to: '/escola?aba=calendario', match: '/escola' },
           { ...I.mapa, label: 'Unidades no mapa' }, { ...I.vagas, label: 'Consultar vagas' }, I.regras, I.ajuda],
       };
     case 'PROFESSOR':
@@ -113,12 +118,17 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         primary: [I.inicio, { ...I.nutricao, label: 'Cardápios' }, I.cozinha, I.mural],
         more: [I.materiais, I.calendario, I.unidades, I.mapa, I.ajuda],
       };
+    case 'PROFESSOR_AEE':
+      return {
+        primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.mural, I.calendario],
+        more: [I.ajuda, I.regras],
+      };
     case 'MANUTENCAO':
       return {
         primary: [I.inicio, { ...I.manutencao, label: 'Chamados' }, I.materiais, I.mapa],
         more: [I.unidades, I.calendario, I.ajuda],
       };
     default:
-      return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.regras, I.qualidade] };
+      return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.verificar, I.regras, I.qualidade] };
   }
 }

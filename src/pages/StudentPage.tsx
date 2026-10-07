@@ -22,9 +22,10 @@ import { AgendaLista, NovaOcorrenciaSheet, NovoRecadoSheet, OcorrenciaSheet, Oco
 import { MOTIVO_RESTRICAO, SITUACAO_RESTRICAO } from '@/lib/escola';
 import { Foto, TrocarFoto } from '@/components/arquivos';
 import { DocumentosAluno, ExcluirCadastro } from '@/components/documentos';
+import { BoletimView, DeclaracoesAluno } from '@/components/pedagogico';
 
 type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
-  | 'alimentacao' | 'ocorrencias' | 'agenda';
+  | 'alimentacao' | 'ocorrencias' | 'agenda' | 'boletim' | 'declaracoes';
 
 export default function StudentPage() {
   const { id } = useParams();
@@ -33,7 +34,7 @@ export default function StudentPage() {
   const res = useRpc<any>('student_detail', { student_id: id });
   const ve = useRpc<any>('aluno_vida_escolar', { student_id: id }, { enabled: !!id, retry: false });
   const docs = useRpc<any>('aluno_documentos', { student_id: id }, { enabled: !!id, retry: false });
-  const { can } = useSession();
+  const { can, me } = useSession();
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const d = res.data;
@@ -52,6 +53,8 @@ export default function StudentPage() {
       { value: 'ocorrencias' as Tab, label: 'Ocorrências', count: (ve.data.ocorrencias as any[]).filter((o) => o.situacao !== 'ENCERRADA').length || null },
       ...(ve.data.class_id ? [{ value: 'agenda' as Tab, label: 'Agenda' }] : []),
     ] : []),
+    ...(d.school && can('notas.read') ? [{ value: 'boletim' as Tab, label: 'Boletim' }] : []),
+    ...(!['PROFESSOR', 'PROFESSOR_AEE'].includes(me?.role ?? '') ? [{ value: 'declaracoes' as Tab, label: 'Declarações' }] : []),
     { value: 'aee', label: 'AEE/Inclusão' },
     ...(d.audit ? [{ value: 'auditoria' as Tab, label: 'Auditoria' }] : []),
   ];
@@ -101,6 +104,8 @@ export default function StudentPage() {
         {tab === 'atendimentos' && <Cases d={d} canCreate={can('cases.write')} />}
         {tab === 'fila' && <QueueOffers d={d} />}
         {tab === 'aee' && <Aee d={d} />}
+        {tab === 'boletim' && <BoletimAluno id={s.id} />}
+        {tab === 'declaracoes' && <DeclaracoesAluno studentId={s.id} />}
         {tab === 'frequencia' && <FrequenciaAluno id={s.id} />}
         {tab === 'alimentacao' && ve.data && <AlimentacaoAluno v={ve.data} studentId={s.id} />}
         {tab === 'ocorrencias' && ve.data && <OcorrenciasAluno v={ve.data} aluno={{ id: s.id, nome: s.full_name }} />}
@@ -360,10 +365,21 @@ function QueueOffers({ d }: { d: any }) {
   );
 }
 
+function BoletimAluno({ id }: { id: string }) {
+  const res = useRpc<any>('boletim', { student_id: id });
+  if (res.isLoading) return <SkeletonList rows={4} />;
+  if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
+  return <BoletimView b={res.data} />;
+}
+
 function Aee({ d }: { d: any }) {
+  const { can } = useSession();
   if (d.sensitive) {
     return (
       <Card className="p-4">
+        {d.student.aee && can('aee.read') && (
+          <div className="mb-3 flex justify-end"><ButtonLink to={`/aee/${d.student.id}`} variant="purple" size="sm">Abrir o plano de AEE</ButtonLink></div>
+        )}
         <div className="mb-3 flex items-center gap-2 rounded-2xl bg-purple-50 p-3 text-[13px] text-purple-900"><Lock className="size-4" />Dado sensível (LGPD): esta consulta foi registrada na trilha de auditoria.</div>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <DataPair label="Necessidade educacional" value={d.sensitive.special_education_need ?? '—'} />

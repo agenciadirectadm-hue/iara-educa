@@ -58,7 +58,23 @@ const ESCOLA_MENU: QuickReply[] = [
   { label: "Restrição alimentar", action: "intent:restricao" },
   { label: "Agenda escolar", action: "intent:agenda" },
   { label: "Ocorrências", action: "intent:ocorrencias" },
+  { label: "Boletim e notas", action: "intent:boletim" },
+  { label: "Declaração escolar", action: "intent:declaracao" },
+  { label: "Plano do AEE", action: "intent:aee_plano" },
 ];
+/** Sprint 2 (pedagógico): rótulos usados no boletim, no AEE e nas declarações. */
+const PORTAL = (Deno.env.get("PORTAL_URL") ?? "https://agenciadirectadm-hue.github.io/iara-educa/").replace(/\/?$/, "/");
+const NIVEL_ALFA: Record<string, string> = {
+  PRE_SILABICO: "pré-silábico", SILABICO_SEM_VALOR: "silábico sem valor sonoro", SILABICO_COM_VALOR: "silábico com valor sonoro",
+  SILABICO_ALFABETICO: "silábico-alfabético", ALFABETICO: "alfabético",
+};
+const CICLO_ALFA: Record<string, string> = { DIAGNOSTICA: "diagnóstica", B1: "1º bimestre", B2: "2º bimestre", B3: "3º bimestre", B4: "4º bimestre" };
+const MODALIDADE_AEE: Record<string, string> = {
+  SRM_PROPRIA: "Sala de recursos na própria escola", SRM_POLO: "Sala de recursos em escola-polo", ITINERANTE: "Professor(a) itinerante na unidade", DOMICILIAR: "Atendimento domiciliar",
+};
+const DIA_AEE: Record<string, string> = { SEG: "segunda", TER: "terça", QUA: "quarta", QUI: "quinta", SEX: "sexta" };
+const TIPO_DECLARACAO: Record<string, string> = { MATRICULA: "Declaração de matrícula", FREQUENCIA: "Declaração de frequência", INSCRICAO_FILA: "Inscrição na fila de espera" };
+const fmtNota = (n: number | string) => Number(n).toFixed(1).replace(".", ",");
 const TIPO_AGENDA_LABEL: Record<string, string> = { RECADO: "Recado", TAREFA: "Tarefa de casa", LEMBRETE: "Lembrete", MATERIAL: "Material", EVENTO: "Evento", BILHETE: "Bilhete" };
 const TIPO_OCORRENCIA_LABEL: Record<string, string> = {
   COMPORTAMENTO: "Comportamento", CONFLITO: "Conflito entre colegas", ACIDENTE: "Acidente ou machucado", SAUDE: "Saúde ou mal-estar",
@@ -160,10 +176,13 @@ function detectIntent(t: string): string {
   if (/((enviar|mandar|anexar|subir) (o |a |os |as |um |uma )?(documento|certidao|comprovante|pdf|laudo|carteira de vacina|cartao sus))/.test(t)) return "enviar_documento";
   if (/((atualizar|trocar|mandar|enviar|mudar|colocar) (a )?foto)/.test(t)) return "foto";
   if (/((corrigir|atualizar|alterar|trocar|mudar) (o |a )?(cpf|nis|cartao sus|sus|nome social|certidao|naturalidade|cidade onde nasceu) (da|do|de))/.test(t)) return "alterar_dados";
+  if (/((declaracao|atestado|comprovante) (escolar|de (matricula|frequencia|escolaridade|inscricao)|da (matricula|frequencia|fila)|para o bolsa|do bolsa|que (ele|ela) estuda)|declaracao (para|pro|pra) (o |a )?(bolsa|trabalho|empresa|beneficio|inss|cras))/.test(t)) return "declaracao";
   if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(telefone|numero|celular|whatsapp|e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
   // vida escolar (Sprint 1)
   if (/(vida escolar|coisas da escola)/.test(t)) return "vida_escolar";
+  if (/(plano (do |de )?aee|sala de recursos|atendimento (educacional )?especializado|professora? do aee|dias do aee)/.test(t)) return "aee_plano";
+  if (/(boletim|\bnotas?\b|\bmedias?\b|parecer descritivo|desempenho escolar|como (ele|ela) (esta|vai) (na escola|nos estudos)|recuperacao|alfabetiza|ja (sabe )?ler\b|plano de apoio)/.test(t)) return "boletim";
   if (/(justificar|justificativa|falta justificada|atestado medico|faltou porque|estava doente|ficou doente)/.test(t)) return "justificar";
   if (/(\bfaltas\b|faltou|quantas faltas|frequencia|presenca|foi (a|na|para a) (aula|escola)|chamada)/.test(t)) return "frequencia";
   if (/(alergi|intoleran|celiac|dieta|restricao alimentar|nao pode comer|vegetarian|vegan|carne de porco|\baplv\b|lactose|gluten|diabet|alimentacao especial)/.test(t)) return "restricao";
@@ -177,7 +196,8 @@ function detectIntent(t: string): string {
   if (/(troca de turno|trocar de turno|mudar de turno|mudar o turno|outro turno)/.test(t)) return "servico:TROCA_TURNO";
   if (/(periodo integral|educacao integral|contraturno|\bintegral\b)/.test(t)) return "servico:INTEGRAL";
   if (/(transporte|onibus|van escolar)/.test(t)) return "servico:TRANSPORTE";
-  if (/(declaracao|historico escolar|atestado de matricula|comprovante de matricula)/.test(t)) return "servico:DOCUMENTO";
+  if (/(historico escolar|declaracao de (transferencia|conclusao|vaga zero))/.test(t)) return "servico:DOCUMENTO";
+  if (/(declaracao|atestado de matricula|comprovante de matricula)/.test(t)) return "declaracao";
   if (/((alterar|trocar|mudar) (o )?responsavel|termo de guarda)/.test(t)) return "servico:ALTERACAO_RESPONSAVEL";
   if (/(recurso|contestar|discordo da posicao|classificacao errada)/.test(t)) return "servico:RECURSO";
   if (/(\baee\b|inclus|deficien|autis|\btea\b|\btgd\b|laudo|superdota|altas habilidades)/.test(t)) return "servico:AEE";
@@ -485,6 +505,12 @@ export class Agent {
         return await this.ocorrencias();
       case "relatar_ocorrencia":
         return await this.startOcorrencia(norm(text));
+      case "boletim":
+        return await this.boletim();
+      case "aee_plano":
+        return await this.aeePlano();
+      case "declaracao":
+        return await this.startDeclaracao(norm(text));
       case "conhecimento":
         if (!text.trim() || /^(tirar uma )?duvida( sobre a rede)?$/.test(norm(text))) return this.askQuestion();
         return await this.knowledge(text);
@@ -581,6 +607,8 @@ export class Agent {
       }
       case "oc_ok":
         return await this.ocorrenciaCiente(value);
+      case "aee_ok":
+        return await this.aeeCiente(value);
       case "enq": {
         const [id, op] = value.split("|");
         return await this.enqueteResponder(id, Number(op));
@@ -1322,6 +1350,7 @@ export class Agent {
     if (flow === "documento" || flow === "foto" || flow === "anexo") return await this.arquivoStep(text);
     if (flow === "alterar_dados") return await this.alterarDadosStep(text);
     if (flow === "ocorrencia") return await this.ocorrenciaStep(text);
+    if (flow === "declaracao") return await this.declaracaoStep(text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
@@ -1806,6 +1835,142 @@ export class Agent {
       this.done(`Família relatou uma ocorrência (${d.tipo}).`);
       return this.say(`${r.mensagem ?? "Registrado."} ✅`, { quick_replies: [ESCOLA_MENU[7]] });
     }
+  }
+
+  // ================================================================== Sprint 2: boletim, AEE e declarações
+  private async boletim(): Promise<void> {
+    if (!this.needGuardian("intent:boletim")) return;
+    if (!this.ensureVerified("intent:boletim")) return;
+    const kids = ((await this.tool("get_report_card", "familia_boletim", {})) as any[]) ?? [];
+    if (!kids.length) {
+      this.done();
+      return this.say("Não encontrei criança matriculada sob sua responsabilidade. Quando houver matrícula, o boletim aparece aqui.", { quick_replies: [MENU[0]] });
+    }
+    const cards: Card[] = kids.map((b) => {
+      const min = Number(b.media_minima ?? 6);
+      const lines: string[] = [];
+      if (b.parecer) {
+        const ult = ((b.pareceres ?? []) as any[]).slice(-1)[0];
+        lines.push(ult ? `Parecer do ${ult.bimestre}º bimestre: ${ult.texto}` : "O parecer do bimestre ainda não foi registrado.");
+      } else {
+        for (const c of (b.componentes ?? []) as any[]) {
+          const notas = [1, 2, 3, 4].map((i) => c.bimestres?.[String(i)]).filter((n) => n != null).map((n: number) => fmtNota(n));
+          if (!notas.length) continue;
+          const m = c.media != null ? Number(c.media) : null;
+          lines.push(`${m != null && m < min ? "⚠️ " : ""}${c.nome}: ${notas.join(" · ")}${m != null ? ` (média ${fmtNota(m)})` : ""}${c.recuperou ? " · recuperou" : ""}`);
+        }
+        const alfa = ((b.alfabetizacao ?? []) as any[]).slice(-1)[0];
+        if (alfa) lines.push(`Alfabetização (${CICLO_ALFA[alfa.ciclo] ?? alfa.ciclo}): ${NIVEL_ALFA[alfa.nivel] ?? alfa.nivel}`);
+        if (!lines.length) lines.push("As notas do bimestre ainda não foram lançadas.");
+      }
+      const plano = ((b.planos ?? []) as any[]).find((p) => p.situacao === "ATIVO");
+      if (plano) lines.push(`Plano de apoio da escola: ${plano.objetivo} O que vai ser feito: ${plano.acoes}`);
+      const abaixo = ((b.componentes ?? []) as any[]).filter((c) => c.media != null && Number(c.media) < min).length;
+      return {
+        title: `${b.primeiro_nome} · ${b.serie}`, subtitle: `${b.turma} · ${b.unidade}`, lines,
+        badge: b.parecer ? "Parecer" : abaixo ? `${abaixo} abaixo da média` : "Na média", tone: b.parecer ? "purple" : abaixo ? "amber" : "green",
+      };
+    });
+    this.say("Boletim de 2026:", {
+      cards, notice: "Média mínima 6 no ensino fundamental; a recuperação paralela substitui a nota quando é maior. Na educação infantil, a avaliação é por parecer descritivo.",
+      quick_replies: [{ label: "Declaração escolar", action: "intent:declaracao" }, ESCOLA_MENU[0]],
+    });
+    this.done("Consultou o boletim dos filhos.");
+  }
+
+  private async aeePlano(): Promise<void> {
+    if (!this.needGuardian("intent:aee_plano")) return;
+    if (!this.ensureVerified("intent:aee_plano")) return;
+    const planos = ((await this.tool("get_aee_plan", "familia_aee", {})) as any[]) ?? [];
+    if (!planos.length) {
+      this.done();
+      return this.say("Não há plano de atendimento educacional especializado (AEE) em andamento para as suas crianças. Se a criança precisa de AEE, eu abro a solicitação.",
+        { quick_replies: [{ label: "Pedir avaliação para o AEE", action: "svc:AEE" }, MENU[0]] });
+    }
+    const quick: QuickReply[] = [];
+    const cards: Card[] = planos.map((x) => {
+      const p = x.plano;
+      const pres = x.presenca;
+      if (!p.familia_ciente_em) quick.push({ label: `Ciente do plano de ${x.primeiro_nome}`, action: `aee_ok:${p.id}` });
+      const turno = p.turno === "MANHA" ? "manhã" : p.turno === "TARDE" ? "tarde" : p.turno === "NOITE" ? "noite" : "";
+      return {
+        title: `${x.primeiro_nome} · AEE com ${p.profissional ?? "o(a) professor(a) do AEE"}`,
+        subtitle: `${MODALIDADE_AEE[p.modalidade] ?? p.modalidade}${p.local ? " · " + p.local : ""}`,
+        lines: [
+          `Dias: ${((p.dias ?? []) as string[]).map((d) => DIA_AEE[d] ?? d).join(" e ")}${turno ? ` · ${turno}` : ""} · ${p.duracao_min} min`,
+          `Objetivos: ${p.objetivos}`,
+          ...(p.recursos?.length ? [`Recursos: ${(p.recursos as any[]).map((r) => r.rotulo).join("; ")}`] : []),
+          ...(pres?.previstos ? [`Presença nos últimos 60 dias: ${pres.presencas} de ${pres.previstos} atendimentos`] : []),
+          p.familia_ciente_em ? "✅ Você já confirmou ciência deste plano." : "A escola pede a sua ciência.",
+        ],
+        badge: p.situacao === "EM_REVISAO" ? "Em revisão" : "Ativo", tone: p.familia_ciente_em ? "green" : "purple",
+      };
+    });
+    this.say("Atendimento educacional especializado (AEE):", {
+      cards, notice: "O plano é feito pelo(a) professor(a) do AEE com a escola e a família. Diagnóstico e laudo não aparecem aqui.", quick_replies: quick.slice(0, 4),
+    });
+    this.done("Consultou o plano de AEE.");
+  }
+
+  private async aeeCiente(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`aee_ok:${id}`)) return;
+    await this.tool("confirm_aee_plan", "familia_aee_ciente", { plano_id: id }, `aee:${id}`);
+    this.done("Deu ciência do plano de AEE.");
+    this.say("Ciência confirmada ✅ O(a) professor(a) do AEE vê a sua confirmação.", { quick_replies: [ESCOLA_MENU[10]] });
+  }
+
+  private async startDeclaracao(t: string): Promise<void> {
+    if (!this.needGuardian("intent:declaracao")) return;
+    if (!this.ensureVerified("intent:declaracao")) return;
+    const kids = (((await this.tool("list_declarations", "familia_declaracoes", {})) as any[]) ?? []).filter((k) => (k.disponiveis ?? []).length);
+    if (!kids.length) {
+      this.done();
+      return this.say("A declaração sai para criança matriculada na rede ou inscrita na fila de espera, e não encontrei nenhuma das duas situações. Um atendente pode ajudar.",
+        { quick_replies: [MENU[6], MENU[0]] });
+    }
+    const tipo = /frequencia|bolsa|beneficio|cras|inss/.test(t) ? "FREQUENCIA" : /fila|inscricao|espera/.test(t) ? "INSCRICAO_FILA"
+      : /matricula|estuda|escolar|escolaridade/.test(t) ? "MATRICULA" : null;
+    this.ctx = { flow: "declaracao", step: "dc_child", data: { kids: kids.map((k) => ({ id: k.student_id, nome: k.primeiro_nome, tipos: k.disponiveis })), tipo } };
+    if (kids.length === 1) return await this.declaracaoStep(kids[0].student_id);
+    this.say("A declaração é de qual criança?", { quick_replies: kids.map((k) => ({ label: k.primeiro_nome, action: `ans:${k.student_id}` })) });
+  }
+
+  private async declaracaoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "dc_child") {
+      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
+      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, kid };
+      if (d.tipo && kid.tipos.includes(d.tipo)) return await this.declaracaoEmitir(d.tipo);
+      if (d.tipo) this.say(d.tipo === "INSCRICAO_FILA" ? `${kid.nome} não está na fila de espera.` : `${kid.nome} não tem matrícula ativa na rede.`);
+      if (kid.tipos.length === 1) return await this.declaracaoEmitir(kid.tipos[0]);
+      return this.ask("dc_tipo", `Qual declaração de ${kid.nome}?`, { quick_replies: (kid.tipos as string[]).map((x) => ({ label: TIPO_DECLARACAO[x] ?? x, action: `ans:${x}` })) });
+    }
+    if (this.ctx.step === "dc_tipo") {
+      const tipo = /^[A-Z_]+$/.test(text.trim()) ? text.trim()
+        : /frequencia|bolsa/.test(t) ? "FREQUENCIA" : /fila|inscri/.test(t) ? "INSCRICAO_FILA" : /matricula/.test(t) ? "MATRICULA" : "";
+      if (!d.kid.tipos.includes(tipo)) {
+        return this.say("Toque no tipo de declaração, por favor.", { quick_replies: (d.kid.tipos as string[]).map((x) => ({ label: TIPO_DECLARACAO[x] ?? x, action: `ans:${x}` })) });
+      }
+      return await this.declaracaoEmitir(tipo);
+    }
+  }
+
+  private async declaracaoEmitir(tipo: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const r = await this.tool("issue_declaration", "declaracao_emitir", { student_id: d.kid.id, tipo, canal: "IARA" });
+    this.done(`Emitiu ${TIPO_DECLARACAO[tipo]?.toLowerCase() ?? "declaração"} (código ${r.codigo}).`);
+    this.say(`Pronto! ${r.conteudo?.titulo ?? "Declaração"} emitida ✅`, {
+      cards: [{
+        title: r.conteudo?.titulo ?? "Declaração", subtitle: `Código de verificação: ${r.codigo}`,
+        lines: [r.conteudo?.texto, `Válida até ${diaBr(r.valida_ate)}.`, `Quem receber confere a autenticidade em ${PORTAL}#/verificar/${r.codigo}`].filter(Boolean),
+        badge: "Válida", tone: "green",
+      }],
+      notice: "Para imprimir com o QR code, abra Vida escolar → Declarações no portal. Quem recebe confere pelo código, sem senha; a conferência mostra só o nome abreviado.",
+      quick_replies: [{ label: "Outra declaração", action: "intent:declaracao" }, { label: "Boletim e notas", action: "intent:boletim" }],
+    });
   }
 
   private async queueStatus(): Promise<void> {

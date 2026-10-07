@@ -46,13 +46,25 @@ Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfi
 | 18 | Cidadão (Maria) | **Documentos e fotos**: enviar um PDF e a foto da Ana (sai sem a localização); **Corrigir dados**; pela IARA, mandar o PDF na conversa (clipe) e dizer de quem é | A família manda tudo sem ir à escola? |
 | 19 | Direção | **Validações**: abrir o PDF, validar ou recusar com motivo e “como proceder” (a família recebe na hora); **Pessoal → Novo servidor**, alterar, desligar; **Materiais**: entrada, saída e baixa | A escola confere e cuida do cadastro? |
 
+### Pedagógico (Sprint 2) — mais 10 minutos
+
+| # | Perfil | O que mostrar | Pergunta que a tela responde |
+|---|---|---|---|
+| 20 | Professor(a) regente (escola de fundamental, ex.: E.M. Lídia R. D. Silva) | **Notas e avaliação** da turma: lançar a nota do 4º bimestre (vírgula, recuperação vale a maior), média do ano; **Alfabetização** (sondagem por nível); **Em risco**; **AEE na sala** (só orientações, sem diagnóstico) | Como está cada aluno da minha turma? |
+| 21 | Secretário(a) | **Desempenho escolar**: média por componente, unidades com mais notas abaixo da média, alfabetização do 1º e 2º ano; **AEE**: painel agregado (sem nomes) com alunos sem plano e revisões vencidas | Onde a aprendizagem precisa de reforço? |
+| 22 | Direção | **Desempenho → Alunos em risco**: quem está sem plano; montar o **plano de intervenção** e reavaliar (a família é avisada) | Quem precisa de apoio e o que estamos fazendo? |
+| 23 | Professor(a) do AEE (escolha o CMEI Galdino de Andrade) | **Atendimentos de hoje** com presença em um toque; **plano de AEE** da Lívia (itinerante na escola da Ana): objetivos, recursos, orientações para a sala; falta de mediador aparece | Cada aluno com deficiência tem plano e está sendo atendido? |
+| 24 | Cidadão (Maria) | **Vida escolar → Boletim** (pareceres da Ana) e **Declarações**: emitir a de matrícula, imprimir com QR code; pela IARA: “boletim da Ana”, “declaração de frequência para o Bolsa Família” | A família tem o boletim e a declaração na hora? |
+| 25 | Qualquer pessoa, sem login | **Verificar declaração** (menu ou QR code): autêntica e válida, com nome abreviado; um código errado não autentica; a revogada aparece como revogada | O papel apresentado é verdadeiro? |
+
 Os dados da vida escolar são fictícios (servidores, faltas, cardápios, restrições, chamados e publicações), sobre o calendário
 real de 2026 (feriados de lei). A explicação para a plateia: os dados reais substituem estes na carga oficial.
 
 ## Depois (1 minuto)
 
 1. **Rotina de apresentação → Limpar depois da apresentação**: apaga o que a plateia e os testes criaram e reinicia a família da Maria —
-   inclusive o que foi lançado ao vivo na vida escolar (chamadas, justificativas, restrições, chamados, publicações e leituras).
+   inclusive o que foi lançado ao vivo na vida escolar (chamadas, justificativas, restrições, chamados, publicações e leituras) e no pedagógico
+   (notas, pareceres, sondagens, planos, AEE e declarações) — o que era de demonstração e foi alterado volta ao original.
    A trilha de auditoria permanece (é imutável).
 2. WhatsApp: pare a ponte da Educação (`Ctrl+C`) e, se for o caso, religue a da IARA Saúde. Com a ponte parada, o QR code do portal
    volta sozinho para a conversa simulada.
