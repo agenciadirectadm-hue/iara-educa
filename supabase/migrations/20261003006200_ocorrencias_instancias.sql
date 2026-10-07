@@ -814,7 +814,7 @@ begin
          o.ocorrida_em + interval '2 minutes', true
   from iara.ocorrencias o where o.is_demo and o.origem = 'FAMILIA';
   -- 2ª instância: parte das moderadas/graves vai à Secretaria (pela unidade ou a pedido da família)
-  update iara.ocorrencias o set instancia = 'SECRETARIA', encaminhada_seduc_em = least(o.ocorrida_em + interval '2 days', now() - interval '2 hours'),
+  update iara.ocorrencias o set instancia = 'SECRETARIA', situacao = 'EM_ACOMPANHAMENTO', encaminhada_seduc_em = least(o.ocorrida_em + interval '2 days', now() - interval '2 hours'),
          encaminhada_por_label = case when abs(hashtext(o.id::text)) % 3 = 0 then 'Família' else 'Direção da unidade (demonstração)' end,
          pedido_familia = abs(hashtext(o.id::text)) % 3 = 0,
          motivo_seduc = case when abs(hashtext(o.id::text)) % 3 = 0 then 'A situação continua acontecendo e não fomos chamados para conversar.'
