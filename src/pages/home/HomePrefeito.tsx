@@ -55,6 +55,9 @@ export default function HomePrefeito() {
             <Chip icon={ListOrdered} active={layer === 'queue'} onClick={() => setLayer('queue')}>Calor: fila</Chip>
             <Chip icon={Users} active={layer === 'enrollments'} onClick={() => setLayer('enrollments')}>Calor: matrículas</Chip>
             <Chip icon={Sparkles} active={layer === 'offerable'} onClick={() => setLayer('offerable')}>Vagas ofertáveis</Chip>
+            <Link to="/mapas-de-calor" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-purple-700 px-3.5 text-[13px] font-semibold text-white shadow-soft hover:bg-purple-800">
+              <Flame className="size-4" aria-hidden />Mais mapas de calor<ChevronRight className="size-4" aria-hidden />
+            </Link>
           </div>
         </div>
       </Card>

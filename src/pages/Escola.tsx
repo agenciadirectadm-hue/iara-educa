@@ -19,8 +19,9 @@ import { TransporteFamilia } from '@/components/transporte';
 import { AusenciasFamilia } from '@/components/busca-ativa';
 import { HistoricoFamilia } from '@/components/conselho';
 import { AntropometriaFamilia, BibliotecaFamilia } from '@/components/sprint4';
+import { AulasFamilia, EventosFamilia, RematriculaFamilia } from '@/components/sprint5';
 
-type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas';
+type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas' | 'aulas' | 'rematricula' | 'eventos';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -31,20 +32,24 @@ export default function Escola() {
   const agenda = useRpc<any>('familia_agenda', {}, { enabled: !!me?.guardian });
   const ocorr = useRpc<any>('familia_ocorrencias', {}, { enabled: !!me?.guardian });
   const aee = useRpc<any[]>('familia_aee', {}, { enabled: !!me?.guardian });
+  const rem = useRpc<any[]>('familia_rematricula', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
   const pend = (avisos.data?.nao_lidos ?? 0) + (avisos.data?.enquetes_abertas ?? 0);
   return (
     <div>
       <PageHeader eyebrow="Portal da família" title={<span className="inline-flex items-center gap-2">Vida escolar<Simulado detail="Frequência, cardápio e avisos de demonstração." /></span>}
-        subtitle="Tudo isto também pela IARA no WhatsApp: pergunte “faltas da Ana”, “agenda de hoje”, “cardápio da semana” ou “avisos da escola”."
+        subtitle="Tudo isto também pela IARA no WhatsApp: pergunte “faltas da Ana”, “o que a Ana estudou hoje”, “rematrícula”, “agenda de hoje”, “cardápio da semana” ou “avisos da escola”."
         actions={<Link to="/iara" className="inline-flex h-10 items-center gap-1.5 rounded-2xl bg-purple-700 px-3 text-[14px] font-semibold text-white"><MessageCircle className="size-4" />Perguntar à IARA</Link>} />
       <Tabs value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })} items={[
         { value: 'avisos', label: 'Avisos', count: pend || null },
         { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
         { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
+        { value: 'aulas', label: 'O que estudou' },
+        { value: 'rematricula', label: 'Rematrícula', count: rem.data?.filter((r) => r.situacao === 'PENDENTE').length || null },
         { value: 'boletim', label: 'Boletim' },
         { value: 'historico', label: 'Histórico' },
+        { value: 'eventos', label: 'Eventos' },
         { value: 'biblioteca', label: 'Biblioteca' },
         { value: 'medidas', label: 'Peso e altura' },
         ...(aee.data?.length ? [{ value: 'aee' as Aba, label: 'AEE', count: aee.data.filter((x) => !x.plano.familia_ciente_em).length || null }] : []),
@@ -61,6 +66,9 @@ export default function Escola() {
         {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
         {aba === 'boletim' && <BoletimFamilia />}
         {aba === 'historico' && <HistoricoFamilia />}
+        {aba === 'aulas' && <AulasFamilia />}
+        {aba === 'rematricula' && <RematriculaFamilia />}
+        {aba === 'eventos' && <EventosFamilia />}
         {aba === 'biblioteca' && <BibliotecaFamilia />}
         {aba === 'medidas' && <AntropometriaFamilia />}
         {aba === 'aee' && <AeeFamilia />}

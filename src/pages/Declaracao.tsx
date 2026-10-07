@@ -98,8 +98,8 @@ export function Verificar() {
   const st = d?.encontrada ? SITUACAO_DECLARACAO[d.situacao] : null;
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader eyebrow="Secretaria Municipal de Educação de Maringá" title="Verificar declaração"
-        subtitle="Digite o código impresso na declaração (12 letras e números) ou leia o QR code. Não precisa de senha." />
+      <PageHeader eyebrow="Secretaria Municipal de Educação de Maringá" title="Verificar declaração ou certificado"
+        subtitle="Digite o código impresso no documento (12 letras e números) ou leia o QR code. Não precisa de senha." />
       <Card className="p-4">
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); navigate(`/verificar/${texto.trim().toUpperCase()}`); }}>
           <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="ABCD-EFGH-JK23" maxLength={20} autoCapitalize="characters"
@@ -114,16 +114,16 @@ export function Verificar() {
               <div className="flex items-center gap-3">
                 {d.situacao === 'VALIDA' ? <BadgeCheck className="size-9 text-green-700" /> : <CircleAlert className="size-9 text-red-600" />}
                 <div>
-                  <div className="font-display text-xl font-extrabold">{d.situacao === 'VALIDA' ? 'Declaração autêntica e válida' : `Declaração ${st?.label.toLowerCase()}`}</div>
+                  <div className="font-display text-xl font-extrabold">{d.tipo === 'CERTIFICADO' ? 'Certificado autêntico' : d.situacao === 'VALIDA' ? 'Declaração autêntica e válida' : `Declaração ${st?.label.toLowerCase()}`}</div>
                   <div className="text-[13px] text-muted">{d.tipo_rotulo ?? TIPO_DECLARACAO[d.tipo]?.label} · código <span className="font-mono">{d.codigo}</span></div>
                 </div>
               </div>
               <dl className="mt-4 grid grid-cols-1 gap-3 text-[14px] sm:grid-cols-2">
-                <div><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Aluno(a)</dt><dd className="font-semibold">{d.aluno}{d.nascimento_ano ? ` · nascido(a) em ${d.nascimento_ano}` : ''}</dd></div>
+                <div><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">{d.tipo === 'CERTIFICADO' ? 'Participante' : 'Aluno(a)'}</dt><dd className="font-semibold">{d.aluno}{d.nascimento_ano ? ` · nascido(a) em ${d.nascimento_ano}` : ''}</dd></div>
                 <div><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Unidade</dt><dd>{d.unidade ?? '—'}</dd></div>
                 <div className="sm:col-span-2"><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Resumo</dt><dd>{d.resumo}</dd></div>
                 <div><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Emitida em</dt><dd>{fmtDateTime(d.emitida_em)}</dd></div>
-                <div><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Válida até</dt><dd>{fmtDate(d.valida_ate)}</dd></div>
+                {d.tipo !== 'CERTIFICADO' && <div><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Válida até</dt><dd>{fmtDate(d.valida_ate)}</dd></div>}
                 <div className="sm:col-span-2"><dt className="text-[12px] font-bold uppercase tracking-wide text-subtle">Resumo de integridade</dt><dd className="font-mono text-[13px]">{d.hash}</dd></div>
               </dl>
               {d.situacao === 'REVOGADA' && <p className="mt-3 rounded-2xl bg-red-50 p-3 text-[13px] text-red-800">A escola revogou esta declaração em {fmtDateTime(d.revogada_em)}. Peça uma nova à família ou à escola.</p>}
@@ -139,6 +139,53 @@ export function Verificar() {
         </div>
       )}
       <p className="mt-4 text-center text-[12.5px] text-muted"><Link to="/ajuda" className="text-blue-700">Dúvidas?</Link> As declarações da rede municipal trazem código e QR code de verificação.</p>
+    </div>
+  );
+}
+
+const FUNCAO_CERT: Record<string, string> = { PARTICIPANTE: 'participou', PALESTRANTE: 'atuou como palestrante', ORGANIZACAO: 'atuou na organização', PREMIADO: 'foi premiado(a)' };
+
+/** Certificado de participação em evento (formação, feira, mostra, olimpíada), com código e QR code de verificação. */
+export function Certificado() {
+  const { codigo } = useParams();
+  const navigate = useNavigate();
+  const res = useRpc<any>('certificado_ver', { codigo });
+  if (res.isLoading) return <div className="p-6"><SkeletonList rows={6} /></div>;
+  if (res.error) return <div className="p-6"><ErrorState error={res.error} onRetry={() => res.refetch()} /></div>;
+  const d = res.data;
+  const url = urlVerificacao(d.codigo);
+  const periodo = d.inicio === d.fim ? `em ${fmtDate(d.inicio)}` : `de ${fmtDate(d.inicio)} a ${fmtDate(d.fim)}`;
+  return (
+    <div className="min-h-dvh bg-slate-100 py-6 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-[277mm] flex-wrap items-center justify-between gap-2 px-4 print:hidden">
+        <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate(-1)}>Voltar</Button>
+        <div className="flex items-center gap-2">
+          {d.is_demo && <Simulado detail="Certificado de demonstração." />}
+          <Button icon={Printer} onClick={() => window.print()}>Imprimir ou salvar PDF</Button>
+        </div>
+      </div>
+      <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
+      <article className="relative mx-auto max-w-[277mm] rounded-3xl bg-white px-14 py-12 shadow-lift ring-[10px] ring-inset ring-purple-100 print:max-w-none print:rounded-none print:px-[22mm] print:py-[16mm] print:shadow-none">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-purple-700">Prefeitura do Município de Maringá</div>
+            <div className="font-display text-lg font-extrabold">Secretaria Municipal de Educação</div>
+            <div className="text-[13.5px] text-muted">{d.unidade}</div>
+          </div>
+          <QRCodeSVG value={url} size={96} level="M" aria-label="QR code de verificação" />
+        </header>
+        <h1 className="mt-8 text-center font-display text-4xl font-black uppercase tracking-[0.12em] text-purple-800">Certificado</h1>
+        <p className="mx-auto mt-8 max-w-[220mm] text-center text-[18px] leading-[1.9]">
+          Certificamos que <b className="text-[21px]">{d.nome}</b> {FUNCAO_CERT[d.funcao] ?? 'participou'} {d.funcao === 'PREMIADO' ? 'em' : 'de'} <b>{d.evento}</b>,
+          realizado {periodo}{d.local ? `, em ${d.local}` : ''}, com carga horária de <b>{String(d.carga_horaria).replace('.', ',')} hora(s)</b>
+          {d.presenca != null && d.funcao === 'PARTICIPANTE' ? ` e frequência de ${String(d.presenca).replace('.', ',')}%` : ''}.
+        </p>
+        <p className="mt-10 text-center text-[15px]">Maringá, {fmtDate(d.emitido_em)}.</p>
+        <footer className="mt-10 rounded-2xl bg-slate-50 p-4 text-[12.5px] leading-relaxed text-ink-2 print:bg-white print:ring-1 print:ring-line">
+          <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="size-4 text-green-700" />Certificado emitido eletronicamente pelo IARA Educa.</div>
+          <div className="mt-1">Confira a autenticidade em <b>{url.replace(/^https?:\/\//, '')}</b> ou pelo QR code, com o código <b className="font-mono text-[13.5px]">{d.codigo}</b> · resumo de integridade {d.hash}</div>
+        </footer>
+      </article>
     </div>
   );
 }

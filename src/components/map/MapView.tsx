@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { LngLatBounds, Map as MLMap, Marker, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
+import { LngLatBounds, Map as MLMap, Marker, Popup, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import clsx from 'clsx';
@@ -19,6 +19,16 @@ const CENTER: [number, number] = [-51.9386, -23.4253];
 export type HeatMode = 'queue' | 'queue_creche' | 'enrollments' | 'offerable' | null;
 export type ColorMode = 'type' | 'vacancy';
 export type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | null;
+
+/** Mapa de calor genérico (visão do prefeito): densidade (mancha de calor pelo peso de cada ponto) ou taxa (mancha colorida pela escala). */
+export type Calor = {
+  modo: 'densidade' | 'taxa';
+  pontos: { lat: number; lng: number; valor: number; titulo?: string; cor?: string }[];
+  /** Escala da taxa: [valor, cor] em ordem crescente. */
+  escala?: [number, string][] | null;
+  /** Peso máximo da densidade (o resto é proporcional). */
+  max?: number | null;
+};
 
 export type GeoLayers = {
   municipality?: GeoJSON.Feature;
@@ -68,6 +78,8 @@ export type MapViewProps = {
   linhaDestaque?: string | null;
   /** Enquadra pelas linhas (quando não há unidades nem ponto pesquisado). */
   fitLinhas?: boolean;
+  /** Mapa de calor de uma camada agregada (passar o mouse ou tocar mostra o resumo do ponto). */
+  calor?: Calor | null;
 };
 
 function circle(lat: number, lng: number, r: number, n = 72): GeoJSON.Feature<GeoJSON.Polygon> {
@@ -179,6 +191,7 @@ export function MapView(p: MapViewProps) {
       map.addSource('ranks', { type: 'geojson', data: empty });
       map.addSource('pontos', { type: 'geojson', data: empty });
       map.addSource('linhas', { type: 'geojson', data: empty });
+      map.addSource('calor', { type: 'geojson', data: empty });
 
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.55 } });
       map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': '#A846E8', 'fill-opacity': 0 } });
@@ -193,6 +206,23 @@ export function MapView(p: MapViewProps) {
           'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 26, 13, 46, 16, 80],
           'heatmap-opacity': 0.78,
           'heatmap-color': interpolate(['heatmap-density'], HEAT_STOPS) as never,
+        },
+      });
+      map.addLayer({
+        id: 'calor-heat', type: 'heatmap', source: 'calor', layout: { visibility: 'none' },
+        paint: {
+          'heatmap-weight': 0.5,
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 15, 2],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 13, 26, 16, 60],
+          'heatmap-opacity': 0.8,
+          'heatmap-color': interpolate(['heatmap-density'], HEAT_STOPS) as never,
+        },
+      });
+      map.addLayer({
+        id: 'calor-taxa', type: 'circle', source: 'calor', layout: { visibility: 'none' },
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 20, 13, 40, 16, 80],
+          'circle-color': PURPLE, 'circle-blur': 0.75, 'circle-opacity': 0.8,
         },
       });
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': PURPLE, 'fill-opacity': 0.08 } });
@@ -257,6 +287,24 @@ export function MapView(p: MapViewProps) {
         layout: { 'text-field': ['get', 'rotulo'], 'text-size': 11, 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true },
         paint: { 'text-color': '#ffffff' },
       });
+      map.addLayer({
+        id: 'calor-ponto', type: 'circle', source: 'calor', layout: { visibility: 'none' },
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 6, 17, 9], 'circle-color': PURPLE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
+      });
+      map.addLayer({
+        id: 'calor-hit', type: 'circle', source: 'calor', layout: { visibility: 'none' },
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 9, 14, 14, 17, 20], 'circle-color': '#000000', 'circle-opacity': 0 },
+      });
+      // resumo do ponto do mapa de calor (texto puro, sem HTML)
+      const dica = new Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '300px', className: 'calor-dica' });
+      const mostrar = (e: MapLayerMouseEvent) => {
+        const t = String(e.features?.[0]?.properties?.titulo ?? '');
+        if (!t) return;
+        dica.setLngLat(e.lngLat).setText(t).addTo(map);
+      };
+      map.on('mousemove', 'calor-hit', (e) => { map.getCanvas().style.cursor = 'pointer'; mostrar(e); });
+      map.on('mouseleave', 'calor-hit', () => { map.getCanvas().style.cursor = ''; dica.remove(); });
+      map.on('click', 'calor-hit', mostrar);
       map.addLayer({ id: 'ranks-circle', type: 'circle', source: 'ranks', paint: { 'circle-radius': 13, 'circle-color': PURPLE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
       map.addLayer({
         id: 'ranks-label', type: 'symbol', source: 'ranks',
@@ -325,6 +373,39 @@ export function MapView(p: MapViewProps) {
     map.setPaintProperty('heat', 'heatmap-color', interpolate(['heatmap-density'], p.heat === 'offerable' ? HEAT_OFFERABLE_STOPS : HEAT_STOPS) as never);
     map.setLayoutProperty('heat', 'visibility', 'visible');
   }, [ready, p.heat, p.units]);
+
+  // mapa de calor de uma camada agregada
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const c = p.calor;
+    (map.getSource('calor') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: (c?.pontos ?? []).map((x) => ({ type: 'Feature', properties: { valor: Number(x.valor) || 0, titulo: x.titulo ?? '', cor: x.cor ?? '' }, geometry: { type: 'Point', coordinates: [x.lng, x.lat] } })),
+    });
+    const vis = (id: string, on: boolean) => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+    if (!c) {
+      for (const id of ['calor-heat', 'calor-taxa', 'calor-ponto', 'calor-hit']) vis(id, false);
+      return;
+    }
+    const corEscala = c.escala?.length ? interpolate(['get', 'valor'], c.escala) : PURPLE;
+    if (c.modo === 'densidade') {
+      const max = Math.max(1, Number(c.max) || Math.max(0, ...c.pontos.map((x) => Number(x.valor) || 0)));
+      map.setPaintProperty('calor-heat', 'heatmap-weight', ['interpolate', ['linear'], ['get', 'valor'], 0, 0, max, 1]);
+      // células da cidade (muitos pontos, próximos) × pontos das escolas (poucos, espalhados): raio e intensidade calibrados
+      const denso = c.pontos.length > 300;
+      map.setPaintProperty('calor-heat', 'heatmap-radius', ['interpolate', ['linear'], ['zoom'], ...(denso ? [10, 12, 13, 26, 16, 60] : [10, 22, 13, 40, 16, 80])]);
+      map.setPaintProperty('calor-heat', 'heatmap-intensity', ['interpolate', ['linear'], ['zoom'], ...(denso ? [10, 1.3, 13, 2, 16, 3] : [10, 1.5, 13, 2.1, 16, 3])]);
+    } else {
+      map.setPaintProperty('calor-taxa', 'circle-color', corEscala as never);
+    }
+    const temCor = c.pontos.some((x) => x.cor);
+    map.setPaintProperty('calor-ponto', 'circle-color', (temCor ? ['get', 'cor'] : corEscala) as never);
+    vis('calor-heat', c.modo === 'densidade');
+    vis('calor-taxa', c.modo === 'taxa');
+    vis('calor-ponto', temCor);
+    vis('calor-hit', true);
+  }, [ready, p.calor]);
 
   // regiões, áreas e limite municipal
   useEffect(() => {

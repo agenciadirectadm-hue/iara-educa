@@ -88,6 +88,18 @@ Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfi
 | 40 | Direção e Almoxarifado | **Materiais › Patrimônio**: transferir um bem (a outra escola aceita), conserto com custo, pedir baixa — o almoxarifado aprova; **inventário do ano** | Onde está cada bem e em que estado? |
 | 41 | Professor(a), Nutrição e Maria | Turma → **Peso e altura** (altura menor pede conferência); **Nutrição › Peso e medidas** (cobertura do semestre; a classificação da OMS entra quando a nutricionista importar a tabela oficial); Maria pela IARA: “peso e altura da Ana” | As crianças estão crescendo bem? |
 
+### Diário de aulas, rematrícula, ensalamento, eventos e mapas de calor (Sprint 5) — mais 10 a 15 minutos
+
+| # | Perfil | O que mostrar | Pergunta que a tela responde |
+|---|---|---|---|
+| 42 | Professor(a) regente (escola de fundamental) | **Minhas turmas → Diário de classe › Aulas**: as aulas do dia pelo horário da turma; **Registrar** o conteúdo (habilidade da BNCC opcional e tarefa de casa); a semana mostra quantas aulas foram registradas | O que foi ensinado em cada aula? |
+| 43 | Maria (Cidadão) | **Vida escolar › O que estudou** e pela IARA: “o que a Ana estudou hoje?” — conteúdo e tarefa do dia | O que meu filho aprendeu hoje? |
+| 44 | Direção | **Desempenho › Aulas registradas** (turmas e professores com aulas sem registro); **Rematrícula e transferência**: confirmadas, pendentes, transição de etapa (escola mais perto com a série), projeção de vagas de 2027 e **Transferências** recebidas (aceitar com a turma ou recusar com motivo) | Quem continua em 2027 e onde falta vaga? |
+| 45 | Maria (Cidadão) | **Vida escolar › Rematrícula** (confirmar, trocar o turno, não renovar, outra escola) e pela IARA: “rematrícula da Ana” → **Confirmar** (deixe pendente se for repetir a demonstração) | Como garanto a vaga do ano que vem? |
+| 46 | Direção | **Ensalamento**: cada sala com a turma da manhã e da tarde, salas livres, turma maior que a sala, sala sem acessibilidade; **Mudar turma de sala** (o sistema confere turno, capacidade e acessibilidade). Na rede: unidades com sala livre e fila — dá para abrir turma | As salas estão bem usadas? |
+| 47 | Secretário(a) e Maria | **Eventos e certificados**: formação da rede com presença e **Concluir e emitir certificados**; feira de ciências da escola; Maria: **Vida escolar › Eventos** → certificado com QR, conferido em **Verificar documento** | Quem participou e tem certificado válido? |
+| 48 | Prefeito(a) | **Mapas de calor**: transporte (onde mais precisa, onde mais tem, onde é mais efetivo, veículos agora), frequência e faltas pela casa, ocorrências, alfabetização na idade esperada (precoces e com defasagem), cadastros completos (até 95% vermelho, 100% azul) e formação dos professores — passar o mouse sobre a mancha mostra o resumo | Onde a cidade precisa de mais atenção? |
+
 Os dados da vida escolar são fictícios (servidores, faltas, cardápios, restrições, chamados e publicações), sobre o calendário
 real de 2026 (feriados de lei). A explicação para a plateia: os dados reais substituem estes na carga oficial.
 
@@ -97,8 +109,9 @@ real de 2026 (feriados de lei). A explicação para a plateia: os dados reais su
    inclusive o que foi lançado ao vivo na vida escolar (chamadas, justificativas, restrições, chamados, publicações e leituras) e no pedagógico
    (notas, pareceres, sondagens, planos, AEE e declarações), no transporte (viagens, avisos, ocorrências, inclusões) e no almoxarifado
    (pedidos, remessas, lotes), na busca ativa (ausências, contatos, casos, regras), nas ocorrências (instâncias, respostas, modelos) e na
-   gestão da rede (organograma, catálogo, critérios, jornada, guarda e suporte), no conselho de classe, na biblioteca, no patrimônio e em peso e
-   medidas — o que era de demonstração e foi alterado volta ao original.
+   gestão da rede (organograma, catálogo, critérios, jornada, guarda e suporte), no conselho de classe, na biblioteca, no patrimônio, em peso e
+   medidas, no diário de aulas, na rematrícula e nas transferências (a matrícula volta à escola de origem), no ensalamento e nos eventos —
+   o que era de demonstração e foi alterado volta ao original.
    A trilha de auditoria permanece (é imutável).
 2. WhatsApp: pare a ponte da Educação (`Ctrl+C`) e, se for o caso, religue a da IARA Saúde. Com a ponte parada, o QR code do portal
    volta sozinho para a conversa simulada.

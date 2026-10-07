@@ -90,7 +90,7 @@ function TurmaHoje({ t }: { t: { id: string; name: string; shift: string; grade?
         <GraduationCap className="size-4" />Notas e avaliação
       </Link>
       <Link to={`/turmas/${t.id}/diario`} className="flex items-center justify-center gap-1.5 rounded-2xl bg-white py-2 text-[13px] font-semibold text-purple-800 ring-1 ring-line hover:bg-purple-50">
-        <NotebookPen className="size-4" />Agenda e ocorrências
+        <NotebookPen className="size-4" />Diário de classe
       </Link>
     </div>
     </div>

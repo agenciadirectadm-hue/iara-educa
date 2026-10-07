@@ -72,6 +72,11 @@ const Guarda = lazy(() => import('./pages/Guarda'));
 const Suporte = lazy(() => import('./pages/Suporte'));
 const Biblioteca = lazy(() => import('./pages/Biblioteca'));
 const RegrasFrequencia = lazy(() => import('./pages/RegrasFrequencia'));
+const Rematricula = lazy(() => import('./pages/Rematricula'));
+const Ensalamento = lazy(() => import('./pages/Ensalamento'));
+const Eventos = lazy(() => import('./pages/Eventos'));
+const Certificado = lazy(() => import('./pages/Declaracao').then((m) => ({ default: m.Certificado })));
+const MapasCalor = lazy(() => import('./pages/MapasCalor'));
 
 function Loader() {
   return (
@@ -134,6 +139,7 @@ export const router = createHashRouter([
   { path: '/whatsapp/cartaz', element: S(<WhatsAppPoster />) },
   // declaração para imprimir (com QR code de verificação)
   { path: '/declaracao/:id', element: <RequireSession>{S(<Declaracao />)}</RequireSession> },
+  { path: '/certificado/:codigo', element: <RequireSession>{S(<Certificado />)}</RequireSession> },
   {
     element: <AppShell />,
     errorElement: <RouteError />,
@@ -153,6 +159,10 @@ export const router = createHashRouter([
       { path: '/gestao', element: <RequireSession>{S(<GestaoRede />)}</RequireSession>, handle: { wide: true } },
       { path: '/guarda', element: <RequireSession>{S(<Guarda />)}</RequireSession>, handle: { wide: true } },
       { path: '/biblioteca', element: <RequireSession>{S(<Biblioteca />)}</RequireSession>, handle: { wide: true } },
+      { path: '/rematricula', element: <RequireSession>{S(<Rematricula />)}</RequireSession>, handle: { wide: true } },
+      { path: '/ensalamento', element: <RequireSession>{S(<Ensalamento />)}</RequireSession>, handle: { wide: true } },
+      { path: '/eventos', element: <RequireSession>{S(<Eventos />)}</RequireSession>, handle: { wide: true } },
+      { path: '/mapas-de-calor', element: <RequireSession>{S(<MapasCalor />)}</RequireSession>, handle: { wide: true } },
       { path: '/suporte', element: <RequireSession>{S(<Suporte />)}</RequireSession>, handle: { wide: true } },
       { path: '/busca-ativa', element: <RequireSession>{S(<BuscaAtiva />)}</RequireSession>, handle: { wide: true } },
       { path: '/busca-ativa/regras', element: <RequireSession>{S(<RegrasFrequencia />)}</RequireSession>, handle: { wide: true } },

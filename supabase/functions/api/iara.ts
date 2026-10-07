@@ -65,6 +65,9 @@ const ESCOLA_MENU: QuickReply[] = [
   { label: "Biblioteca", action: "intent:biblioteca" },
   { label: "Peso e altura", action: "intent:medidas" },
   { label: "Histórico escolar", action: "intent:historico" },
+  { label: "O que estudou", action: "intent:aulas" },
+  { label: "Rematrícula", action: "intent:rematricula" },
+  { label: "Eventos e certificados", action: "intent:eventos" },
 ];
 /** Sprint 2 (pedagógico): rótulos usados no boletim, no AEE e nas declarações. */
 const PORTAL = (Deno.env.get("PORTAL_URL") ?? "https://agenciadirectadm-hue.github.io/iara-educa/").replace(/\/?$/, "/");
@@ -194,6 +197,9 @@ function detectIntent(t: string): string {
   if (/((enviar|mandar|anexar|subir) (o |a |os |as |um |uma )?(documento|certidao|comprovante|pdf|laudo|carteira de vacina|cartao sus))/.test(t)) return "enviar_documento";
   if (/((atualizar|trocar|mandar|enviar|mudar|colocar) (a )?foto)/.test(t)) return "foto";
   if (/((corrigir|atualizar|alterar|trocar|mudar) (o |a )?(cpf|nis|cartao sus|sus|nome social|certidao|naturalidade|cidade onde nasceu) (da|do|de))/.test(t)) return "alterar_dados";
+  if (/(rematricula|renovar (a )?matricula|matricula (de|para|do) (2027|o ano que vem|ano que vem)|matricula do ano que vem|confirmar (a )?matricula|vaga (para|no|do) (o )?ano que vem)/.test(t)) return "rematricula";
+  if (/(o que .{0,24}(estudou|aprendeu)|conteudo (da|das|de) aulas?|materia de hoje|o que teve (na|de) aula|aula de hoje)/.test(t)) return "aulas";
+  if (/(certificado|feira de ciencias?|olimpiada|mostra cultural|eventos? da escola)/.test(t)) return "eventos";
   if (/(historico escolar|\bhistorico\b(?! de (falta|frequencia|presenca)))/.test(t)) return "historico";
   if (/(biblioteca|\blivros?\b|emprestimo de livro|sacola literaria)/.test(t)) return "biblioteca";
   if (/(\bpeso\b|altura|\bimc\b|quanto (ela|ele) (pesa|mede)|esta (magr|acima do peso|gordinh))/.test(t)) return "medidas";
@@ -542,6 +548,12 @@ export class Agent {
         return await this.biblioteca();
       case "medidas":
         return await this.medidas();
+      case "aulas":
+        return await this.aulasFamilia();
+      case "rematricula":
+        return await this.rematricula();
+      case "eventos":
+        return await this.eventosFamilia();
       case "historico":
         return await this.startDeclaracao("historico escolar");
       case "transporte_aviso":
@@ -648,6 +660,16 @@ export class Agent {
         return await this.ausenciaResponder(value);
       case "bib_ren":
         return await this.bibliotecaRenovar(value);
+      case "rem_ok":
+        return await this.rematriculaResponder(value, "CONFIRMAR", undefined, `rem_ok:${value}`);
+      case "rem_motivo":
+        return this.say("Qual é o motivo? Assim a vaga fica livre para outra criança.", {
+          quick_replies: ["Mudança de cidade", "Escola particular", "Outro motivo"].map((m) => ({ label: m, action: `rem_nao:${value}|${m}` })),
+        });
+      case "rem_nao": {
+        const [id, motivo] = value.split("|");
+        return await this.rematriculaResponder(id, "NAO_RENOVAR", motivo, `rem_nao:${value}`);
+      }
       case "oc_rev":
         return await this.ocorrenciaRevisao(value);
       case "enq": {
@@ -1184,6 +1206,29 @@ export class Agent {
     if (!this.ensureVerified(`enroll:${unitId}`)) return;
     if (!d.child_id) return await this.startAddChild(`enroll:${unitId}`);
     if (!unitId) return this.say("Escolha uma unidade, por favor.");
+    // transferência entre unidades da rede (Sprint 5): com vaga e ninguém na fila da série, a escola de destino confirma e a matrícula muda;
+    // sem vaga (ou com fila), segue a inscrição na fila, como antes (IN nº 025/2025)
+    if (this.ctx.flow === "transferencia") {
+      try {
+        const tr = await this.tool("request_transfer", "transferencia_solicitar",
+          { student_id: d.child_id, unit_destino: unitId, motivo_tipo: "OUTRO", motivo: "Pedido pela IARA" }, `iara-transf-${d.child_id}-${unitId}`);
+        if (tr?.situacao === "AGUARDANDO_DESTINO") {
+          this.resetCache();
+          this.done(`Pediu a transferência de ${tr.primeiro_nome} para ${tr.unidade_destino}.`);
+          return this.say(`✅ ${tr.mensagem}`, {
+            cards: [{ title: `${tr.primeiro_nome} → ${tr.unidade_destino}`, subtitle: `${tr.serie} · aguardando a escola`, lines: ((tr.pendencias ?? []) as string[]).map((x) => `• ${x}`), tone: "purple" }],
+            notice: "Quando a escola confirmar a turma, o aviso chega no portal (Vida escolar › Rematrícula).",
+          });
+        }
+      } catch (e) {
+        const msg = (e as Error).message ?? "";
+        if (/em andamento/.test(msg)) {
+          this.done();
+          return this.say(msg, { quick_replies: [MENU[0]] });
+        }
+        // a unidade não oferece a série no turno atual: segue para a fila
+      }
+    }
     const res = await this.tool("queue_register", "queue_self_register", {
       student_id: d.child_id, unit_id: unitId, channel: "WHATSAPP", origin: d.origin ?? null,
     }, `iara-fila-${d.child_id}-${unitId}`);
@@ -2142,6 +2187,95 @@ export class Agent {
     }
     this.say("As medidas feitas na escola:", { cards, notice: "A nutricionista da rede acompanha as medidas; dúvidas sobre a saúde, procure a UBS." });
     this.done("Consultou peso e altura.");
+  }
+
+  // ================================================================== Sprint 5: conteúdo das aulas, rematrícula e certificados
+  private async aulasFamilia(): Promise<void> {
+    if (!this.needGuardian("intent:aulas")) return;
+    if (!this.ensureVerified("intent:aulas")) return;
+    const kids = ((await this.tool("get_lessons", "familia_aulas", { dias: 7 })) as any[]) ?? [];
+    if (!kids.length) {
+      this.done();
+      return this.say("Não encontrei criança matriculada sob sua responsabilidade.", { quick_replies: [MENU[0]] });
+    }
+    const cards: Card[] = kids.map((k) => {
+      const dia = ((k.dias ?? []) as any[])[0];
+      const aulas = ((dia?.aulas ?? []) as any[]);
+      return {
+        title: `O que ${k.primeiro_nome} estudou`,
+        subtitle: dia ? `${k.turma} · ${diaBr(dia.data)}` : k.turma,
+        lines: aulas.length
+          ? [...aulas.map((a) => `${a.componente}: ${a.conteudo}`), ...aulas.filter((a) => a.tarefa).map((a) => `📒 Tarefa de ${a.componente}: ${a.tarefa}`)]
+          : ["A professora ainda não registrou as aulas dos últimos dias."],
+        tone: "purple",
+      };
+    });
+    this.say("O que a professora registrou no diário de classe:", { cards, quick_replies: [ESCOLA_MENU[6], ESCOLA_MENU[8]],
+      notice: "Os outros dias ficam em Vida escolar › O que estudou, no portal." });
+    this.done("Consultou o conteúdo das aulas.");
+  }
+
+  private async rematricula(): Promise<void> {
+    if (!this.needGuardian("intent:rematricula")) return;
+    if (!this.ensureVerified("intent:rematricula")) return;
+    const rs = ((await this.tool("get_reenrollment", "familia_rematricula", {})) as any[]) ?? [];
+    if (!rs.length) {
+      this.done();
+      return this.say("Ainda não há rematrícula aberta para as suas crianças. Quando abrir, eu aviso por aqui.", { quick_replies: [MENU[0]] });
+    }
+    const SIT: Record<string, string> = { PENDENTE: "aguardando a sua confirmação", AGUARDANDO_RESULTADO: "aguarda o resultado do ano", CONFIRMADA: "confirmada ✅",
+      NAO_RENOVADA: "não renovada", OUTRA_ESCOLA: "pediu outra escola", CONCLUINTE: "concluinte do 5º ano" };
+    const quick: QuickReply[] = [];
+    const cards: Card[] = rs.map((r) => {
+      if (r.situacao === "PENDENTE" || r.situacao === "AGUARDANDO_RESULTADO") {
+        quick.push({ label: `Confirmar ${r.primeiro_nome}`.slice(0, 24), action: `rem_ok:${r.id}` });
+        quick.push({ label: `Não renovar ${r.primeiro_nome}`.slice(0, 24), action: `rem_motivo:${r.id}` });
+      }
+      return {
+        title: `${r.primeiro_nome} em ${r.ano}`,
+        subtitle: SIT[r.situacao] ?? r.situacao,
+        lines: r.situacao === "CONCLUINTE" ? ["Conclui o 5º ano: o 6º ano é na rede estadual. A escola orienta a matrícula."]
+          : [`${r.serie_destino} ${naUnidade(r.unidade_destino)}, turno da ${SHIFT_LABEL[r.turno_destino] ?? r.turno_destino}`,
+             ...(r.tipo === "TRANSICAO" ? [`Muda de escola: é a mais perto de casa com ${r.serie_destino}${r.distancia_m ? ` (cerca de ${(r.distancia_m / 1000).toFixed(1).replace(".", ",")} km)` : ""}`] : []),
+             ...(r.situacao === "PENDENTE" ? [`Confirme até ${diaBr(r.prazo)}`] : [])],
+        tone: r.situacao === "CONFIRMADA" ? "green" : r.situacao === "PENDENTE" ? "amber" : "purple",
+      };
+    });
+    this.say("Rematrícula para o ano que vem:", { cards, quick_replies: [...quick.slice(0, 6), { label: "Quero outra escola", action: "intent:transferencia" }],
+      notice: "Para trocar o turno, use Vida escolar › Rematrícula no portal." });
+    this.done("Consultou a rematrícula.");
+  }
+
+  private async rematriculaResponder(id: string, acao: "CONFIRMAR" | "NAO_RENOVAR", motivo: string | undefined, pendente: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(pendente)) return;
+    const r = await this.tool("answer_reenrollment", "rematricula_responder", { id, acao, motivo, canal: "IARA" }, `rem:${id}:${acao}`);
+    this.done(acao === "CONFIRMAR" ? "Confirmou a rematrícula." : "Informou que não vai renovar a matrícula.");
+    this.say(`${acao === "CONFIRMAR" ? "✅ " : ""}${r.mensagem}`, { quick_replies: [ESCOLA_MENU[16], MENU[0]] });
+  }
+
+  private async eventosFamilia(): Promise<void> {
+    if (!this.needGuardian("intent:eventos")) return;
+    if (!this.ensureVerified("intent:eventos")) return;
+    const kids = ((await this.tool("get_certificates", "familia_eventos", {})) as any[]) ?? [];
+    if (!kids.length) {
+      this.done();
+      return this.say("Não encontrei criança matriculada sob sua responsabilidade.", { quick_replies: [MENU[0]] });
+    }
+    const cards: Card[] = kids.map((k) => {
+      const evs = (k.eventos ?? []) as any[];
+      return {
+        title: `Eventos · ${k.primeiro_nome}`,
+        subtitle: `${evs.filter((e) => e.certificado).length} certificado(s) no ano`,
+        lines: evs.length
+          ? evs.slice(0, 6).map((e) => `${e.titulo} (${diaBr(e.inicio)}, ${String(e.carga_horaria).replace(".", ",")} h)${e.funcao === "PREMIADO" ? " 🏅 premiado(a)" : ""}${e.certificado ? ` — certificado ${e.certificado}` : ""}`)
+          : ["Nenhum evento registrado neste ano."],
+        tone: "purple",
+      };
+    });
+    this.say("Feiras, mostras, olimpíadas e outros eventos:", { cards,
+      notice: `Para imprimir o certificado, abra Vida escolar › Eventos no portal (${PORTAL}#/escola?aba=eventos). Qualquer pessoa confere o código em ${PORTAL}#/verificar.` });
+    this.done("Consultou eventos e certificados.");
   }
 
   private async transporte(): Promise<void> {

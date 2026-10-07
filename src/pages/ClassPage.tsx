@@ -53,7 +53,7 @@ export default function ClassPage() {
         subtitle={`${c.grade} · turno ${SHIFT[c.shift]?.toLowerCase()} · ${c.room} · ano letivo ${c.school_year}`}
         actions={<>
           {can('frequencia.read') && <ButtonLink to={`/turmas/${c.id}/chamada`} variant="success" icon={CalendarCheck}>Chamada</ButtonLink>}
-          {can('ocorrencias.read') && <ButtonLink to={`/turmas/${c.id}/diario`} variant="secondary" icon={NotebookPen}>Agenda e ocorrências</ButtonLink>}
+          {can('ocorrencias.read') && <ButtonLink to={`/turmas/${c.id}/diario`} variant="secondary" icon={NotebookPen}>Diário de classe</ButtonLink>}
           {can('notas.read') && <ButtonLink to={`/turmas/${c.id}/avaliacao`} variant="secondary" icon={GraduationCap}>Avaliação</ButtonLink>}
           {can('vacancy.block') && <Button variant="secondary" icon={Ban} onClick={() => setBlockOpen(true)} disabled={k.offerable < 1}>Bloquear vaga</Button>}
         </>}

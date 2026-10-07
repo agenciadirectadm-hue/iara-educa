@@ -3,12 +3,12 @@ import { Link, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'rea
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Building2, ChevronRight, ClipboardList, GraduationCap, LayoutGrid, LogOut, Play, RotateCcw, Search, ShieldCheck, UserRound, Users, X,
+  Building2, ChevronDown, ChevronRight, ClipboardList, GraduationCap, LayoutGrid, LogOut, Play, RotateCcw, Search, ShieldCheck, UserRound, Users, X,
 } from 'lucide-react';
 import { useSession } from '@/lib/session';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { rpc } from '@/lib/api';
-import { navFor, type NavItem } from './nav';
+import { agrupar, navFor, type Grupo, type NavItem } from './nav';
 import { Avatar, Badge, Spinner } from '@/components/ui';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { IaraAvatar } from '@/components/iara';
@@ -112,27 +112,71 @@ function TopBar({ onSearch, onAccount, full }: { onSearch: () => void; onAccount
   );
 }
 
+const GRUPOS_KEY = 'iara.nav.grupos';
+function lerGrupos(): Partial<Record<Grupo, boolean>> {
+  try {
+    return JSON.parse(localStorage.getItem(GRUPOS_KEY) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function RailLink({ item, active, compacto }: { item: NavItem; active: boolean; compacto?: boolean }) {
+  return (
+    <NavLink
+      to={item.to}
+      className={clsx('relative flex items-center gap-3 rounded-2xl px-3 font-semibold transition', compacto ? 'h-9 text-[13.5px]' : 'h-11 text-[14.5px]', active ? 'text-purple-800' : 'text-ink-2 hover:bg-slate-100')}
+    >
+      {active && <motion.span layoutId="rail-active" className="absolute inset-0 rounded-2xl bg-purple-100" transition={{ type: 'spring', stiffness: 420, damping: 36 }} />}
+      <item.icon className={clsx('relative', compacto ? 'size-[18px]' : 'size-5')} />
+      <span className="relative truncate">{item.label}</span>
+    </NavLink>
+  );
+}
+
+/** Barra lateral: os atalhos principais do perfil e, abaixo, as demais opções em grupos recolhíveis (o grupo da página aberta fica expandido). */
 function SideRail({ nav, onAccount }: { nav: { primary: NavItem[]; more: NavItem[] }; onAccount: () => void }) {
   const { me } = useSession();
   const loc = useLocation();
+  const grupos = useMemo(() => agrupar(nav.more), [nav.more]);
+  const [abertos, setAbertos] = useState<Partial<Record<Grupo, boolean>>>(lerGrupos);
+  const ativo = grupos.find((g) => g.items.some((it) => isActive(it, loc.pathname, loc.search)))?.key;
+  const alternar = (k: Grupo, aberto: boolean) => {
+    const novo = { ...abertos, [k]: !aberto };
+    setAbertos(novo);
+    try {
+      localStorage.setItem(GRUPOS_KEY, JSON.stringify(novo));
+    } catch {
+      /* sem armazenamento: vale só nesta visita */
+    }
+  };
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden w-[256px] flex-col border-r border-line/70 bg-white/80 backdrop-blur-xl lg:flex">
       <div className="px-5 pb-4 pt-5">
         <Brand />
       </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Navegação principal">
-        {[...nav.primary, ...nav.more].map((item) => {
-          const active = isActive(item, loc.pathname, loc.search);
+      <nav className="flex-1 overflow-y-auto px-3 pb-2" aria-label="Navegação principal">
+        <div className="space-y-0.5">
+          {nav.primary.map((item) => <RailLink key={item.to + item.label} item={item} active={isActive(item, loc.pathname, loc.search)} />)}
+        </div>
+        {grupos.map((g) => {
+          const aberto = abertos[g.key] ?? g.key === ativo;
+          const id = `grupo-${g.key}`;
           return (
-            <NavLink
-              key={item.to + item.label}
-              to={item.to}
-              className={clsx('relative flex h-11 items-center gap-3 rounded-2xl px-3 text-[14.5px] font-semibold transition', active ? 'text-purple-800' : 'text-ink-2 hover:bg-slate-100')}
-            >
-              {active && <motion.span layoutId="rail-active" className="absolute inset-0 rounded-2xl bg-purple-100" transition={{ type: 'spring', stiffness: 420, damping: 36 }} />}
-              <item.icon className="relative size-5" />
-              <span className="relative">{item.label}</span>
-            </NavLink>
+            <div key={g.key} className="mt-2 border-t border-line/60 pt-2">
+              <button type="button" onClick={() => alternar(g.key, aberto)} aria-expanded={aberto} aria-controls={id}
+                className="flex h-8 w-full items-center gap-2 rounded-xl px-3 text-left text-[11.5px] font-bold uppercase tracking-[0.08em] text-subtle hover:bg-slate-100 hover:text-ink-2">
+                <span className="flex-1">{g.label}</span>
+                {!aberto && g.key === ativo && <span className="size-1.5 rounded-full bg-purple-600" aria-hidden />}
+                <span className="text-[11px] font-semibold normal-case tracking-normal text-subtle">{g.items.length}</span>
+                <ChevronDown className={clsx('size-4 transition', !aberto && '-rotate-90')} aria-hidden />
+              </button>
+              {aberto && (
+                <div id={id} className="mt-0.5 space-y-0.5">
+                  {g.items.map((item) => <RailLink key={item.to + item.label} item={item} active={isActive(item, loc.pathname, loc.search)} compacto />)}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
@@ -172,16 +216,24 @@ function BottomNav({ nav, onMore }: { nav: { primary: NavItem[]; more: NavItem[]
 }
 
 function MoreSheet({ open, onClose, items }: { open: boolean; onClose: () => void; items: NavItem[] }) {
+  const grupos = useMemo(() => agrupar(items), [items]);
   return (
     <Sheet open={open} onClose={onClose} title="Mais opções">
-      <div className="grid grid-cols-3 gap-3 pt-1">
-        {items.map((it) => (
-          <Link key={it.to + it.label} to={it.to} onClick={onClose} className="flex flex-col items-center gap-2 rounded-3xl bg-slate-50 p-3 text-center ring-1 ring-line transition active:scale-95 hover:bg-purple-50">
-            <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-soft">
-              <it.icon className="size-5" />
-            </span>
-            <span className="text-[12.5px] font-semibold leading-tight">{it.label}</span>
-          </Link>
+      <div className="space-y-4 pt-1">
+        {grupos.map((g) => (
+          <section key={g.key} aria-label={g.label}>
+            <h3 className="mb-2 px-1 text-[11.5px] font-bold uppercase tracking-[0.08em] text-subtle">{g.label}</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {g.items.map((it) => (
+                <Link key={it.to + it.label} to={it.to} onClick={onClose} className="flex flex-col items-center gap-2 rounded-3xl bg-slate-50 p-3 text-center ring-1 ring-line transition active:scale-95 hover:bg-purple-50">
+                  <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-soft">
+                    <it.icon className="size-5" />
+                  </span>
+                  <span className="text-[12.5px] font-semibold leading-tight">{it.label}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </Sheet>
