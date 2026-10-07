@@ -1,7 +1,8 @@
 // Tipos das respostas do gateway (formas principais; blobs secundários ficam como `any`).
 export type Role =
   | 'PREFEITO' | 'SECRETARIO' | 'SUPERINTENDENCIA' | 'ANALISTA_CENTRAL' | 'GERENCIA_EI'
-  | 'DIRETOR_UNIDADE' | 'SECRETARIA_ESCOLAR' | 'ATENDIMENTO' | 'INOVACAO' | 'CIDADAO' | 'CIDADAO_NOVO' | 'CONTROLE_EXTERNO';
+  | 'DIRETOR_UNIDADE' | 'SECRETARIA_ESCOLAR' | 'ATENDIMENTO' | 'INOVACAO' | 'CIDADAO' | 'CIDADAO_NOVO' | 'CONTROLE_EXTERNO'
+  | 'PROFESSOR' | 'NUTRICAO' | 'MANUTENCAO';
 
 export type Me = {
   user_id: string;
@@ -16,6 +17,9 @@ export type Me = {
   is_demo: boolean;
   unit: { id: number; name: string; short_name: string; type: string; lat: number; lng: number } | null;
   guardian: { id: string; name: string } | null;
+  /** Servidor vinculado ao perfil (professor): a ficha e as turmas dele. */
+  staff?: { id: string; name: string; role: string } | null;
+  turmas?: { id: string; name: string; shift: string; grade?: string; papel?: string }[] | null;
   permissions: string[];
 };
 

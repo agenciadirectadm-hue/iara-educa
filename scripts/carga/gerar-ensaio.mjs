@@ -113,10 +113,14 @@ responsaveis[1].cpf = '111.111.111-11';
 alunos.push({ codigo_aluno: `ENS-A${pad(++nAluno)}`, nome: 'Criança sem nascimento (erro proposital)' });
 
 const SERVIDORES = [
-  { matricula_funcional: 'ENS-S01', nome: 'Professora Ensaio Um', codigo_unidade: 'ENS-U1', funcao: 'PROFESSOR', vinculo: 'Efetivo' },
-  { matricula_funcional: 'ENS-S02', nome: 'Educadora Ensaio Dois', codigo_unidade: 'ENS-U1', funcao: 'EDUCADOR', vinculo: 'Efetivo' },
-  { matricula_funcional: 'ENS-S03', nome: 'Auxiliar Ensaio Três', codigo_unidade: 'ENS-U1', funcao: 'AUXILIAR', vinculo: 'PSS' },
-  { matricula_funcional: 'ENS-S04', nome: 'Professor Ensaio Quatro', codigo_unidade: 'ENS-U2', funcao: 'PROFESSOR', vinculo: 'Efetivo' },
+  { matricula_funcional: 'ENS-S01', nome: 'Professora Ensaio Um', codigo_unidade: 'ENS-U1', funcao: 'PROFESSOR', vinculo: 'Efetivo',
+    cargo: 'Professor(a) de Educação Básica', carga_horaria_semanal: 40, data_admissao: '2015-03-02', escolaridade: 'Pós-graduação', formacao: 'Pedagogia', area_atuacao: 'Anos iniciais', situacao: 'ATIVO' },
+  { matricula_funcional: 'ENS-S02', nome: 'Educadora Ensaio Dois', codigo_unidade: 'ENS-U1', funcao: 'EDUCADOR', vinculo: 'Efetivo',
+    cargo: 'Educador(a) Infantil', carga_horaria_semanal: 40, data_admissao: '2019-02-04', escolaridade: 'Superior', formacao: 'Pedagogia', area_atuacao: 'Educação infantil', situacao: 'ATIVO' },
+  { matricula_funcional: 'ENS-S03', nome: 'Auxiliar Ensaio Três', codigo_unidade: 'ENS-U1', funcao: 'AUXILIAR', vinculo: 'PSS',
+    cargo: 'Auxiliar de Apoio Escolar', carga_horaria_semanal: 40, data_admissao: '2025-08-01', escolaridade: 'Médio', situacao: 'ATIVO' },
+  { matricula_funcional: 'ENS-S04', nome: 'Professor Ensaio Quatro', codigo_unidade: 'ENS-U2', funcao: 'PROFESSOR', vinculo: 'Efetivo',
+    cargo: 'Professor(a) de Educação Básica', carga_horaria_semanal: 20, data_admissao: '2011-03-14', escolaridade: 'Pós-graduação', formacao: 'Educação Física', area_atuacao: 'Educação Física', situacao: 'LICENCA' },
 ];
 
 function csv(nome, linhas) {

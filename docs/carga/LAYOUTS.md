@@ -46,6 +46,13 @@ Ordem de envio: UNIDADES → TURMAS → SERVIDORES → RESPONSAVEIS → ALUNOS �
 | `codigo_unidade` | texto | não | Unidade de lotação (código da fonte ou INEP) | SEDUC-0042 |
 | `funcao` | lista: PROFESSOR, EDUCADOR, AUXILIAR, APOIO, AEE, ESTAGIARIO, SUBSTITUTO | sim | Função | PROFESSOR |
 | `vinculo` | texto | não | Tipo de vínculo (efetivo, PSS...) | Efetivo |
+| `cargo` | texto | não | Cargo no RH | Professor(a) de Educação Básica |
+| `carga_horaria_semanal` | inteiro | não | Jornada semanal em horas (20, 30 ou 40) | 40 |
+| `data_admissao` | data | não | Data de admissão | 2015-03-02 |
+| `escolaridade` | texto | não | Maior escolaridade | Pós-graduação |
+| `formacao` | texto | não | Curso de formação | Pedagogia |
+| `area_atuacao` | texto | não | Área ou componente de atuação | Anos iniciais |
+| `situacao` | lista: ATIVO, LICENCA, AFASTADO | não | Situação funcional (padrão: ATIVO) | ATIVO |
 
 ## RESPONSAVEIS
 

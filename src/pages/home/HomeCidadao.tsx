@@ -19,6 +19,7 @@ import { WhatsAppCard } from '@/components/whatsapp';
 import { LinkMetodologia, TresDistancias, TresDistanciasInscricao, useDistancias } from '@/components/distancias';
 import { PontosCriterio } from '@/components/PontosCriterio';
 import { AVISO_FAMILIA_FICTICIA } from '@/lib/avisos';
+import { VidaEscolarResumo } from '@/pages/Escola';
 
 // o quadro tem mapa: só carrega quando a família abre "ver o caminho"
 const QuadroDistancias = lazy(() => import('@/components/QuadroDistancias'));
@@ -91,6 +92,11 @@ function CitizenHome() {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {d.children.map((c: any) => <ChildCard key={c.id} c={c} />)}
         </div>
+      </Section>
+
+      <Section title="Vida escolar" subtitle="Avisos da escola, frequência e cardápio — também pela IARA"
+        action={<Link to="/escola" className="text-sm font-semibold text-purple-700">Abrir</Link>}>
+        <VidaEscolarResumo />
       </Section>
 
       <Section title="Protocolos" action={<Link to="/protocolos" className="text-sm font-semibold text-purple-700">Ver todos</Link>}>

@@ -20,7 +20,7 @@ import MapView from '@/components/map/MapView';
 import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancias';
 import QuadroDistancias from '@/components/QuadroDistancias';
 
-type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria';
+type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia';
 
 export default function StudentPage() {
   const { id } = useParams();
@@ -40,6 +40,7 @@ export default function StudentPage() {
     { value: 'documentos', label: 'Documentos', count: d.documents.length },
     { value: 'atendimentos', label: 'Atendimentos', count: d.cases.length },
     { value: 'fila', label: 'Fila e vagas', count: d.queue.length + d.offers.length },
+    ...(d.school && can('frequencia.read') ? [{ value: 'frequencia' as Tab, label: 'Frequência' }] : []),
     { value: 'aee', label: 'AEE/Inclusão' },
     ...(d.audit ? [{ value: 'auditoria' as Tab, label: 'Auditoria' }] : []),
   ];
@@ -75,6 +76,7 @@ export default function StudentPage() {
         {tab === 'atendimentos' && <Cases d={d} canCreate={can('cases.write')} />}
         {tab === 'fila' && <QueueOffers d={d} />}
         {tab === 'aee' && <Aee d={d} />}
+        {tab === 'frequencia' && <FrequenciaAluno id={s.id} />}
         {tab === 'auditoria' && <Audit d={d} />}
       </div>
     </div>
@@ -405,5 +407,56 @@ function Audit({ d }: { d: any }) {
       {!d.audit.length && <EmptyState compact title="Sem eventos" body="Toda alteração nesta ficha gera registro imutável." />}
       <p className="flex items-center gap-1 bg-slate-50 px-4 py-2 text-[12px] text-muted"><Users className="size-3.5" />{fmtInt(d.audit.length)} eventos recentes · trilha imutável</p>
     </Card>
+  );
+}
+
+/** Frequência do aluno: percentual no ano, mês a mês, faltas recentes, alertas e justificativas da família. */
+function FrequenciaAluno({ id }: { id: string }) {
+  const res = useRpc<any>('frequencia_aluno', { student_id: id });
+  if (res.isLoading) return <SkeletonList rows={3} />;
+  if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
+  const f = res.data;
+  const pct = Number(f.percentual);
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Card className="p-4">
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="text-[12px] font-bold uppercase tracking-wide text-subtle">Presença no ano</div>
+            <div className={`font-display text-4xl font-black tabular ${pct < Number(f.minimo) ? 'text-red-700' : 'text-green-700'}`}>{String(f.percentual ?? '—').replace('.', ',')}%</div>
+          </div>
+          <div className="text-right text-[13px] text-muted">mínimo {f.minimo}%<br />{f.faltas} falta(s) em {f.dias} dias · {f.justificadas} justificada(s)</div>
+        </div>
+        <div className="mt-4 space-y-1.5">
+          {(f.por_mes as any[]).map((m) => {
+            const p = m.dias ? Math.round(1000 - (1000 * m.faltas) / m.dias) / 10 : null;
+            return (
+              <div key={m.mes} className="flex items-center gap-2 text-[12.5px]">
+                <span className="w-16 font-semibold">{m.mes.slice(5, 7)}/{m.mes.slice(0, 4)}</span>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span className={`block h-full rounded-full ${p != null && p < Number(f.minimo) ? 'bg-red-500' : 'bg-green-600'}`} style={{ width: `${p ?? 0}%` }} /></span>
+                <span className="w-24 text-right tabular text-muted">{m.faltas} falta(s)</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+      <div className="space-y-4">
+        {(f.alertas as any[]).length > 0 && (
+          <Card className="border-l-4 border-red-500 p-4">
+            <div className="font-semibold text-red-800">Alerta de frequência em aberto</div>
+            {(f.alertas as any[]).map((a, i) => <p key={i} className="mt-1 text-[13px] text-ink-2">{a.tipo === 'AUSENCIA_CONSECUTIVA' ? 'Faltas seguidas' : 'Abaixo do mínimo'} · {a.situacao === 'ABERTO' ? 'aberto' : 'em acompanhamento'}{a.acao ? ` · ${a.acao}` : ''}</p>)}
+          </Card>
+        )}
+        <Card className="divide-y divide-line overflow-hidden">
+          <div className="px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide text-subtle">Faltas recentes</div>
+          {(f.faltas_recentes as any[]).length ? (f.faltas_recentes as any[]).map((x) => (
+            <div key={x.data} className="flex items-center gap-3 px-4 py-2 text-[13px]">
+              <span className="w-24 font-semibold">{fmtDate(x.data)}</span>
+              <span className="min-w-0 flex-1 truncate text-muted">{x.tipo === 'FALTA_JUSTIFICADA' ? `Justificada${x.justificativa ? ' · ' + x.justificativa : ''}` : 'Falta'}</span>
+            </div>
+          )) : <p className="px-4 py-3 text-[13px] text-muted">Sem faltas registradas.</p>}
+        </Card>
+      </div>
+    </div>
   );
 }

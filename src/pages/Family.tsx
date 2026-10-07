@@ -14,6 +14,7 @@ import { Badge, Button, ButtonLink, Card, EmptyState, ErrorState, Field, PageHea
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { IaraBubble } from '@/components/iara';
 import { WhatsAppCard } from '@/components/whatsapp';
+import { VidaEscolarResumo } from './Escola';
 
 const REL_CHILD = [['MAE', 'Mãe'], ['PAI', 'Pai'], ['AVO', 'Avó / avô'], ['RESPONSAVEL_LEGAL', 'Responsável legal']] as const;
 const REL_ADULT = [['PAI', 'Pai'], ['MAE', 'Mãe'], ['AVO', 'Avó / avô'], ['PADRASTO', 'Padrasto / madrasta'], ['COMPANHEIRO', 'Companheiro(a)'], ['RESPONSAVEL_LEGAL', 'Responsável legal (guarda)'], ['OUTRO', 'Outro']] as const;
@@ -259,6 +260,11 @@ export default function Family() {
             })}
           </div>
         ) : <Card><EmptyState compact title="Nenhuma criança no cadastro" body="Inclua a criança para pedir vaga." action={<Button variant="purple" icon={Baby} onClick={() => setSheet('child')}>Incluir criança</Button>} /></Card>}
+      </Section>
+
+      <Section title="Vida escolar" subtitle="Frequência, justificativa de faltas, cardápio com as restrições e avisos da escola"
+        action={<Link to="/escola" className="text-[13px] font-semibold text-blue-700">Abrir</Link>}>
+        <VidaEscolarResumo />
       </Section>
 
       {adults.length > 0 && (

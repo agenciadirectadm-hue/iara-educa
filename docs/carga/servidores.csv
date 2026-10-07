@@ -1,2 +1,2 @@
-﻿matricula_funcional;nome;codigo_unidade;funcao;vinculo
-123456;Daniela Nunes Andrade;SEDUC-0042;PROFESSOR;Efetivo
+﻿matricula_funcional;nome;codigo_unidade;funcao;vinculo;cargo;carga_horaria_semanal;data_admissao;escolaridade;formacao;area_atuacao;situacao
+123456;Daniela Nunes Andrade;SEDUC-0042;PROFESSOR;Efetivo;Professor(a) de Educação Básica;40;2015-03-02;Pós-graduação;Pedagogia;Anos iniciais;ATIVO

@@ -53,10 +53,13 @@ begin
 
   -- SERVIDORES
   perform carga.receber(jsonb_build_object('lote', 'T-SER', 'dominio', 'SERVIDORES', 'arquivo', 'servidores.csv', 'origem', 'Ensaio', 'responsavel', 'teste', 'ensaio', true,
-    'linhas', jsonb_build_array(jsonb_build_object('matricula_funcional', 'S-ENS-1', 'nome', 'Professora Ensaio', 'codigo_unidade', 'U-ENS-1', 'funcao', 'PROFESSOR'))));
+    'linhas', jsonb_build_array(jsonb_build_object('matricula_funcional', 'S-ENS-1', 'nome', 'Professora Ensaio', 'codigo_unidade', 'U-ENS-1', 'funcao', 'PROFESSOR',
+      'cargo', 'Professor(a) de Educação Básica', 'carga_horaria_semanal', '40', 'data_admissao', '02/03/2015', 'formacao', 'Pedagogia', 'situacao', 'ATIVO'))));
   perform carga.validar('{"lote": "T-SER"}');
   r := carga.promover('{"lote": "T-SER"}');
-  v_out := v_out || jsonb_build_object('passo', '5. Servidor promovido', 'ok', (r #>> '{resultado,criados}')::int = 1);
+  v_out := v_out || jsonb_build_object('passo', '5. Servidor promovido com a ficha funcional', 'ok', (r #>> '{resultado,criados}')::int = 1
+    and exists (select 1 from iara.staff where matricula_funcional = 'S-ENS-1' and carga_horaria_semanal = 40 and data_admissao = date '2015-03-02'
+                and formacao = 'Pedagogia' and situacao = 'ATIVO' and not is_demo));
 
   -- RESPONSÁVEIS (um CPF inválido: descartado com aviso)
   perform carga.receber(jsonb_build_object('lote', 'T-RES', 'dominio', 'RESPONSAVEIS', 'arquivo', 'responsaveis.csv', 'origem', 'Ensaio', 'responsavel', 'teste', 'ensaio', true,

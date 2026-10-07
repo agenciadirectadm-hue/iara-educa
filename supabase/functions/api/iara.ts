@@ -46,7 +46,27 @@ const MENU: QuickReply[] = [
   { label: "Falar com atendente", action: "intent:atendente" },
   { label: "Minha família", action: "intent:familia" },
   { label: "Outros serviços", action: "intent:servicos" },
+  { label: "Vida escolar", action: "intent:vida_escolar" },
 ];
+/** Vida escolar (Sprint 1): o mesmo que o portal mostra em /escola. */
+const ESCOLA_MENU: QuickReply[] = [
+  { label: "Frequência e faltas", action: "intent:frequencia" },
+  { label: "Justificar uma falta", action: "intent:justificar" },
+  { label: "Cardápio", action: "intent:cardapio" },
+  { label: "Avisos da escola", action: "intent:avisos" },
+  { label: "Calendário", action: "intent:calendario" },
+  { label: "Restrição alimentar", action: "intent:restricao" },
+];
+const REFEICAO_LABEL: Record<string, string> = { DESJEJUM: "Café da manhã", ALMOCO: "Almoço", LANCHE: "Lanche", JANTAR: "Jantar" };
+/** Palavras → código das 17 categorias de restrição alimentar (a nutrição valida depois). */
+const RESTRICAO_TERMOS: [RegExp, string][] = [
+  [/aplv|proteina do leite|alergi\w* (ao |a )?leite/, "APLV"], [/lactose/, "LACTOSE"], [/celiac|gluten|trigo/, "CELIACA"],
+  [/diabet/, "DIABETES"], [/colesterol|dislipid|triglicer/, "DISLIPIDEMIA"], [/ovo (cozido|frito|in natura)|so (o )?ovo/, "OVO_IN_NATURA"],
+  [/\bovos?\b/, "OVO_TOTAL"], [/oleo de soja/, "OLEO_SOJA"], [/\bsoja\b/, "SOJA"], [/colorau|urucum/, "COLORAU"], [/corante/, "CORANTES"],
+  [/fruta|banana|maca|mamao|laranja|melancia|pera\b/, "FRUTA_LAUDO"], [/vegan/, "VEGANO"], [/vegetarian/, "VEGETARIANO"],
+  [/adventista/, "PORCO_ADVENTISTA"], [/porco|suin|religi|judai|islam|mucul/, "PORCO_RELIGIAO"],
+];
+const FRUTAS: Record<string, string> = { banana: "banana", maca: "maca", mamao: "mamao", laranja: "laranja", melancia: "melancia", pera: "pera" };
 const FAMILY_MENU: QuickReply[] = [
   { label: "Novo membro da família", action: "fam:novo_membro" },
   { label: "Mudança de endereço", action: "fam:mudanca" },
@@ -74,7 +94,7 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question"]);
+const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo"]);
 
 const STATUS_LABEL: Record<string, string> = {
   NOVO: "recebido", EM_ANALISE: "em análise", AGUARDANDO_DOCUMENTOS: "aguardando documentos", AGUARDANDO_FAMILIA: "aguardando sua resposta",
@@ -116,10 +136,17 @@ function detectIntent(t: string): string {
   if (/(desist|tirar d[ao] fila|sair da fila|cancelar (a )?inscricao|nao quero mais a vaga)/.test(t)) return "desistencia";
   if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(telefone|numero|celular|whatsapp|e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
+  // vida escolar (Sprint 1)
+  if (/(vida escolar|coisas da escola)/.test(t)) return "vida_escolar";
+  if (/(justificar|justificativa|falta justificada|atestado medico|faltou porque|estava doente|ficou doente)/.test(t)) return "justificar";
+  if (/(\bfaltas\b|faltou|quantas faltas|frequencia|presenca|foi (a|na|para a) (aula|escola)|chamada)/.test(t)) return "frequencia";
+  if (/(alergi|intoleran|celiac|dieta|restricao alimentar|nao pode comer|vegetarian|vegan|carne de porco|\baplv\b|lactose|gluten|diabet|alimentacao especial)/.test(t)) return "restricao";
+  if (/(cardapio|merenda|lanche|almoco|janta|o que (tem|vai ter) (de|para|pra) comer|comida da escola|refeic)/.test(t)) return "cardapio";
+  if (/(aviso|comunicado|recado|bilhete|mural|enquete|reuniao de pais|reuniao da escola)/.test(t)) return "avisos";
+  if (/(calendario|feriado|tem aula|vai ter aula|dia sem aula|recesso|ferias escolares)/.test(t)) return "calendario";
   if (/(troca de turno|trocar de turno|mudar de turno|mudar o turno|outro turno)/.test(t)) return "servico:TROCA_TURNO";
   if (/(periodo integral|educacao integral|contraturno|\bintegral\b)/.test(t)) return "servico:INTEGRAL";
   if (/(transporte|onibus|van escolar)/.test(t)) return "servico:TRANSPORTE";
-  if (/(merenda|alimentacao|dieta|alergia|intoleran)/.test(t)) return "servico:ALIMENTACAO";
   if (/(declaracao|historico escolar|atestado de matricula|comprovante de matricula)/.test(t)) return "servico:DOCUMENTO";
   if (/((alterar|trocar|mudar) (o )?responsavel|termo de guarda)/.test(t)) return "servico:ALTERACAO_RESPONSAVEL";
   if (/(recurso|contestar|discordo da posicao|classificacao errada)/.test(t)) return "servico:RECURSO";
@@ -132,7 +159,7 @@ function detectIntent(t: string): string {
   if (/(transfer|mudar de escola|trocar de escola|mudar de cmei|trocar de cmei)/.test(t)) return "transferencia";
   if (/(vaga|creche|matricul|pre.?escola|1.?\s?ano|primeiro ano|cmei para|estudar|inscrever|inscricao)/.test(t)) return "procurar_vaga";
   if (/(unidade|onde fica|perto de mim|mais proxim|encontrar escola|encontrar cmei|endereco da)/.test(t)) return "unidade";
-  if (/(calendario|prazo|quando|rematricula|eja|etapa)/.test(t)) return "conhecimento";
+  if (/(prazo|quando|rematricula|eja|etapa)/.test(t)) return "conhecimento";
   if (/^(oi|ola|bom dia|boa tarde|boa noite|e ai|hello|opa)\b/.test(t)) return "saudacao";
   if (/(obrigad|valeu|tchau|ate mais)/.test(t)) return "obrigado";
   return "desconhecido";
@@ -187,6 +214,22 @@ function linhaInscricao(breakdown: any[] | null | undefined): string | null {
 const dt = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const first = (name?: string | null) => (name ?? "").trim().split(/\s+/)[0] ?? "";
+/** "seg., 05/10" a partir de aaaa-mm-dd, sem conversão de fuso. */
+const diaBr = (iso?: string | null) => {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return `${new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+};
+/** Hoje (se for dia de aula com cardápio) ou o próximo dia do cardápio publicado. */
+function proximoDiaCardapio(c: any): any | null {
+  const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const dias = ((c?.dias ?? []) as any[]);
+  return dias.find((d) => d.data >= hoje && (d.refeicoes ?? []).length) ?? dias[dias.length - 1] ?? null;
+}
+function codigoRestricao(t: string): string | null {
+  for (const [re, cod] of RESTRICAO_TERMOS) if (re.test(t)) return cod;
+  return null;
+}
 
 export class Agent {
   messages: Reply[] = [];
@@ -382,6 +425,22 @@ export class Agent {
         return await this.startUpdate(norm(text));
       case "servicos":
         return this.servicesMenu();
+      case "vida_escolar":
+        this.done();
+        this.say("Da vida escolar das crianças, eu mostro e resolvo por aqui:", { quick_replies: ESCOLA_MENU });
+        return;
+      case "frequencia":
+        return await this.frequencia();
+      case "justificar":
+        return await this.startJustificar();
+      case "cardapio":
+        return await this.cardapio();
+      case "restricao":
+        return await this.startRestricao(norm(text));
+      case "avisos":
+        return await this.avisos();
+      case "calendario":
+        return await this.calendario();
       case "conhecimento":
         if (!text.trim() || /^(tirar uma )?duvida( sobre a rede)?$/.test(norm(text))) return this.askQuestion();
         return await this.knowledge(text);
@@ -469,6 +528,12 @@ export class Agent {
       case "decline_reason": {
         const [offerId, ...reason] = value.split(":");
         return await this.declineOffer(offerId, reason.join(":"));
+      }
+      case "aviso_ok":
+        return await this.avisoCiente(value);
+      case "enq": {
+        const [id, op] = value.split("|");
+        return await this.enqueteResponder(id, Number(op));
       }
       case "doc_send":
         return await this.sendDocument(value);
@@ -1104,6 +1169,7 @@ export class Agent {
       SOLICITACAO_VAGA: () => this.startVaga(), TRANSFERENCIA: () => this.startTransfer(), TRANSFERENCIA_EXTERNA: () => this.startOutraCidade(),
       MUDANCA_ENDERECO: () => this.startMove(), INCLUSAO_MEMBRO: () => this.startNewMember(), ATUALIZACAO_CADASTRAL: () => this.startUpdate(""),
       DESISTENCIA: () => this.startWithdraw(), DUVIDA: async () => this.askQuestion(),
+      ALIMENTACAO: () => this.startRestricao(""),
     };
     if (flows[code]) return await flows[code]();
     // informação oficial primeiro (resolve dúvidas na hora); uma vez só, depois das verificações
@@ -1198,6 +1264,8 @@ export class Agent {
     const t = norm(text);
     const flow = this.ctx.flow;
     if (flow === "duvida" && step === "question") return await this.knowledge(text);
+    if (flow === "justificar") return await this.justificarStep(text);
+    if (flow === "restricao") return await this.restricaoStep(text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
@@ -1291,6 +1359,241 @@ export class Agent {
   }
 
   // ================================================================== fila / protocolos / ofertas
+  // ======================================================================== vida escolar (Sprint 1)
+  // O mesmo que o portal da família mostra em /escola, com as mesmas funções do banco (portal = WhatsApp).
+
+  private async frequencia(): Promise<void> {
+    if (!this.needGuardian("intent:frequencia")) return;
+    if (!this.ensureVerified("intent:frequencia")) return;
+    const kids = (await this.tool("get_attendance", "familia_frequencia", {})) as any[];
+    if (!kids?.length) {
+      this.done();
+      return this.say("Não encontrei criança matriculada sob sua responsabilidade. Quando houver matrícula, a frequência aparece aqui.", { quick_replies: [MENU[0]] });
+    }
+    const cards: Card[] = kids.map((k) => {
+      const pct = Number(k.percentual);
+      const recentes = ((k.faltas_recentes ?? []) as any[]).slice(0, 4).map((f) =>
+        `• ${diaBr(f.data)}: ${f.tipo === "FALTA_JUSTIFICADA" ? "falta justificada" : "falta"}`);
+      return {
+        title: `${k.primeiro_nome} · ${String(k.percentual ?? "—").replace(".", ",")}% de presença`,
+        subtitle: `${k.turma} · ${k.unidade}`,
+        lines: [`${k.faltas} falta(s) em ${k.dias} dias letivos · mínimo exigido: ${k.minimo}%`,
+          ...(k.consecutivas >= 3 ? [`⚠️ ${k.consecutivas} faltas seguidas — a escola pode entrar em contato.`] : []),
+          ...(recentes.length ? ["Últimas faltas:", ...recentes] : ["Nenhuma falta recente. 👏"])],
+        badge: `${String(k.percentual ?? "—").replace(".", ",")}%`, tone: pct < Number(k.minimo) ? "red" : pct < Number(k.minimo) + 10 ? "amber" : "green",
+      };
+    });
+    this.say("Frequência no ano letivo:", {
+      cards, notice: "Mínimo legal: 75% no ensino fundamental e 60% na educação infantil (LDB). A chamada é registrada pelo professor todos os dias.",
+      quick_replies: [{ label: "Justificar uma falta", action: "intent:justificar" }, { label: "Avisos da escola", action: "intent:avisos" }],
+    });
+    this.done("Consultou a frequência dos filhos.");
+  }
+
+  private async startJustificar(): Promise<void> {
+    if (!this.needGuardian("intent:justificar")) return;
+    if (!this.ensureVerified("intent:justificar")) return;
+    const kids = ((await this.tool("get_attendance", "familia_frequencia", {})) as any[]) ?? [];
+    const com = kids.map((k) => {
+      const enviadas = new Set(((k.justificativas ?? []) as any[]).filter((j) => j.situacao !== "RECUSADA").map((j) => j.data));
+      return { ...k, abertas: ((k.faltas_recentes ?? []) as any[]).filter((f) => f.tipo === "FALTA" && !enviadas.has(f.data)) };
+    }).filter((k) => k.abertas.length);
+    if (!com.length) {
+      this.done();
+      return this.say("Não há falta recente sem justificativa. 🙂 Se a criança vai faltar, avise a escola por aqui depois que a falta for registrada.", { quick_replies: [ESCOLA_MENU[0]] });
+    }
+    this.ctx = { flow: "justificar", step: "jf_child", data: { kids: com.map((k) => ({ id: k.student_id, nome: k.primeiro_nome, faltas: k.abertas.map((f: any) => f.data) })) } };
+    if (com.length === 1) return await this.justificarStep(com[0].student_id);
+    this.say("A falta é de quem?", { quick_replies: com.map((k) => ({ label: k.primeiro_nome, action: `ans:${k.student_id}` })) });
+  }
+
+  private async justificarStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "jf_child") {
+      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
+      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, kid };
+      if (kid.faltas.length === 1) return await this.justificarDia(kid.faltas[0]);
+      return this.ask("jf_dia", `Qual falta de ${kid.nome} você quer justificar?`, { quick_replies: (kid.faltas as string[]).map((f) => ({ label: diaBr(f), action: `ans:${f}` })) });
+    }
+    if (this.ctx.step === "jf_dia") {
+      const dia = (d.kid.faltas as string[]).find((f) => f === text || diaBr(f) === text.trim());
+      if (!dia) return this.say("Toque na data da falta, por favor.");
+      return await this.justificarDia(dia);
+    }
+    if (this.ctx.step === "description") {
+      if (text.trim().length < 5) return this.say("Conte em poucas palavras o motivo (não precisa dizer o diagnóstico).");
+      this.ctx.data = { ...d, motivo: text.trim().slice(0, 300) };
+      return this.ask("jf_atestado", "Tem atestado médico? Se tiver, entregue na secretaria da escola.", { quick_replies: YES_NO });
+    }
+    if (this.ctx.step === "jf_atestado") {
+      const atestado = yesNo(t) ?? false;
+      const r = await this.tool("send_absence_justification", "familia_justificar_falta",
+        { student_id: d.kid.id, data: d.dia, motivo: d.motivo, atestado, canal: "IARA" }, `justificar:${d.kid.id}:${d.dia}`);
+      this.done(`Justificativa de falta de ${diaBr(d.dia)} enviada à escola.`);
+      return this.say(`${r.mensagem ?? "Justificativa enviada."} ✅`, { quick_replies: [ESCOLA_MENU[0], ESCOLA_MENU[3]] });
+    }
+  }
+
+  private async justificarDia(dia: string): Promise<void> {
+    this.ctx.data = { ...this.ctx.data, dia };
+    this.ask("description", `Qual foi o motivo da falta de ${this.ctx.data?.kid?.nome ?? "da criança"} em ${diaBr(dia)}?`);
+  }
+
+  private async cardapio(): Promise<void> {
+    if (this.conv.guardian_id) {
+      if (!this.ensureVerified("intent:cardapio")) return;
+      const kids = ((await this.tool("get_menu", "familia_cardapio", {})) as any[]) ?? [];
+      const cards: Card[] = [];
+      for (const k of kids) {
+        const dia = proximoDiaCardapio(k.cardapio);
+        if (!dia) continue;
+        const lines = ((dia.refeicoes ?? []) as any[]).map((r) => `${REFEICAO_LABEL[r.refeicao] ?? r.refeicao}: ${((r.itens ?? []) as any[]).map((i) => (i.troca ? `${i.troca} (no lugar de ${i.nome})` : i.nome)).join(", ")}`);
+        const restr = ((k.restricoes ?? []) as any[]).map((r) => `${r.descricao.split(" (")[0]} — ${r.situacao === "VALIDADA" ? "validada: a cozinha já prepara a troca" : r.situacao === "INFORMADA" ? "aguardando a nutrição" : "não validada"}`);
+        cards.push({ title: `${k.primeiro_nome} · ${diaBr(dia.data)}`, subtitle: k.unidade, lines: [...lines, ...restr.map((x) => `🍎 ${x}`)], tone: "green" });
+      }
+      if (!cards.length) {
+        this.done();
+        return this.say("O cardápio desta semana ainda não foi publicado pela nutrição.", { quick_replies: [MENU[0]] });
+      }
+      this.say("Cardápio da escola:", { cards, notice: "Cardápio elaborado pela nutrição da SEDUC. Trocas por restrição só depois da validação da nutrição.", quick_replies: [{ label: "Informar restrição alimentar", action: "intent:restricao" }, ESCOLA_MENU[3]] });
+      this.done("Consultou o cardápio.");
+      return;
+    }
+    const pub = await this.tool("get_menu_public", "cardapio", {});
+    const cards: Card[] = ((pub?.faixas ?? []) as any[]).map((f) => {
+      const dia = proximoDiaCardapio(f);
+      return { title: `${f.faixa === "CRECHE" ? "Creche" : f.faixa === "PRE" ? "Pré-escola" : "Ensino fundamental"} · ${dia ? diaBr(dia.data) : ""}`,
+        lines: ((dia?.refeicoes ?? []) as any[]).map((r) => `${REFEICAO_LABEL[r.refeicao] ?? r.refeicao}: ${((r.itens ?? []) as any[]).map((i) => i.nome).join(", ")}`), tone: "green" };
+    });
+    this.say("Cardápio da rede:", { cards });
+    this.done("Consultou o cardápio da rede.");
+  }
+
+  private async startRestricao(t: string): Promise<void> {
+    if (!this.needGuardian("intent:restricao")) return;
+    if (!this.ensureVerified("intent:restricao")) return;
+    const fam = await this.family();
+    const kids = ((fam?.children ?? []) as any[]).filter((k) => k.school);
+    if (!kids.length) {
+      this.done();
+      return this.say("A restrição alimentar é registrada para criança matriculada. Quando houver matrícula, é só me dizer.", { quick_replies: [MENU[0]] });
+    }
+    const codigo = codigoRestricao(t);
+    this.ctx = { flow: "restricao", step: "rs_child", data: { kids: kids.map((k) => ({ id: k.id, nome: k.first_name })), codigo } };
+    if (kids.length === 1) return await this.restricaoStep(kids[0].id);
+    this.say("É para qual criança?", { quick_replies: kids.map((k) => ({ label: k.first_name, action: `ans:${k.id}` })) });
+  }
+
+  private async restricaoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "rs_child") {
+      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
+      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, kid };
+      if (d.codigo) return await this.restricaoConfirmar(d.codigo);
+      return this.ask("rs_tipo", `Qual é a restrição de ${kid.nome}? Escreva com suas palavras (ex.: “intolerância à lactose”, “não come carne de porco por religião”).`, {
+        quick_replies: [{ label: "Alergia ao leite (APLV)", action: "ans:APLV" }, { label: "Intolerância à lactose", action: "ans:LACTOSE" },
+          { label: "Doença celíaca (glúten)", action: "ans:CELIACA" }, { label: "Diabetes", action: "ans:DIABETES" },
+          { label: "Alergia a ovo", action: "ans:OVO_TOTAL" }, { label: "Vegetariano", action: "ans:VEGETARIANO" },
+          { label: "Sem carne de porco (religião)", action: "ans:PORCO_RELIGIAO" }],
+      });
+    }
+    if (this.ctx.step === "rs_tipo") {
+      const codigo = /^[A-Z_]+$/.test(text.trim()) ? text.trim() : codigoRestricao(t);
+      if (!codigo) return this.say("Não identifiquei a restrição. Pode descrever de outro jeito? Se preferir, um atendente ajuda.", { quick_replies: [MENU[6]] });
+      return await this.restricaoConfirmar(codigo);
+    }
+    if (this.ctx.step === "rs_fruta") {
+      const fruta = Object.keys(FRUTAS).find((f) => t.includes(f));
+      if (!fruta) return this.say("Qual fruta? (banana, maçã, mamão, laranja, melancia ou pera)");
+      return await this.restricaoGravar(d.codigo, FRUTAS[fruta]);
+    }
+    if (this.ctx.step === "rs_ok") {
+      if (yesNo(t) === false) {
+        this.done();
+        return this.say("Tudo bem, nada foi registrado.", { quick_replies: ESCOLA_MENU.slice(0, 3) });
+      }
+      return await this.restricaoGravar(d.codigo, null);
+    }
+  }
+
+  private async restricaoConfirmar(codigo: string): Promise<void> {
+    this.ctx.data = { ...this.ctx.data, codigo };
+    if (codigo === "FRUTA_LAUDO") return this.ask("rs_fruta", "Qual fruta a criança não pode comer?", { quick_replies: Object.keys(FRUTAS).slice(0, 6).map((f) => ({ label: f === "maca" ? "maçã" : f === "mamao" ? "mamão" : f })) });
+    const pub = await this.tool("get_menu_public", "cardapio", {});
+    const r = ((pub?.restricoes ?? []) as any[]).find((x) => x.codigo === codigo);
+    this.ask("rs_ok", `Vou registrar para ${this.ctx.data?.kid?.nome}: “${r?.descricao ?? codigo}”. ${r?.exige_laudo ? "Essa precisa de laudo, entregue na secretaria da escola." : "Essa não precisa de laudo."} Confirma?`, { quick_replies: YES_NO });
+  }
+
+  private async restricaoGravar(codigo: string, detalhe: string | null): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const r = await this.tool("inform_food_restriction", "familia_informar_restricao", { student_id: d.kid.id, codigo, detalhe }, `restricao:${d.kid.id}:${codigo}`);
+    this.done(`Restrição alimentar informada (${codigo}); aguarda a validação da nutrição.`);
+    this.say(`${r.mensagem ?? "Registrado."} ✅`, { quick_replies: [ESCOLA_MENU[2], MENU[9]] });
+  }
+
+  private async avisos(): Promise<void> {
+    if (!this.needGuardian("intent:avisos")) return;
+    if (!this.ensureVerified("intent:avisos")) return;
+    const r = await this.tool("get_school_notices", "familia_avisos", { nao_lidos: true });
+    const itens = ((r?.avisos ?? []) as any[]).slice(0, 4);
+    if (!itens.length) {
+      this.done();
+      return this.say("Você está em dia com os avisos da escola. 🙂", { quick_replies: [ESCOLA_MENU[4], ESCOLA_MENU[0]] });
+    }
+    const quick: QuickReply[] = [];
+    const cards: Card[] = itens.map((a) => {
+      if (a.exige_confirmacao && !a.confirmado) quick.push({ label: `Estou ciente: ${a.titulo.slice(0, 22)}`, action: `aviso_ok:${a.id}` });
+      if (a.tipo === "ENQUETE" && a.minha_resposta == null) ((a.opcoes ?? []) as string[]).forEach((o, i) => quick.push({ label: o.slice(0, 24), action: `enq:${a.id}|${i + 1}` }));
+      return { title: a.titulo, subtitle: `${a.unidade ?? "SEDUC Maringá"} · para ${a.filhos}`, lines: [a.texto.length > 320 ? a.texto.slice(0, 317) + "…" : a.texto,
+        ...(a.data_evento ? [`📅 ${diaBr(a.data_evento)}`] : []), ...(a.exige_confirmacao && !a.confirmado ? ["A escola pede que você confirme a ciência."] : [])],
+        tone: a.tipo === "ENQUETE" ? "amber" : "purple", badge: a.tipo === "ENQUETE" ? "Enquete" : undefined };
+    });
+    this.say(`${r.nao_lidos} aviso(s) novo(s) da escola:`, { cards, quick_replies: quick.slice(0, 10) });
+    // o que só informa fica lido ao ser mostrado; ciência e enquete esperam a resposta
+    for (const a of itens) if (!a.exige_confirmacao && a.tipo !== "ENQUETE" && !a.lido) await this.tool("mark_notice_read", "familia_aviso_ler", { id: a.id });
+    this.done("Leu os avisos da escola.");
+  }
+
+  private async avisoCiente(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`aviso_ok:${id}`)) return;
+    await this.tool("confirm_notice", "familia_aviso_ler", { id, confirmar: true }, `ciencia:${id}`);
+    this.done("Confirmou a ciência de um aviso da escola.");
+    this.say("Ciência confirmada ✅ A escola vê a sua confirmação.", { quick_replies: [ESCOLA_MENU[3]] });
+  }
+
+  private async enqueteResponder(id: string, opcao: number): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`enq:${id}|${opcao}`)) return;
+    const r = await this.tool("answer_poll", "familia_enquete_responder", { id, opcao });
+    const total = ((r.votos ?? []) as any[]).reduce((s, v) => s + Number(v.votos), 0) || 1;
+    this.done("Respondeu uma enquete da escola.");
+    this.say(`Resposta registrada: “${r.opcao}” ✅`, {
+      cards: [{ title: "Resultado parcial", lines: ((r.votos ?? []) as any[]).map((v) => `${v.opcao}: ${Math.round((100 * Number(v.votos)) / total)}%`), tone: "amber" }],
+      quick_replies: [ESCOLA_MENU[3]],
+    });
+  }
+
+  private async calendario(): Promise<void> {
+    const hoje = new Date();
+    const iso = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    const itens = ((await this.tool("get_school_calendar", "calendario", { de: iso(hoje), ate: iso(new Date(hoje.getTime() + 60 * 86400000)) })) as any[]) ?? [];
+    if (!itens.length) {
+      this.done();
+      return this.say("Nada no calendário escolar nos próximos 60 dias.");
+    }
+    this.say("Próximas datas do calendário escolar:", {
+      cards: [{ title: "Calendário 2026", lines: itens.slice(0, 10).map((e) => `${diaBr(e.inicio)}${e.fim !== e.inicio ? ` a ${diaBr(e.fim)}` : ""} · ${e.titulo}${e.sem_aula ? " (sem aula)" : ""}${e.unidade ? ` — ${e.unidade}` : ""}`), tone: "blue" }],
+      notice: "Feriados de lei de 2026; datas das unidades conforme o calendário de cada escola.",
+      quick_replies: [ESCOLA_MENU[3], ESCOLA_MENU[0]],
+    });
+    this.done("Consultou o calendário escolar.");
+  }
+
   private async queueStatus(): Promise<void> {
     if (!this.needGuardian("intent:fila")) return;
     if (!this.ensureVerified("intent:fila")) return;

@@ -41,6 +41,17 @@ const WhatsAppPoster = lazy(() => import('./pages/WhatsApp').then((m) => ({ defa
 const PainelControle = lazy(() => import('./pages/controle/PainelControle'));
 const FilaPublica = lazy(() => import('./pages/controle/FilaPublica'));
 const ConsultaCaso = lazy(() => import('./pages/controle/ConsultaCaso'));
+const Chamada = lazy(() => import('./pages/Chamada'));
+const Pessoal = lazy(() => import('./pages/Pessoal'));
+const Servidor = lazy(() => import('./pages/Servidor'));
+const Frequencia = lazy(() => import('./pages/Frequencia'));
+const Nutricao = lazy(() => import('./pages/Nutricao'));
+const Cozinha = lazy(() => import('./pages/Cozinha'));
+const Manutencao = lazy(() => import('./pages/Manutencao'));
+const Chamado = lazy(() => import('./pages/Chamado'));
+const Mural = lazy(() => import('./pages/Mural'));
+const Calendario = lazy(() => import('./pages/Calendario'));
+const Escola = lazy(() => import('./pages/Escola'));
 
 function Loader() {
   return (
@@ -110,6 +121,17 @@ export const router = createHashRouter([
       { path: '/unidades', element: S(<Units />) },
       { path: '/unidades/:id', element: S(<UnitPage />) },
       { path: '/turmas/:id', element: <RequireSession>{S(<ClassPage />)}</RequireSession> },
+      { path: '/turmas/:id/chamada', element: <RequireSession>{S(<Chamada />)}</RequireSession> },
+      { path: '/pessoal', element: <RequireSession>{S(<Pessoal />)}</RequireSession>, handle: { wide: true } },
+      { path: '/pessoal/:id', element: <RequireSession>{S(<Servidor />)}</RequireSession>, handle: { wide: true } },
+      { path: '/frequencia', element: <RequireSession>{S(<Frequencia />)}</RequireSession>, handle: { wide: true } },
+      { path: '/nutricao', element: <RequireSession>{S(<Nutricao />)}</RequireSession>, handle: { wide: true } },
+      { path: '/cozinha', element: <RequireSession>{S(<Cozinha />)}</RequireSession> },
+      { path: '/manutencao', element: <RequireSession>{S(<Manutencao />)}</RequireSession>, handle: { wide: true } },
+      { path: '/manutencao/:id', element: <RequireSession>{S(<Chamado />)}</RequireSession> },
+      { path: '/mural', element: <RequireSession>{S(<Mural />)}</RequireSession> },
+      { path: '/calendario', element: S(<Calendario />) },
+      { path: '/escola', element: <RequireSession>{S(<Escola />)}</RequireSession> },
       { path: '/territorios/:id', element: S(<TerritoryPage />) },
       { path: '/alunos', element: <RequireSession>{S(<Alunos />)}</RequireSession>, handle: { wide: true } },
       { path: '/alunos/novo', element: <RequireSession>{S(<CadastroAluno />)}</RequireSession> },

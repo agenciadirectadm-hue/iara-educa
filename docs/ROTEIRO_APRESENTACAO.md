@@ -29,9 +29,26 @@ pessoas, fila, protocolos e conversas são fictícios e marcados com a bandeirin
 | 8 | Regras e critérios | IN nº 025/2025, simulador de pontuação, metodologia das distâncias | As regras são públicas e auditáveis? |
 | 9 | Auditoria | Trilha imutável das ações da apresentação | Quem fez o quê, e quando? |
 
+### Vida escolar (Sprint 1) — mais 10 a 15 minutos
+
+Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfis de unidade: ela tem de tudo para mostrar.
+
+| # | Perfil | O que mostrar | Pergunta que a tela responde |
+|---|---|---|---|
+| 10 | Professor(a) regente | Minhas turmas → **chamada do dia** (toque em quem faltou e registre), meu horário, mural | Quem está na sala hoje? |
+| 11 | Direção | **Frequência**: alertas de faltas seguidas (busca ativa), justificativas das famílias; **Pessoal**: carga horária, aulas sem professor; **Cozinha**: quem tem restrição e o que trocar, sem laudo | Quem precisa de atenção na minha escola? |
+| 12 | Cidadão (Maria) | **Vida escolar**: avisos com “Estou ciente”, enquete, frequência da Ana com “Justificar”, cardápio já com as trocas | O que acontece na escola do meu filho? |
+| 13 | IARA (WhatsApp) | “quantas faltas a Ana tem?”, “justificar falta”, “cardápio de hoje”, “ela tem intolerância à lactose”, “avisos da escola”, “tem aula segunda?” | A família resolve pelo WhatsApp? |
+| 14 | Nutrição | Cardápio da semana por faixa, as 17 restrições (motivo separado), validar a restrição que a Maria acabou de informar, refeições servidas pela chamada | Cada criança está comendo o que pode? |
+| 15 | Manutenção (e Direção) | Direção abre um chamado com risco à segurança (prazo de 24 h); a infraestrutura tria e conclui; a escola valida com nota | O que está quebrado e quem está resolvendo? |
+
+Os dados da vida escolar são fictícios (servidores, faltas, cardápios, restrições, chamados e publicações), sobre o calendário
+real de 2026 (feriados de lei). A explicação para a plateia: os dados reais substituem estes na carga oficial.
+
 ## Depois (1 minuto)
 
-1. **Rotina de apresentação → Limpar depois da apresentação**: apaga o que a plateia e os testes criaram e reinicia a família da Maria.
+1. **Rotina de apresentação → Limpar depois da apresentação**: apaga o que a plateia e os testes criaram e reinicia a família da Maria —
+   inclusive o que foi lançado ao vivo na vida escolar (chamadas, justificativas, restrições, chamados, publicações e leituras).
    A trilha de auditoria permanece (é imutável).
 2. WhatsApp: pare a ponte da Educação (`Ctrl+C`) e, se for o caso, religue a da IARA Saúde. Com a ponte parada, o QR code do portal
    volta sozinho para a conversa simulada.

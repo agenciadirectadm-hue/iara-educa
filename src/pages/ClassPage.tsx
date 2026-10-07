@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, Calculator, Clock, Lock, Sparkles, Unlock, Users } from 'lucide-react';
+import { Ban, Calculator, CalendarCheck, Clock, Lock, Sparkles, Unlock, Users } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtDate, fmtInt, timeAgo, timeLeft } from '@/lib/format';
 import { BLOCK_REASON, FLAG, OFFER_STATUS, QUEUE_CATEGORY, SHIFT, VACANCY_EVENT } from '@/lib/labels';
 import {
-  Avatar, Badge, Button, Card, EmptyState, ErrorState, Field, ListRow, OccupancyBar, PageHeader, Section, SkeletonList, SourceChip, inputCls,
+  Avatar, Badge, Button, ButtonLink, Card, EmptyState, ErrorState, Field, ListRow, OccupancyBar, PageHeader, Section, SkeletonList, SourceChip, inputCls,
 } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { OfferSheet } from '@/components/OfferSheet';
+import { GradeHorario } from '@/components/escola';
 
 export default function ClassPage() {
   const { id } = useParams();
@@ -50,7 +51,10 @@ export default function ClassPage() {
         eyebrow={`${d.unit.name} · ${c.stage}`}
         title={c.name}
         subtitle={`${c.grade} · turno ${SHIFT[c.shift]?.toLowerCase()} · ${c.room} · ano letivo ${c.school_year}`}
-        actions={can('vacancy.block') ? <Button variant="secondary" icon={Ban} onClick={() => setBlockOpen(true)} disabled={k.offerable < 1}>Bloquear vaga</Button> : undefined}
+        actions={<>
+          {can('frequencia.read') && <ButtonLink to={`/turmas/${c.id}/chamada`} variant="success" icon={CalendarCheck}>Chamada</ButtonLink>}
+          {can('vacancy.block') && <Button variant="secondary" icon={Ban} onClick={() => setBlockOpen(true)} disabled={k.offerable < 1}>Bloquear vaga</Button>}
+        </>}
       />
 
       <Card className="p-4">
@@ -84,6 +88,8 @@ export default function ClassPage() {
           </Card>
         ))}
       </div>
+
+      <HorarioTurma classId={c.id} />
 
       <Section title={`Alunos (${fmtInt(k.enrolled)})`} subtitle="Toque para abrir a ficha 360º" action={<SourceChip kind="demo" detail="Nomes e dados pessoais fictícios." />}>
         {d.students_visible ? (
@@ -211,5 +217,20 @@ function BlockSheet({ open, onClose, classId, max, onDone }: { open: boolean; on
         </Field>
       </div>
     </Sheet>
+  );
+}
+
+/** Grade da turma: componente e professor de cada aula; aula sem professor fica em vermelho. */
+function HorarioTurma({ classId }: { classId: string }) {
+  const res = useRpc<any>('turma_horario', { class_id: classId });
+  if (res.isLoading || res.error || !(res.data?.aulas ?? []).length) return null;
+  const semProf = (res.data.aulas as any[]).filter((a) => a.sem_professor).length;
+  return (
+    <Section title="Horário da turma" subtitle={semProf ? `${semProf} aula(s) ainda sem professor` : 'Todas as aulas com professor'}>
+      <Card className="p-3">
+        <GradeHorario aulas={res.data.aulas} rotulo="Horário da turma"
+          celula={(a) => ({ titulo: a.componente, sub: a.professor ?? 'Sem professor', alerta: a.sem_professor })} />
+      </Card>
+    </Section>
   );
 }

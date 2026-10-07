@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola]
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
 
@@ -32,7 +32,7 @@ function lastQuick(conv) {
   return (m?.payload?.quick_replies ?? []).map((x) => (typeof x === 'string' ? { label: x } : x));
 }
 
-const persona = roteiro === 'maria' ? 'CIDADAO' : 'CIDADAO_NOVO';
+const persona = roteiro === 'nova' ? 'CIDADAO_NOVO' : 'CIDADAO';
 const { token } = await req('/session', { persona });
 let conv = await req('/rpc/iara_conversation', { new: true }, token);
 const id = conv.conversation.id;
@@ -73,6 +73,23 @@ if (roteiro === 'nova') {
   await send('quero desistir da fila');
   await tap('Tirar da fila');
   await tap('Sim, desistir');
+} else if (roteiro === 'escola') {
+  // vida escolar (Sprint 1): frequência, justificativa, cardápio, restrição, avisos e calendário.
+  // Lança dados ao vivo; depois: select iara.demo_purge_sprint1(<início do teste>);
+  await send('oi');
+  await send('quantas faltas a Ana tem?');
+  await tap('Confirmar código');
+  await tap('Justificar uma falta');
+  if (lastQuick(conv).some((q) => /^\w{3}\. \d{2}\/\d{2}$/.test(q.label))) await tap(/^\w{3}\. \d{2}\/\d{2}$/);
+  await send('Ela estava com febre e ficou em casa');
+  await tap('Não');
+  await send('qual o cardápio de hoje?');
+  await send('ela tem intolerância à lactose');
+  await tap('Sim');
+  await send('tem algum aviso da escola?');
+  const enquete = lastQuick(conv).find((q) => (q.action ?? '').startsWith('enq:'));
+  if (enquete) await send(enquete.label, enquete.action);
+  await send('quando é o próximo feriado?');
 } else {
   await send('oi');
   await send('a minha filha precisa trocar de turno');
