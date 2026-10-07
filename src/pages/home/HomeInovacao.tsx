@@ -5,6 +5,7 @@ import { useBootstrap } from '@/lib/data';
 import { fmtInt } from '@/lib/format';
 import { Badge, Card, ErrorState, Kpi, PageHeader, Section, SkeletonList, SourceChip } from '@/components/ui';
 import { BarList } from '@/components/charts';
+import { RotinaApresentacao } from '@/components/RotinaApresentacao';
 
 const INTEGRATIONS = [
   { name: 'Censo Escolar / INEP', status: 'Carregado (seed)', tone: 'green' as const, detail: 'Microdados 2025: turmas e matrículas por série, turnos por etapa, docentes.' },
@@ -40,6 +41,7 @@ export default function HomeInovacao() {
         <Kpi icon={Activity} tone="blue" label="Unidades no Censo 2025" value={`${fmtInt(s.units_census)}/118`} sub={`${s.without_inep} sem código INEP`} source="oficial" to="/qualidade" />
         <Kpi icon={ShieldCheck} tone="teal" label="Regras vigentes" value={boot.data?.rule_version ?? '—'} sub="motor determinístico" to="/regras" />
       </div>
+      <RotinaApresentacao />
       <Section title="Pendências por tipo" action={<Link className="text-sm font-semibold text-purple-700" to="/qualidade">Abrir painel</Link>}>
         <Card className="p-3">
           <BarList items={Object.entries(s.by_type ?? {}).map(([k, v]) => ({ key: k, label: k.replaceAll('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase()), value: v as number, to: '/qualidade' }))} />

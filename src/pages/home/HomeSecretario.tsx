@@ -7,6 +7,7 @@ import { fmtInt, fmtPct } from '@/lib/format';
 import { QUEUE_CATEGORY } from '@/lib/labels';
 import { Badge, Card, ErrorState, Kpi, PageHeader, Section, Segmented, SkeletonList, SourceChip } from '@/components/ui';
 import { BarList, Donut, Funnel, GroupedBars } from '@/components/charts';
+import { RotinaApresentacao } from '@/components/RotinaApresentacao';
 
 const CAT_COLOR: Record<string, string> = {
   SEM_ATENDIMENTO: '#D94C4C', AGUARDA_TRANSFERENCIA: '#2A7DE1', PARCIAL_PARA_INTEGRAL: '#14B8A6', UNIDADE_PREFERENCIAL: '#A846E8', RECUSOU_OFERTA: '#F2B640', DEMANDA_FUTURA: '#94A3B8',
@@ -35,6 +36,7 @@ export default function HomeSecretario() {
         }
       />
       {dash.isLoading ? <SkeletonList rows={6} /> : dash.error ? <ErrorState error={dash.error} onRetry={() => dash.refetch()} /> : <Body d={dash.data} stage={stage} navigate={navigate} />}
+      <RotinaApresentacao />
     </div>
   );
 }
