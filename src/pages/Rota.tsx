@@ -44,10 +44,10 @@ export default function Rota() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
         <Card className="overflow-hidden">
           <Suspense fallback={<Skeleton className="h-80" />}>
-            <MapView units={[]} pontos={pontos} trajetos={[{ id: 1, modo: 'CARRO', coords: linha }]} focus={{ lat: r.escola.lat, lng: r.escola.lng, zoom: 13.3 }}
+            <MapView units={[]} pontos={pontos} trajetos={[{ id: 1, modo: 'CARRO', coords: r.trajeto ?? linha }]} focus={{ lat: r.escola.lat, lng: r.escola.lng, zoom: 13.3 }}
               className="h-80 lg:h-[420px]" legend={false} cooperative />
           </Suspense>
-          <p className="px-4 py-2 text-[12px] text-muted">Pontos numerados na ordem da ida; E = escola; laranja = veículo (posição simulada pelo horário, sem GPS integrado). Linha reta entre os pontos (o trajeto pelas ruas depende do motor de rotas).</p>
+          <p className="px-4 py-2 text-[12px] text-muted">Pontos numerados na ordem da ida; E = escola; laranja = veículo (posição simulada pelo horário, sem GPS integrado). {r.trajeto ? `Trajeto pelas ruas (${r.trajeto_fonte}); horários e quilômetros calculados por ele.` : 'Linha reta entre os pontos (o trajeto pelas ruas ainda não foi calculado).'}</p>
         </Card>
         <div className="space-y-3">
           {(['ida', 'volta'] as const).map((s) => {

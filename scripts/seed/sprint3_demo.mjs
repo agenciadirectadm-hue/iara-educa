@@ -34,6 +34,7 @@ if (!demo) {
   process.exit(1);
 }
 if (quer('transporte')) await q(`select iara.demo_gerar_transporte() r`);
+if (quer('transporte')) console.log('Rotas recriadas em linha reta: trace-as pelas ruas com  node scripts/seed/trajetos_transporte.mjs --todas  (OSRM, ~1 rota/s).');
 if (quer('almoxarifado')) {
   await q(`select iara.demo_gerar_almoxarifado() r`);
   await q(`update iara.tenants set settings = settings || jsonb_build_object('demo_almox_base', iara.hoje_local()) where id = 1 returning 1 ok`);

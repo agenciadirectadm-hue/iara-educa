@@ -52,8 +52,9 @@ export default function Chamada() {
   const salvar = async () => {
     setBusy(true);
     try {
-      await rpc('frequencia_lancar', { class_id: id, data, faltas: Object.keys(faltas) });
-      toast({ title: 'Chamada registrada', description: `${fmtInt(alunos.length - nFaltas)} presentes e ${fmtInt(nFaltas)} falta(s). A família vê no portal e pela IARA.`, tone: 'success' });
+      const r = await rpc<any>('frequencia_lancar', { class_id: id, data, faltas: Object.keys(faltas) });
+      const avisos = Number(r?.busca_ativa?.contatos ?? 0);
+      toast({ title: 'Chamada registrada', description: `${fmtInt(alunos.length - nFaltas)} presentes e ${fmtInt(nFaltas)} falta(s).${avisos ? ` A IARA avisou ${fmtInt(avisos)} família(s) e pediu o motivo.` : ' A família vê no portal e pela IARA.'}`, tone: 'success' });
       ['frequencia_turma', 'frequencia_painel', 'familia_frequencia'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     } catch (e) {
       toast({ title: 'Chamada não registrada', description: (e as Error).message, tone: 'error' });

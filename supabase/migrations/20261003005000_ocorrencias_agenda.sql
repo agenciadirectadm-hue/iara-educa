@@ -99,7 +99,8 @@ as $$
     or exists (select 1 from iara.enrollments e where e.student_id = p_student and e.status = 'ACTIVE' and e.class_id = any (iara.minhas_turmas())))
 $$;
 
-create or replace function iara.ocorrencia_json(o iara.ocorrencias, p_eventos boolean default true) returns jsonb
+drop function if exists iara.ocorrencia_json(iara.ocorrencias, boolean);
+create or replace function iara.ocorrencia_json(o iara.ocorrencias, p_eventos boolean default true, p_familia boolean default false) returns jsonb
 language sql stable security definer set search_path = iara, public
 as $$
   select jsonb_build_object('id', o.id, 'student_id', o.student_id, 'aluno', s.full_name, 'primeiro_nome', split_part(s.full_name, ' ', 1),

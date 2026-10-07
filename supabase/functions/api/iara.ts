@@ -128,7 +128,10 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor"]);
+const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto"]);
+/** Motivos da ausência (mensagem de busca ativa): os mesmos do portal. */
+const MOTIVO_AUSENCIA: [string, string][] = [["SAUDE", "Saúde"], ["CONSULTA", "Consulta ou atendimento"], ["TRANSPORTE", "Transporte"],
+  ["DIFICULDADE_FAMILIAR", "Dificuldade familiar"], ["RECUSA", "Dificuldade para ir à escola"], ["OUTRO", "Outro motivo"], ["ESTA_NA_ESCOLA", "Estava na escola"]];
 /** Dados da criança que a família pode pedir para corrigir (mudam na ficha depois da conferência da área responsável). */
 const CAMPOS_ALUNO: Record<string, string> = {
   social_name: "Nome social", cpf: "CPF", nis: "NIS", sus_card: "Cartão SUS", birth_certificate: "Certidão de nascimento (matrícula)",
@@ -616,6 +619,10 @@ export class Agent {
         return await this.ocorrenciaCiente(value);
       case "aee_ok":
         return await this.aeeCiente(value);
+      case "aus":
+        return await this.ausenciaResponder(value);
+      case "oc_rev":
+        return await this.ocorrenciaRevisao(value);
       case "enq": {
         const [id, op] = value.split("|");
         return await this.enqueteResponder(id, Number(op));
@@ -1359,6 +1366,8 @@ export class Agent {
     if (flow === "ocorrencia") return await this.ocorrenciaStep(text);
     if (flow === "declaracao") return await this.declaracaoStep(text);
     if (flow === "transporte_aviso") return await this.transporteAvisoStep(text);
+    if (flow === "ausencia" && step === "aus_texto") return await this.ausenciaResponder(`${this.ctx.data?.id}|OUTRO`, text);
+    if (flow === "ocorrencia_revisao" && step === "oc_rev_texto") return await this.ocorrenciaRevisao(this.ctx.data?.id, text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
@@ -1481,6 +1490,33 @@ export class Agent {
       quick_replies: [{ label: "Justificar uma falta", action: "intent:justificar" }, { label: "Avisos da escola", action: "intent:avisos" }],
     });
     this.done("Consultou a frequência dos filhos.");
+    await this.perguntarAusencia();
+  }
+
+  /** Busca ativa: pergunta o motivo da primeira ausência ainda sem esclarecimento (as opções da mensagem do mesmo dia). */
+  private async perguntarAusencia(): Promise<boolean> {
+    const pend = ((await this.tool("get_pending_absences", "familia_ausencias", {})) as any[]) ?? [];
+    const a = pend[pend.length - 1];
+    if (!a) return false;
+    this.say(`A escola quer saber se está tudo bem: ${a.primeiro_nome} faltou ${naUnidade(a.unidade)} em ${diaBr(a.data)}. Qual foi o motivo?`, {
+      quick_replies: MOTIVO_AUSENCIA.map(([k, l]) => ({ label: l, action: `aus:${a.id}|${k}` })),
+      notice: "Não precisa contar diagnóstico. Atestado, se houver, vai em Documentos (área do responsável).",
+    });
+    return true;
+  }
+
+  private async ausenciaResponder(value: string, texto?: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`aus:${value}`)) return;
+    const [id, motivo] = value.split("|");
+    if (motivo === "OUTRO" && !texto) {
+      this.ctx = { flow: "ausencia", step: "aus_texto", data: { id } };
+      return this.say("Conte com suas palavras o que aconteceu.");
+    }
+    const r = await this.tool("answer_absence", "familia_ausencia_responder", { id, motivo, texto: texto ?? null, canal: "IARA" }, `ausencia:${id}`);
+    this.done(`Informou o motivo da ausência (${motivo}).`);
+    this.say(r.mensagem ?? "Obrigada por avisar.", r.risco ? { notice: "Seu relato foi encaminhado com prioridade à equipe da escola." } : undefined);
+    await this.perguntarAusencia();
   }
 
   private async startJustificar(): Promise<void> {
@@ -1778,11 +1814,15 @@ export class Agent {
     const quick: QuickReply[] = [];
     const cards: Card[] = itens.map((o) => {
       if (o.aguarda_ciencia) quick.push({ label: `Ciente: ${TIPO_OCORRENCIA_LABEL[o.tipo] ?? o.tipo}`.slice(0, 24), action: `oc_ok:${o.id}` });
-      const ult = ((o.eventos ?? []) as any[]).slice(-1)[0];
+      if (o.pode_pedir_revisao) quick.push({ label: `Pedir análise da SEDUC`, action: `oc_rev:${o.id}` });
+      const ult = ((o.eventos ?? []) as any[]).filter((e) => e.tipo !== "SOLUCAO").slice(-1)[0];
+      const instancia = o.instancia === "SECRETARIA" ? " · na Secretaria de Educação" : "";
       return {
         title: `${TIPO_OCORRENCIA_LABEL[o.tipo] ?? o.tipo} · ${o.primeiro_nome}`,
-        subtitle: `${diaBr(o.ocorrida_em?.slice(0, 10))} · ${o.origem === "FAMILIA" ? "relatada por você" : "registrada pela escola"} · ${SITUACAO_OCORRENCIA_LABEL[o.situacao]}`,
-        lines: [o.descricao, ...(o.providencias ? [`Providências: ${o.providencias}`] : []), ...(ult ? [`Última resposta (${ult.origem === "FAMILIA" ? "você" : "escola"}): ${ult.texto}`] : []),
+        subtitle: `${diaBr(o.ocorrida_em?.slice(0, 10))} · ${o.origem === "FAMILIA" ? "relatada por você" : "registrada pela escola"} · ${SITUACAO_OCORRENCIA_LABEL[o.situacao]}${instancia}`,
+        lines: [o.descricao, ...(o.providencias ? [`Providências imediatas: ${o.providencias}`] : []),
+          ...(o.solucao ? [`Solução: ${o.solucao}`] : ult ? [`Última mensagem (${ult.origem === "FAMILIA" ? "você" : "escola"}): ${ult.texto}`] : []),
+          ...(o.situacao !== "ENCERRADA" && o.prazo ? [`Resposta prevista até ${diaBr(o.prazo)}.`] : []),
           ...(o.aguarda_ciencia ? ["A escola pede a sua ciência."] : [])],
         tone: o.situacao === "ENCERRADA" ? "green" : o.aguarda_ciencia ? "purple" : "amber",
       };
@@ -1797,6 +1837,20 @@ export class Agent {
     await this.tool("confirm_occurrence", "familia_ocorrencia_ciente", { id }, `ciencia_ocorrencia:${id}`);
     this.done("Deu ciência de uma ocorrência registrada pela escola.");
     this.say("Ciência confirmada ✅ Se quiser comentar com a escola, use a Vida escolar no portal ou me conte aqui.", { quick_replies: [ESCOLA_MENU[7]] });
+  }
+
+  /** 2ª instância: a família pede a análise da Secretaria depois da resposta da escola (ou com o prazo vencido). */
+  private async ocorrenciaRevisao(id: string, texto?: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`oc_rev:${id}`)) return;
+    if (!texto) {
+      this.ctx = { flow: "ocorrencia_revisao", step: "oc_rev_texto", data: { id } };
+      return this.say("Conte por que você pede que a Secretaria de Educação analise este caso.");
+    }
+    if (texto.trim().length < 10) return this.say("Conte um pouco mais, por favor (pelo menos uma frase).");
+    const r = await this.tool("request_occurrence_review", "ocorrencia_atualizar", { id, acao: "PEDIR_REVISAO", texto: texto.trim().slice(0, 2000) }, `oc_rev:${id}`);
+    this.done("Pediu a análise da Secretaria (2ª instância) para uma ocorrência.");
+    this.say(`Pedido enviado à Secretaria Municipal de Educação ✅ A resposta está prevista até ${diaBr(r?.prazo)}; aviso você por aqui.`, { quick_replies: [ESCOLA_MENU[7]] });
   }
 
   private async startOcorrencia(t: string): Promise<void> {

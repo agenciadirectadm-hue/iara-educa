@@ -137,6 +137,31 @@ export const TIPO_OCORRENCIA: Record<string, { label: string; tone: Tone }> = {
 export const GRAVIDADE: Record<string, { label: string; tone: Tone }> = {
   LEVE: { label: 'Leve', tone: 'gray' }, MODERADA: { label: 'Moderada', tone: 'amber' }, GRAVE: { label: 'Grave', tone: 'red' },
 };
+/** Tipos de violência (Lei 13.431/2017, art. 4º; Lei 13.185/2015 — intimidação sistemática; Lei 13.819/2019 — autoprovocada). */
+export const VIOLENCIA: Record<string, { label: string; hint: string }> = {
+  FISICA: { label: 'Física', hint: 'agressão que ofende a integridade ou a saúde corporal' },
+  PSICOLOGICA: { label: 'Psicológica', hint: 'humilhação, ameaça, xingamento, exclusão' },
+  BULLYING: { label: 'Intimidação sistemática (bullying)', hint: 'repetida, intencional, entre pares' },
+  CYBERBULLYING: { label: 'Intimidação virtual', hint: 'pela internet ou por mensagens' },
+  DISCRIMINACAO: { label: 'Discriminação', hint: 'racismo, capacitismo, LGBTfobia, religião, origem' },
+  SEXUAL: { label: 'Sexual', hint: 'abre comunicação obrigatória e torna o registro sigiloso' },
+  AUTOLESAO: { label: 'Autoprovocada', hint: 'autolesão ou ideação; comunicação obrigatória' },
+  INSTITUCIONAL: { label: 'Institucional', hint: 'praticada por agente de instituição' },
+  PATRIMONIAL: { label: 'Patrimonial', hint: 'dano a objetos e pertences' },
+};
+export const INSTANCIA_OCORRENCIA: Record<string, { label: string; tone: Tone }> = {
+  UNIDADE: { label: '1ª instância · unidade', tone: 'gray' }, SECRETARIA: { label: '2ª instância · Secretaria', tone: 'purple' },
+};
+export const PADRAO_OCORRENCIA: Record<string, { label: string; tone: Tone; acao: string }> = {
+  AMPLO: { label: 'Padrão amplo', tone: 'red', acao: 'Espalhado por muitas turmas/unidades: formação das equipes e ação preventiva ou de conscientização.' },
+  LOCALIZADO: { label: 'Foco localizado', tone: 'amber', acao: 'Concentrado numa turma: intervenção direcionada (mediação, roda de conversa, famílias da turma).' },
+  REINCIDENTE: { label: 'Reincidência', tone: 'purple', acao: 'Poucos alunos concentram os registros: plano individual com a família e apoio da rede.' },
+  ISOLADO: { label: 'Casos isolados', tone: 'green', acao: 'Sem padrão: acompanhamento caso a caso.' },
+};
+export const MOMENTO_MODELO: Record<string, string> = {
+  RECEBIMENTO: 'Recebimento (automático)', ANDAMENTO: 'Andamento', SOLUCAO: 'Solução', ENCAMINHADA_SEDUC: 'Encaminhada à Secretaria (automático)',
+  DEVOLUTIVA_SEDUC: 'Resposta da Secretaria',
+};
 export const SITUACAO_OCORRENCIA: Record<string, { label: string; tone: Tone }> = {
   ABERTA: { label: 'Aberta', tone: 'red' }, EM_ACOMPANHAMENTO: { label: 'Em acompanhamento', tone: 'amber' }, ENCERRADA: { label: 'Encerrada', tone: 'green' },
 };

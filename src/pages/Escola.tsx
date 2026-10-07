@@ -16,6 +16,7 @@ import { AgendaLista, NovaOcorrenciaSheet, OcorrenciaSheet, useRecarregarVidaEsc
 import { GRAVIDADE, SITUACAO_OCORRENCIA, TIPO_OCORRENCIA } from '@/lib/escola';
 import { AeeFamilia, BoletimView, DeclaracoesFamilia } from '@/components/pedagogico';
 import { TransporteFamilia } from '@/components/transporte';
+import { AusenciasFamilia } from '@/components/busca-ativa';
 
 type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte';
 
@@ -52,7 +53,7 @@ export default function Escola() {
         {aba === 'avisos' && <Avisos res={avisos} />}
         {aba === 'agenda' && <AgendaFamilia res={agenda} />}
         {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
-        {aba === 'frequencia' && <FrequenciaFamilia />}
+        {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
         {aba === 'boletim' && <BoletimFamilia />}
         {aba === 'aee' && <AeeFamilia />}
         {aba === 'declaracoes' && <DeclaracoesFamilia />}

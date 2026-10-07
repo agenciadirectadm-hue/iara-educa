@@ -61,6 +61,13 @@ export type MapViewProps = {
   trajetos?: { id: number; modo: 'A_PE' | 'CARRO'; coords: [number, number][] }[] | null;
   /** Pontos de uma rota de transporte: paradas (numeradas), o ponto da família, a escola e o veículo. */
   pontos?: { lat: number; lng: number; rotulo?: string; tipo: 'PARADA' | 'MEU_PONTO' | 'VEICULO' | 'ESCOLA' }[] | null;
+  /** Várias linhas coloridas (ex.: as rotas do transporte no mapa geral); toque abre a linha. */
+  linhas?: { id: string; coords: [number, number][]; cor: string; rotulo?: string }[] | null;
+  onSelectLinha?: (id: string) => void;
+  /** Linha em destaque: as outras ficam esmaecidas. */
+  linhaDestaque?: string | null;
+  /** Enquadra pelas linhas (quando não há unidades nem ponto pesquisado). */
+  fitLinhas?: boolean;
 };
 
 function circle(lat: number, lng: number, r: number, n = 72): GeoJSON.Feature<GeoJSON.Polygon> {
@@ -171,6 +178,7 @@ export function MapView(p: MapViewProps) {
       map.addSource('rotas', { type: 'geojson', data: empty });
       map.addSource('ranks', { type: 'geojson', data: empty });
       map.addSource('pontos', { type: 'geojson', data: empty });
+      map.addSource('linhas', { type: 'geojson', data: empty });
 
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.55 } });
       map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': '#A846E8', 'fill-opacity': 0 } });
@@ -220,6 +228,22 @@ export function MapView(p: MapViewProps) {
         layout: { 'text-field': ['get', 'name'], 'text-size': 11.5, 'text-offset': [0, 1.25], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'], 'text-max-width': 9 },
         paint: { 'text-color': '#23334A', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
       });
+      map.addLayer({
+        id: 'linhas-contorno', type: 'line', source: 'linhas', layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 15, 7], 'line-opacity': 0.85 },
+      });
+      map.addLayer({
+        id: 'linhas', type: 'line', source: 'linhas', layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': ['get', 'cor'], 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 15, 4.5], 'line-opacity': 0.9 },
+      });
+      map.addLayer({
+        id: 'linhas-label', type: 'symbol', source: 'linhas', minzoom: 13.5,
+        layout: { 'symbol-placement': 'line', 'text-field': ['get', 'rotulo'], 'text-size': 11, 'text-font': ['Noto Sans Bold'] },
+        paint: { 'text-color': '#0E1A2B', 'text-halo-color': '#ffffff', 'text-halo-width': 1.8 },
+      });
+      map.on('click', 'linhas', (e) => { const id = e.features?.[0]?.properties?.id; if (id) cb.current.onSelectLinha?.(String(id)); });
+      map.on('mouseenter', 'linhas', () => { if (cb.current.onSelectLinha) map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'linhas', () => { map.getCanvas().style.cursor = ''; });
       map.addLayer({
         id: 'pontos-circle', type: 'circle', source: 'pontos',
         paint: {
@@ -365,6 +389,30 @@ export function MapView(p: MapViewProps) {
     (map.getSource('rotas') as GeoJSONSource).setData({ type: 'FeatureCollection', features: feats });
   }, [ready, p.trajetos]);
 
+  // linhas coloridas (rotas do transporte no mapa geral)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    (map.getSource('linhas') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: (p.linhas ?? []).filter((l) => l.coords.length > 1).map((l) => ({
+        type: 'Feature', properties: { id: l.id, cor: l.cor, rotulo: l.rotulo ?? '' }, geometry: { type: 'LineString', coordinates: l.coords },
+      })),
+    });
+  }, [ready, p.linhas]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const d = p.linhaDestaque ?? null;
+    map.setPaintProperty('linhas', 'line-opacity', d ? ['case', ['==', ['get', 'id'], d], 1, 0.18] : 0.9);
+    map.setPaintProperty('linhas', 'line-width', d
+      ? ['case', ['==', ['get', 'id'], d], ['interpolate', ['linear'], ['zoom'], 11, 4.5, 15, 7], ['interpolate', ['linear'], ['zoom'], 11, 1.5, 15, 3]]
+      : ['interpolate', ['linear'], ['zoom'], 11, 2, 15, 4.5]);
+    map.setPaintProperty('linhas-contorno', 'line-opacity', d ? ['case', ['==', ['get', 'id'], d], 0.95, 0] : 0.85);
+    map.setFilter('linhas-label', d ? ['==', ['get', 'id'], d] : null);
+  }, [ready, p.linhaDestaque, p.linhas]);
+
   // pontos da rota de transporte (paradas, ponto da família, escola e veículo)
   useEffect(() => {
     const map = mapRef.current;
@@ -413,6 +461,7 @@ export function MapView(p: MapViewProps) {
         const hl = p.highlight?.map((h) => p.units.find((u) => u.id === h.id)).filter(Boolean) as UnitMapItem[] | undefined;
         (hl?.length ? hl : p.home ? [] : p.units).forEach((u) => pts.push([u.lng, u.lat]));
         for (const t of p.trajetos ?? []) t.coords.forEach((x) => pts.push(x));
+        if (p.fitLinhas) for (const l of p.linhas ?? []) l.coords.forEach((x) => pts.push(x));
         if (!pts.length) return;
         const b = pts.reduce((acc, c) => acc.extend(c), new LngLatBounds(pts[0], pts[0]));
         if (pts.length === 1) map.flyTo({ center: pts[0], zoom: 14.5, padding: pad, duration: 800 });

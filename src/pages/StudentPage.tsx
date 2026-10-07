@@ -20,6 +20,7 @@ import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancia
 import QuadroDistancias from '@/components/QuadroDistancias';
 import { AgendaLista, NovaOcorrenciaSheet, NovoRecadoSheet, OcorrenciaSheet, OcorrenciasTabela, useRecarregarVidaEscolar } from '@/components/vida-escolar';
 import { MOTIVO_RESTRICAO, SITUACAO_RESTRICAO } from '@/lib/escola';
+import { GuardaAlerta, GuardaAlunoSheet } from '@/components/guarda';
 import { Foto, TrocarFoto } from '@/components/arquivos';
 import { DocumentosAluno, ExcluirCadastro } from '@/components/documentos';
 import { BoletimView, DeclaracoesAluno } from '@/components/pedagogico';
@@ -35,6 +36,7 @@ export default function StudentPage() {
   const ve = useRpc<any>('aluno_vida_escolar', { student_id: id }, { enabled: !!id, retry: false });
   const docs = useRpc<any>('aluno_documentos', { student_id: id }, { enabled: !!id, retry: false });
   const { can, me } = useSession();
+  const [guarda, setGuarda] = useState(false);
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const d = res.data;
@@ -95,6 +97,8 @@ export default function StudentPage() {
           {can('students.write') && <ExcluirCadastro fn="aluno_excluir" id={s.id} nome={s.full_name} voltarPara="/alunos" />}
         </div>
       </div>
+      <GuardaAlerta studentId={s.id} onAbrir={() => setGuarda(true)} />
+      <GuardaAlunoSheet studentId={s.id} aluno={s.full_name} open={guarda} onClose={() => setGuarda(false)} />
       <Tabs value={tab} onChange={(t) => setSp({ aba: t }, { replace: true })} items={tabs} />
       <div className="mt-4">
         {tab === 'resumo' && <Resumo d={d} primary={primary} />}

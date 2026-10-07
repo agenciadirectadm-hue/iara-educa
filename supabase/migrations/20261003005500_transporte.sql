@@ -337,7 +337,7 @@ begin
   select * into r from iara.transporte_rotas where id = (p ->> 'id')::uuid;
   if r.id is null or not iara.rota_acesso(r.id) then raise exception 'Rota não encontrada ou fora do seu escopo.' using errcode = 'P0002'; end if;
   select lat, lng, name, short_name into u from iara.education_units where id = r.unit_id;
-  return iara.rota_resumo(r) || jsonb_build_object(
+  return iara.rota_resumo(r) || coalesce(iara.rota_trajeto_json(r.id), '{}') || jsonb_build_object(
     'escola', jsonb_build_object('nome', u.name, 'lat', u.lat, 'lng', u.lng),
     'pode_gerir', iara.has_perm('transporte.manage'),
     'hoje', jsonb_build_object('ida', iara.transporte_estado(r.id, 'IDA'), 'volta', iara.transporte_estado(r.id, 'VOLTA')),
@@ -716,6 +716,10 @@ declare
   v_km double precision;
   v_veic uuid;
   v_mot uuid;
+  v_key text;
+  v_g integer;
+  v_cnt integer;
+  v_a0 double precision;
   nomes text[] := array['Adriano', 'Aparecida', 'Carlos', 'Cleusa', 'Edson', 'Elaine', 'Gilmar', 'Ivone', 'Jair', 'Joana', 'Luiz', 'Márcia', 'Nelson', 'Odete',
                         'Paulo', 'Rosângela', 'Sérgio', 'Sônia', 'Valdir', 'Vera', 'Wilson', 'Zilda', 'Roberto', 'Neusa'];
   sobren text[] := array['Alves', 'Barbosa', 'Cardoso', 'Dias', 'Ferreira', 'Gomes', 'Lima', 'Martins', 'Nogueira', 'Oliveira', 'Pereira', 'Ribeiro', 'Santos', 'Souza', 'Teixeira', 'Vieira'];
@@ -740,7 +744,15 @@ begin
   -- cerca de 7% aguardando rota (a lista “sem rota” da gerência), nunca a Ana
   delete from tmp_tr where h >= 93 and student_id is distinct from v_ana;
   alter table tmp_tr add column grupo integer;
-  update tmp_tr t set grupo = z.g from (select student_id, (row_number() over (partition by unit_id, shift order by ang) - 1) / 26 g from tmp_tr) z where z.student_id = t.student_id;
+  -- agrupamento: varredura pelo ângulo em volta da escola; nova rota a cada 14 alunos ou quando o leque passa de 150°
+  -- (evita um veículo dando a volta inteira na escola)
+  v_key := ''; v_g := 0;
+  for rr in select student_id, unit_id || ':' || shift k, ang from tmp_tr order by unit_id, shift, ang loop
+    if rr.k <> v_key then v_key := rr.k; v_a0 := rr.ang; v_cnt := 0; v_g := 0;
+    elsif v_cnt >= 14 or rr.ang - v_a0 > radians(150) then v_a0 := rr.ang; v_cnt := 0; v_g := v_g + 1; end if;
+    v_cnt := v_cnt + 1;
+    update tmp_tr set grupo = v_g where student_id = rr.student_id;
+  end loop;
 
   for rr in select unit_id, shift, grupo, min(ulat) ulat, min(ulng) ulng, count(*) n,
                    bool_or(exists (select 1 from iara.student_sensitive ss where ss.student_id = t.student_id and ss.special_education_need ilike '%física%')) cadeirante,

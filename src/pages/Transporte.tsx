@@ -10,9 +10,10 @@ import { Badge, Button, Card, Chip, EmptyState, ErrorState, Field, Kpi, PageHead
 import { Sheet, useToast } from '@/components/overlays';
 import { UnitSelect } from '@/components/escola';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
+import { MapaRotas } from '@/components/transporte-mapa';
 import { EstadoViagem, MOTIVO_TRANSPORTE, TIPO_OCORRENCIA_TR, TIPO_VEICULO, hm, useRecarregarTransporte } from '@/components/transporte';
 
-type Aba = 'rotas' | 'sem_rota' | 'ocorrencias' | 'frota';
+type Aba = 'rotas' | 'mapa' | 'sem_rota' | 'ocorrencias' | 'frota';
 
 /** Transporte escolar: viagens de hoje, rotas, alunos aguardando, ocorrências e frota. Também é o início da Gerência de Transporte. */
 export default function Transporte() {
@@ -50,11 +51,12 @@ export default function Transporte() {
             </Card>
           )}
           <Tabs className="mt-4" value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })} items={[
-            { value: 'rotas', label: 'Rotas e viagens de hoje' }, { value: 'sem_rota', label: 'Aguardando rota', count: d.sem_rota || null },
+            { value: 'rotas', label: 'Rotas e viagens de hoje' }, { value: 'mapa', label: 'Mapa das rotas' }, { value: 'sem_rota', label: 'Aguardando rota', count: d.sem_rota || null },
             { value: 'ocorrencias', label: 'Ocorrências', count: d.ocorrencias_abertas || null }, ...(d.pode_gerir ? [{ value: 'frota' as Aba, label: 'Frota e motoristas' }] : []),
           ]} />
           <div className="mt-3">
             {aba === 'rotas' && <Rotas lista={d.lista ?? []} />}
+            {aba === 'mapa' && <MapaRotas unitId={unit} />}
             {aba === 'sem_rota' && <SemRota unitId={unit} podeGerir={d.pode_gerir} />}
             {aba === 'ocorrencias' && <Ocorrencias unitId={unit} />}
             {aba === 'frota' && d.pode_gerir && <Frota />}

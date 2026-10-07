@@ -1,4 +1,4 @@
-import { Accessibility, Apple, Backpack, Bus, ChartLine, ScanQrCode, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, Backpack, Bus, ChartLine, Gavel, LifeBuoy, Network, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -42,6 +42,11 @@ const I = {
   verificar: { to: '/verificar', label: 'Verificar declaração', icon: ScanQrCode },
   // transporte e almoxarifado (Sprint 3)
   transporte: { to: '/transporte', label: 'Transporte escolar', icon: Bus },
+  buscaAtiva: { to: '/busca-ativa', label: 'Busca ativa', icon: SearchCheck },
+  gestao: { to: '/gestao', label: 'Gestão da rede', icon: Network },
+  guarda: { to: '/guarda', label: 'Guarda e restrições', icon: Gavel },
+  suporte: { to: '/suporte', label: 'Suporte técnico', icon: LifeBuoy },
+  mapaRotas: { to: '/transporte?aba=mapa', label: 'Mapa das rotas', icon: Route, match: '/transporte' },
   almoxarifado: { to: '/materiais?aba=pedidos', label: 'Pedidos de material', icon: Warehouse, match: '/materiais' },
 } satisfies Record<string, NavItem>;
 
@@ -50,16 +55,16 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
   const unitId = me?.unit?.id;
   switch (role) {
     case 'PREFEITO':
-      return { primary: [I.inicio, I.mapa, I.unidades, I.indicadores], more: [I.nutricao, I.manutencao, I.qualidade, I.regras, I.ajuda] };
+      return { primary: [I.inicio, I.mapa, I.unidades, I.indicadores], more: [I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
     case 'SECRETARIO':
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.nutricao, I.manutencao, I.mural, I.calendario,
+        more: [I.gestao, I.buscaAtiva, I.guarda, I.desempenho, I.aee, I.transporte, I.mapaRotas, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.nutricao, I.manutencao, I.mural, I.calendario,
           I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
-          ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.ajuda],
+          ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.suporte, I.ajuda],
       };
     case 'CONTROLE_EXTERNO':
       return {
@@ -67,12 +72,12 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [I.distancias, I.mapa, I.unidades, I.indicadores, I.qualidade, I.ajuda],
       };
     case 'INOVACAO':
-      return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.pessoal, I.frequencia, I.nutricao, I.manutencao, I.calendario, I.unidades, I.indicadores, I.regras, I.ajuda] };
+      return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.suporte, I.gestao, I.whatsapp, I.pessoal, I.frequencia, I.nutricao, I.manutencao, I.calendario, I.unidades, I.indicadores, I.regras, I.ajuda] };
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
         primary: [I.inicio, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
-        more: [I.validacoes, I.alunos, I.responsaveis, I.fila, I.whatsapp, I.ofertas, I.verificar, I.mapa, I.unidades, I.auditoria, I.regras, I.ajuda],
+        more: [I.validacoes, I.alunos, I.responsaveis, I.fila, I.whatsapp, I.ofertas, I.verificar, I.mapa, I.unidades, I.auditoria, I.regras, I.suporte, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
@@ -83,8 +88,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.atendimentos,
         ],
         more: [
-          I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
-          I.alunos, I.responsaveis,
+          I.buscaAtiva, I.guarda, I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.alunos, I.responsaveis, I.suporte, I.gestao,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda,
         ],
@@ -98,8 +103,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.iara,
         ],
         more: [
-          I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
-          I.responsaveis, I.atendimentos, I.verificar,
+          I.buscaAtiva, I.guarda, I.desempenho, I.aee, I.transporte, I.validacoes, I.frequencia, I.ocorrencias, I.pessoal, I.materiais, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.responsaveis, I.atendimentos, I.verificar, I.suporte,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda,
         ],
       };
@@ -114,32 +119,32 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'PROFESSOR':
       return {
         primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.ocorrencias, I.mural, I.calendario],
-        more: [I.ajuda, I.regras],
+        more: [I.suporte, I.ajuda, I.regras],
       };
     case 'NUTRICAO':
       return {
         primary: [I.inicio, { ...I.nutricao, label: 'Cardápios' }, I.cozinha, I.mural],
-        more: [{ ...I.almoxarifado, label: 'Alimentos e pedidos', to: '/materiais?aba=alimentos' }, I.materiais, I.calendario, I.unidades, I.mapa, I.ajuda],
+        more: [{ ...I.almoxarifado, label: 'Alimentos e pedidos', to: '/materiais?aba=alimentos' }, I.materiais, I.calendario, I.unidades, I.mapa, I.suporte, I.ajuda],
       };
     case 'TRANSPORTE':
       return {
-        primary: [{ ...I.inicio, label: 'Transporte hoje', icon: Bus }, I.mapa, I.mural, I.calendario],
-        more: [I.unidades, I.ajuda],
+        primary: [{ ...I.inicio, label: 'Transporte hoje', icon: Bus }, I.mapaRotas, I.mapa, I.mural],
+        more: [I.calendario, I.unidades, I.suporte, I.ajuda],
       };
     case 'ALMOXARIFADO':
       return {
         primary: [{ ...I.inicio, label: 'Almoxarifado', icon: Warehouse }, { ...I.materiais, label: 'Estoque' }, I.cozinha, I.mapa],
-        more: [I.unidades, I.calendario, I.ajuda],
+        more: [I.unidades, I.calendario, I.suporte, I.ajuda],
       };
     case 'PROFESSOR_AEE':
       return {
         primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.mural, I.calendario],
-        more: [I.ajuda, I.regras],
+        more: [I.suporte, I.ajuda, I.regras],
       };
     case 'MANUTENCAO':
       return {
         primary: [I.inicio, { ...I.manutencao, label: 'Chamados' }, I.materiais, I.mapa],
-        more: [I.unidades, I.calendario, I.ajuda],
+        more: [I.unidades, I.calendario, I.suporte, I.ajuda],
       };
     default:
       return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.verificar, I.regras, I.qualidade] };

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  ArrowRight, Building2, ChevronDown, ChevronUp, Flame, Layers, List, LocateFixed, Map as MapIcon, MapPin, Navigation, Phone, School, Search, Sparkles, X,
+  ArrowRight, Building2, Bus, ChevronDown, ChevronUp, Flame, Layers, List, LocateFixed, Map as MapIcon, MapPin, Navigation, Phone, School, Search, Sparkles, X,
 } from 'lucide-react';
 import { useGeoLayers, useUnitsMap } from '@/lib/data';
 import { useDebounced, useIsDesktop, useRpc } from '@/lib/hooks';
@@ -34,7 +34,7 @@ export default function MapPage() {
   const [sp, setSp] = useSearchParams();
   const navigate = useNavigate();
   const desktop = useIsDesktop();
-  const { me } = useSession();
+  const { me, can } = useSession();
   const units = useUnitsMap();
   const geo = useGeoLayers();
   const citizen = useRpc<any>('citizen_home', {}, { enabled: me?.scope === 'GUARDIAN' });
@@ -93,6 +93,16 @@ export default function MapPage() {
     if (u) setSnap('half');
   };
 
+  // camada das rotas do transporte escolar (perfis com acesso ao transporte): trajetos pelas ruas e veículos a caminho
+  const verTransporte = layer === 'transporte' && can('transporte.read');
+  const tr = useRpc<any[]>('transporte_mapa', {}, { enabled: verTransporte, refetchInterval: 60_000 });
+  const linhasTr = useMemo(() => (verTransporte ? (tr.data ?? []).map((r, i) => ({
+    id: String(r.id), coords: r.linha as [number, number][], rotulo: r.codigo,
+    cor: ['#1D6FD8', '#7A24C5', '#0A8F5B', '#D94C4C', '#F28C38', '#0E7490', '#A21CAF', '#4D7C0F'][i % 8],
+  })) : null), [tr.data, verTransporte]);
+  const veiculos = useMemo(() => (verTransporte ? (tr.data ?? []).filter((r) => r.agora?.posicao)
+    .map((r) => ({ lat: r.agora.posicao.lat, lng: r.agora.posicao.lng, tipo: 'VEICULO' as const, rotulo: '' })) : null), [tr.data, verTransporte]);
+
   const heat: HeatMode = layer === 'fila' ? 'queue' : layer === 'matriculas' ? 'enrollments' : layer === 'vagas' ? 'offerable' : null;
   const regionMetric: RegionMetric = layer === 'deficit' ? 'balance_creche' : null;
   const sheetH = { peek: 132, half: desktop ? 0 : 0.5, full: 0.86 }[snap];
@@ -116,11 +126,15 @@ export default function MapPage() {
           highlightLabel={`Mais perto ${MEDIDA[medida].curto} (número = ordem)`}
           lines={!!point && medida === 'LINHA_RETA'}
           trajetos={point ? trajetos : null}
+          linhas={linhasTr}
+          pontos={veiculos}
+          onSelectLinha={(id) => navigate(`/transporte/rotas/${id}`)}
           homeLabel="Ponto pesquisado"
           legend="overlay"
           legendClassName={desktop ? 'bottom-3 left-[424px]' : point ? 'left-3 top-[170px]' : 'left-3 top-[118px]'}
           focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : point ? { lat: point.lat, lng: point.lng, zoom: 13.6 } : null}
-          fitKey={`${filter}`}
+          fitKey={`${filter}-${verTransporte ? (tr.data?.length ?? 0) : ''}`}
+          fitLinhas={verTransporte && !point && !selected}
           padding={{ top: point ? 180 : 130, bottom: desktop ? 40 : 170, left: desktop ? 420 : 30, right: 70 }}
         />
       ) : (
@@ -230,6 +244,7 @@ export default function MapPage() {
             { v: 'fila', icon: Building2, l: 'Mapa de calor: fila', d: 'Onde se concentra a espera', src: 'demo' as const },
             { v: 'matriculas', icon: School, l: 'Mapa de calor: matrículas', d: 'Agregado público por unidade', src: 'oficial' as const },
             { v: 'vagas', icon: Sparkles, l: 'Vagas ofertáveis', d: 'Verde: com vaga · vermelho: só fila', src: 'demo' as const },
+            ...(can('transporte.read') ? [{ v: 'transporte', icon: Bus, l: 'Rotas do transporte escolar', d: 'Trajeto de cada rota pelas ruas; laranja: veículo a caminho agora (simulado). Toque numa rota.', src: 'demo' as const }] : []),
           ].map((o) => (
             <button key={o.v} onClick={() => { setParam('camada', o.v === 'unidades' ? null : o.v); setLayersOpen(false); }} className={clsx('flex w-full items-center gap-3 rounded-2xl p-3 text-left ring-1 transition', layer === o.v ? 'bg-purple-50 ring-2 ring-purple-500' : 'bg-white ring-line hover:bg-slate-50')}>
               <span className="inline-flex size-10 items-center justify-center rounded-xl bg-slate-100"><o.icon className="size-5 text-purple-700" /></span>
