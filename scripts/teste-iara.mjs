@@ -90,6 +90,18 @@ if (roteiro === 'nova') {
   const enquete = lastQuick(conv).find((q) => (q.action ?? '').startsWith('enq:'));
   if (enquete) await send(enquete.label, enquete.action);
   await send('quando é o próximo feriado?');
+  await send('tem recado na agenda?');
+  const ciente = lastQuick(conv).find((q) => (q.action ?? '').startsWith('ag_ok:'));
+  if (ciente) await send(ciente.label, ciente.action);
+  await send('quero mandar um bilhete para a professora');
+  await send('A Ana vai sair mais cedo amanhã, às 16h, com o pai.');
+  await tap('Sim');
+  await send('tem alguma ocorrência?');
+  const oc = lastQuick(conv).find((q) => (q.action ?? '').startsWith('oc_ok:'));
+  if (oc) await send(oc.label, oc.action);
+  await send('a Ana chegou em casa machucada, foi mordida por um colega');
+  await send('Ontem à tarde ela chegou com uma marca de mordida no braço e ninguém avisou.');
+  await tap('Sim');
 } else {
   await send('oi');
   await send('a minha filha precisa trocar de turno');

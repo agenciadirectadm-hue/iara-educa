@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { CalendarCheck, ChevronRight, Clock, IdCard } from 'lucide-react';
+import { CalendarCheck, ChevronRight, Clock, IdCard, NotebookPen } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { firstName, fmtInt } from '@/lib/format';
@@ -65,6 +65,7 @@ function TurmaHoje({ t }: { t: { id: string; name: string; shift: string; grade?
   const d = res.data;
   const faltas = d ? (d.alunos as any[]).filter((a) => a.falta).length : 0;
   return (
+    <div>
     <LinkCard to={`/turmas/${t.id}/chamada`} className="p-4" ariaLabel={`Chamada de ${t.name}`}>
       <div className="flex items-start gap-3">
         <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-sm">
@@ -84,5 +85,9 @@ function TurmaHoje({ t }: { t: { id: string; name: string; shift: string; grade?
         ) : <Badge tone="amber" icon={Clock}>Fazer a chamada</Badge>}
       </div>
     </LinkCard>
+    <Link to={`/turmas/${t.id}/diario`} className="mt-1.5 flex items-center justify-center gap-1.5 rounded-2xl bg-white py-2 text-[13px] font-semibold text-purple-800 ring-1 ring-line hover:bg-purple-50">
+      <NotebookPen className="size-4" />Agenda e ocorrências
+    </Link>
+    </div>
   );
 }

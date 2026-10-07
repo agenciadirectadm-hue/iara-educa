@@ -52,6 +52,8 @@ const Chamado = lazy(() => import('./pages/Chamado'));
 const Mural = lazy(() => import('./pages/Mural'));
 const Calendario = lazy(() => import('./pages/Calendario'));
 const Escola = lazy(() => import('./pages/Escola'));
+const Diario = lazy(() => import('./pages/Diario'));
+const Ocorrencias = lazy(() => import('./pages/Ocorrencias'));
 
 function Loader() {
   return (
@@ -122,6 +124,8 @@ export const router = createHashRouter([
       { path: '/unidades/:id', element: S(<UnitPage />) },
       { path: '/turmas/:id', element: <RequireSession>{S(<ClassPage />)}</RequireSession> },
       { path: '/turmas/:id/chamada', element: <RequireSession>{S(<Chamada />)}</RequireSession> },
+      { path: '/turmas/:id/diario', element: <RequireSession>{S(<Diario />)}</RequireSession>, handle: { wide: true } },
+      { path: '/ocorrencias', element: <RequireSession>{S(<Ocorrencias />)}</RequireSession>, handle: { wide: true } },
       { path: '/pessoal', element: <RequireSession>{S(<Pessoal />)}</RequireSession>, handle: { wide: true } },
       { path: '/pessoal/:id', element: <RequireSession>{S(<Servidor />)}</RequireSession>, handle: { wide: true } },
       { path: '/frequencia', element: <RequireSession>{S(<Frequencia />)}</RequireSession>, handle: { wide: true } },

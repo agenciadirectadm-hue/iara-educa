@@ -1,4 +1,4 @@
-import { Apple, Backpack, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
+import { Apple, Backpack, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -33,6 +33,7 @@ const I = {
   manutencao: { to: '/manutencao', label: 'Manutenção', icon: Wrench },
   mural: { to: '/mural', label: 'Mural', icon: Megaphone },
   calendario: { to: '/calendario', label: 'Calendário', icon: CalendarDays },
+  ocorrencias: { to: '/ocorrencias', label: 'Ocorrências', icon: ShieldAlert },
 } satisfies Record<string, NavItem>;
 
 export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
@@ -46,7 +47,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
-        more: [I.frequencia, I.pessoal, I.nutricao, I.manutencao, I.mural, I.calendario,
+        more: [I.frequencia, I.ocorrencias, I.pessoal, I.nutricao, I.manutencao, I.mural, I.calendario,
           I.unidades, I.alunos, I.responsaveis, I.vagas, I.ofertas, I.iara, I.whatsapp, I.indicadores, I.auditoria, I.qualidade, I.regras,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.ajuda],
@@ -73,7 +74,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.atendimentos,
         ],
         more: [
-          I.frequencia, I.pessoal, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.frequencia, I.ocorrencias, I.pessoal, I.cozinha, I.manutencao, I.mural, I.calendario,
           I.alunos, I.responsaveis,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}` },
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.mapa, I.indicadores, I.auditoria, I.regras, I.ajuda,
@@ -88,7 +89,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.iara,
         ],
         more: [
-          I.frequencia, I.pessoal, I.cozinha, I.manutencao, I.mural, I.calendario,
+          I.frequencia, I.ocorrencias, I.pessoal, I.cozinha, I.manutencao, I.mural, I.calendario,
           I.responsaveis, I.atendimentos,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap }, { ...I.fila, to: `/fila?unidade=${unitId}` }, I.mapa, I.ajuda,
         ],
@@ -102,8 +103,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
       };
     case 'PROFESSOR':
       return {
-        primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.mural, I.calendario, I.ajuda],
-        more: [I.regras],
+        primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.ocorrencias, I.mural, I.calendario],
+        more: [I.ajuda, I.regras],
       };
     case 'NUTRICAO':
       return {

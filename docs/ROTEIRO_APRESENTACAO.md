@@ -41,6 +41,8 @@ Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfi
 | 13 | IARA (WhatsApp) | “quantas faltas a Ana tem?”, “justificar falta”, “cardápio de hoje”, “ela tem intolerância à lactose”, “avisos da escola”, “tem aula segunda?” | A família resolve pelo WhatsApp? |
 | 14 | Nutrição | Cardápio da semana por faixa, as 17 restrições (motivo separado), validar a restrição que a Maria acabou de informar, refeições servidas pela chamada | Cada criança está comendo o que pode? |
 | 15 | Manutenção (e Direção) | Direção abre um chamado com risco à segurança (prazo de 24 h); a infraestrutura tria e conclui; a escola valida com nota | O que está quebrado e quem está resolvendo? |
+| 16 | Direção → Alunos → Ana | Ficha com **Alimentação**, **Ocorrências** (o joelho ralado aguardando a ciência da família) e **Agenda**; **Alunos → Mais filtros** (idade, sexo, série, turma, restrição, ocorrências, AEE) e **Pessoal** com filtros (função, vínculo, região, carga) | Encontro rápido quem preciso? |
+| 17 | Cidadão (Maria) e IARA | **Vida escolar → Agenda** (“Estou ciente” no passeio, bilhete para a escola) e **Ocorrências** (ciência e relato); pela IARA: “tem recado na agenda?”, “mandar bilhete para a professora”, “a Ana se machucou na escola” | A família e a escola conversam sem papel? |
 
 Os dados da vida escolar são fictícios (servidores, faltas, cardápios, restrições, chamados e publicações), sobre o calendário
 real de 2026 (feriados de lei). A explicação para a plateia: os dados reais substituem estes na carga oficial.

@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { AlertTriangle, CalendarClock, IdCard, Users, UserX } from 'lucide-react';
+import { keepPreviousData } from '@tanstack/react-query';
+import clsx from 'clsx';
+import { AlertTriangle, CalendarClock, IdCard, Users, UserX, X } from 'lucide-react';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtInt } from '@/lib/format';
 import { DIA_CURTO, FUNCAO_SERVIDOR, RELATORIO_PESSOAL } from '@/lib/escola';
-import { Badge, Card, EmptyState, ErrorState, Kpi, PageHeader, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Kpi, PageHeader, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
+import { Selecao } from '@/components/cadastro';
+import { Paginacao } from './Alunos';
 import { Tabela, TCabecalho, TCelula, TLinha } from '@/components/tabela';
 import { UnitSelect } from '@/components/escola';
 
@@ -50,31 +54,62 @@ export default function Pessoal() {
   );
 }
 
+const POR_PAGINA_SERVIDORES = 60;
+
 function Servidores({ unit, q, qv, setQ }: { unit: number | null; q: string; qv: string; setQ: (v: string) => void }) {
-  const res = useRpc<any>('pessoal_lista', { unit_id: unit, q });
+  const [f, setF] = useState<Record<string, string>>({});
+  const [pagina, setPagina] = useState(1);
+  const filtro = (k: string, v: string) => { setF({ ...f, [k]: v }); setPagina(1); };
+  const res = useRpc<any>('pessoal_lista', {
+    unit_id: unit, q, funcao: f.funcao || null, situacao: f.situacao || null, vinculo: f.vinculo || null, area: f.area || null,
+    carga: f.carga || null, regiao_id: f.regiao || null, ordem: f.ordem || null, limite: POR_PAGINA_SERVIDORES, offset: (pagina - 1) * POR_PAGINA_SERVIDORES,
+  }, { placeholderData: keepPreviousData });
   const itens = (res.data?.itens ?? []) as any[];
+  const op = res.data?.opcoes;
+  const ativos = Object.values(f).filter(Boolean).length;
   return (
     <>
-      <input value={qv} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome ou matrícula…" className={`${inputCls} mb-3`} aria-label="Buscar servidor" />
+      <Card className="mb-3 space-y-2 p-3">
+        <input value={qv} onChange={(e) => { setQ(e.target.value); setPagina(1); }} placeholder="Nome (ou parte do nome), matrícula ou cargo…" className={inputCls} aria-label="Buscar servidor" />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <Selecao value={f.funcao ?? ''} onChange={(v) => filtro('funcao', v)} vazio="Função: todas" aria-label="Função"
+            opcoes={Object.entries(FUNCAO_SERVIDOR).filter(([k]) => ['PROFESSOR', 'EDUCADOR', 'AEE', 'AUXILIAR'].includes(k)) as [string, string][]} />
+          <Selecao value={f.situacao ?? ''} onChange={(v) => filtro('situacao', v)} vazio="Situação: todas" aria-label="Situação"
+            opcoes={[['ATIVO', 'Em exercício'], ['LICENCA', 'Licença'], ['AFASTADO', 'Afastado']]} />
+          <Selecao value={f.vinculo ?? ''} onChange={(v) => filtro('vinculo', v)} vazio="Vínculo: todos" aria-label="Vínculo" opcoes={(op?.vinculos ?? []) as string[]} />
+          <Selecao value={f.area ?? ''} onChange={(v) => filtro('area', v)} vazio="Área: todas" aria-label="Área de atuação" opcoes={((op?.areas ?? []) as string[]).slice().sort()} />
+          <Selecao value={f.carga ?? ''} onChange={(v) => filtro('carga', v)} vazio="Carga: todas" aria-label="Carga horária"
+            opcoes={[['EXCESSO', 'Acima da capacidade'], ['LIVRE', 'Com aulas livres'], ['COMPLETA', 'Carga completa'], ['SEM_TURMA', 'Sem turma']]} />
+          {unit == null && <Selecao value={f.regiao ?? ''} onChange={(v) => filtro('regiao', v)} vazio="Região: todas" aria-label="Região"
+            opcoes={((op?.regioes ?? []) as any[]).map((r) => [String(r.id), r.nome] as [string, string])} />}
+          <Selecao value={f.ordem ?? ''} onChange={(v) => filtro('ordem', v)} vazio="Ordem alfabética" aria-label="Ordenar"
+            opcoes={[['saldo', 'Menor saldo de aulas'], ['unidade', 'Por unidade']]} />
+        </div>
+        <div className="flex items-center justify-between text-[13px] text-muted">
+          <span>{res.data ? `${fmtInt(res.data.total)} servidor(es) encontrados` : ' '}</span>
+          {ativos > 0 && <Button size="sm" variant="ghost" icon={X} onClick={() => { setF({}); setPagina(1); }}>Limpar filtros</Button>}
+        </div>
+      </Card>
       {res.isLoading ? <SkeletonList rows={6} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : (
-        <Card className="overflow-hidden">
-          <Tabela colunas="minmax(200px,1.4fr) 130px minmax(150px,1fr) 90px 150px 70px" largura={860} rotulo="Servidores">
-            <TCabecalho><TCelula>Servidor</TCelula><TCelula>Função</TCelula><TCelula>Unidade</TCelula><TCelula>Jornada</TCelula><TCelula>Aulas atribuídas</TCelula><TCelula>Turmas</TCelula></TCabecalho>
+        <Card className={clsx('overflow-hidden transition-opacity', res.isFetching && res.isPlaceholderData && 'opacity-60')}>
+          <Tabela colunas="minmax(200px,1.4fr) 130px minmax(150px,1fr) minmax(120px,0.9fr) 90px 150px 70px" largura={980} rotulo="Servidores">
+            <TCabecalho><TCelula>Servidor</TCelula><TCelula>Função</TCelula><TCelula>Unidade</TCelula><TCelula>Área</TCelula><TCelula>Jornada</TCelula><TCelula>Aulas atribuídas</TCelula><TCelula>Turmas</TCelula></TCabecalho>
             {itens.map((s) => (
               <TLinha key={s.id} to={`/pessoal/${s.id}`} alerta={s.disponivel < 0} rotulo={s.nome}>
-                <TCelula fixa titulo={`${s.nome} · ${s.matricula ?? ''}`}>
+                <TCelula fixa titulo={`${s.nome} · ${s.matricula ?? ''} · ${s.vinculo ?? ''}`}>
                   <span className="font-semibold">{s.nome}</span> <span className="text-[12px] text-muted">{s.matricula}</span>
                 </TCelula>
                 <TCelula>{FUNCAO_SERVIDOR[s.funcao] ?? s.funcao}</TCelula>
                 <TCelula titulo={s.unidade}>{s.unidade}</TCelula>
+                <TCelula titulo={s.area} className="text-muted">{s.area ?? '—'}</TCelula>
                 <TCelula>{s.ch ? `${s.ch} h` : '—'}{s.situacao !== 'ATIVO' && <Badge tone="gray" className="ml-1">{s.situacao === 'LICENCA' ? 'Licença' : 'Afastado'}</Badge>}</TCelula>
                 <TCelula><CargaBarra atribuidas={s.atribuidas} capacidade={s.capacidade} /></TCelula>
                 <TCelula>{fmtInt(s.turmas)}</TCelula>
               </TLinha>
             ))}
           </Tabela>
-          {!itens.length && <EmptyState compact title="Nenhum servidor encontrado" />}
-          {itens.length >= 300 && <p className="p-3 text-center text-[12.5px] text-muted">Mostrando os 300 primeiros. Use a busca ou escolha a unidade.</p>}
+          {!itens.length && <EmptyState compact title="Nenhum servidor com estes filtros" />}
+          <Paginacao pagina={pagina} total={Number(res.data?.total ?? 0)} porPagina={POR_PAGINA_SERVIDORES} onPagina={setPagina} />
         </Card>
       )}
     </>

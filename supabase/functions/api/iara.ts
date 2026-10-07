@@ -56,7 +56,24 @@ const ESCOLA_MENU: QuickReply[] = [
   { label: "Avisos da escola", action: "intent:avisos" },
   { label: "Calendário", action: "intent:calendario" },
   { label: "Restrição alimentar", action: "intent:restricao" },
+  { label: "Agenda escolar", action: "intent:agenda" },
+  { label: "Ocorrências", action: "intent:ocorrencias" },
 ];
+const TIPO_AGENDA_LABEL: Record<string, string> = { RECADO: "Recado", TAREFA: "Tarefa de casa", LEMBRETE: "Lembrete", MATERIAL: "Material", EVENTO: "Evento", BILHETE: "Bilhete" };
+const TIPO_OCORRENCIA_LABEL: Record<string, string> = {
+  COMPORTAMENTO: "Comportamento", CONFLITO: "Conflito entre colegas", ACIDENTE: "Acidente ou machucado", SAUDE: "Saúde ou mal-estar",
+  BULLYING: "Bullying ou intimidação", PERTENCES: "Pertences", ATRASO_SAIDA: "Atraso ou saída", PEDAGOGICA: "Aprendizagem", ELOGIO: "Elogio", OUTRO: "Outro assunto",
+};
+const SITUACAO_OCORRENCIA_LABEL: Record<string, string> = { ABERTA: "aberta", EM_ACOMPANHAMENTO: "em acompanhamento", ENCERRADA: "encerrada" };
+/** Palavras do relato → assunto da ocorrência (a família confirma). */
+function tipoOcorrencia(t: string): string | null {
+  if (/bullying|apelido|zoam|zombam|intimid|ameaca/.test(t)) return "BULLYING";
+  if (/machuc|mordid|mordeu|caiu|arranh|ralou|hematoma|roxo/.test(t)) return "ACIDENTE";
+  if (/bateram|bateu|empurr|briga|brigou|agrediu/.test(t)) return "CONFLITO";
+  if (/febre|dor de|passou mal|vomit|enjo|alergia/.test(t)) return "SAUDE";
+  if (/perdeu|sumiu|sumiram|pegaram (a|o|as|os) /.test(t)) return "PERTENCES";
+  return null;
+}
 const REFEICAO_LABEL: Record<string, string> = { DESJEJUM: "Café da manhã", ALMOCO: "Almoço", LANCHE: "Lanche", JANTAR: "Jantar" };
 /** Palavras → código das 17 categorias de restrição alimentar (a nutrição valida depois). */
 const RESTRICAO_TERMOS: [RegExp, string][] = [
@@ -142,7 +159,11 @@ function detectIntent(t: string): string {
   if (/(\bfaltas\b|faltou|quantas faltas|frequencia|presenca|foi (a|na|para a) (aula|escola)|chamada)/.test(t)) return "frequencia";
   if (/(alergi|intoleran|celiac|dieta|restricao alimentar|nao pode comer|vegetarian|vegan|carne de porco|\baplv\b|lactose|gluten|diabet|alimentacao especial)/.test(t)) return "restricao";
   if (/(cardapio|merenda|lanche|almoco|janta|o que (tem|vai ter) (de|para|pra) comer|comida da escola|refeic)/.test(t)) return "cardapio";
-  if (/(aviso|comunicado|recado|bilhete|mural|enquete|reuniao de pais|reuniao da escola)/.test(t)) return "avisos";
+  if (/((mandar|enviar|escrever|deixar) (um )?(bilhete|recado) (para|pra) (a |o )?(professor|escola|direcao))/.test(t)) return "bilhete";
+  if (/(\bagenda\b|tarefa de casa|licao de casa|dever de casa|recado da professora|recado da escola|bilhete)/.test(t)) return "agenda";
+  if (/(se machucou|machucad|foi mordid|mordeu|bullying|apanhou|bateram|empurraram|quero relatar|relatar (um|uma|o|a)|aconteceu (algo|uma coisa) na escola|reclamar da professora|registrar (uma )?ocorrencia)/.test(t)) return "relatar_ocorrencia";
+  if (/ocorrencia/.test(t)) return "ocorrencias";
+  if (/(aviso|comunicado|recado|mural|enquete|reuniao de pais|reuniao da escola)/.test(t)) return "avisos";
   if (/(calendario|feriado|tem aula|vai ter aula|dia sem aula|recesso|ferias escolares)/.test(t)) return "calendario";
   if (/(troca de turno|trocar de turno|mudar de turno|mudar o turno|outro turno)/.test(t)) return "servico:TROCA_TURNO";
   if (/(periodo integral|educacao integral|contraturno|\bintegral\b)/.test(t)) return "servico:INTEGRAL";
@@ -441,6 +462,14 @@ export class Agent {
         return await this.avisos();
       case "calendario":
         return await this.calendario();
+      case "agenda":
+        return await this.agenda();
+      case "bilhete":
+        return await this.startBilhete();
+      case "ocorrencias":
+        return await this.ocorrencias();
+      case "relatar_ocorrencia":
+        return await this.startOcorrencia(norm(text));
       case "conhecimento":
         if (!text.trim() || /^(tirar uma )?duvida( sobre a rede)?$/.test(norm(text))) return this.askQuestion();
         return await this.knowledge(text);
@@ -531,6 +560,12 @@ export class Agent {
       }
       case "aviso_ok":
         return await this.avisoCiente(value);
+      case "ag_ok": {
+        const [id, aluno] = value.split("|");
+        return await this.agendaCiente(id, aluno);
+      }
+      case "oc_ok":
+        return await this.ocorrenciaCiente(value);
       case "enq": {
         const [id, op] = value.split("|");
         return await this.enqueteResponder(id, Number(op));
@@ -1266,6 +1301,8 @@ export class Agent {
     if (flow === "duvida" && step === "question") return await this.knowledge(text);
     if (flow === "justificar") return await this.justificarStep(text);
     if (flow === "restricao") return await this.restricaoStep(text);
+    if (flow === "bilhete") return await this.bilheteStep(text);
+    if (flow === "ocorrencia") return await this.ocorrenciaStep(text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
@@ -1592,6 +1629,164 @@ export class Agent {
       quick_replies: [ESCOLA_MENU[3], ESCOLA_MENU[0]],
     });
     this.done("Consultou o calendário escolar.");
+  }
+
+  // ------------------------------------------------------------------------ agenda escolar e ocorrências (portal = IARA)
+
+  private async filhosMatriculados(): Promise<{ id: string; nome: string }[]> {
+    const kids = ((await this.tool("get_attendance", "familia_frequencia", {})) as any[]) ?? [];
+    return kids.map((k) => ({ id: k.student_id, nome: k.primeiro_nome }));
+  }
+
+  private async agenda(): Promise<void> {
+    if (!this.needGuardian("intent:agenda")) return;
+    if (!this.ensureVerified("intent:agenda")) return;
+    const r = await this.tool("get_school_agenda", "familia_agenda", { dias: 7 });
+    const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    const itens = ((r?.itens ?? []) as any[]).filter((a) => a.data >= hoje || (a.exige_ciencia && !a.ciente)).slice(0, 6);
+    const recentes = itens.length ? itens : ((r?.itens ?? []) as any[]).slice(0, 4);
+    if (!recentes.length) {
+      this.done();
+      return this.say("A agenda está vazia nesta semana. 🙂", { quick_replies: [{ label: "Mandar bilhete para a escola", action: "intent:bilhete" }] });
+    }
+    const quick: QuickReply[] = [];
+    const cards: Card[] = recentes.map((a) => {
+      if (a.exige_ciencia && !a.ciente) quick.push({ label: `Ciente: ${(a.titulo ?? TIPO_AGENDA_LABEL[a.tipo]).slice(0, 24)}`, action: `ag_ok:${a.id}|${a.filho_id}` });
+      return {
+        title: `${a.origem === "FAMILIA" ? "Seu bilhete" : TIPO_AGENDA_LABEL[a.tipo] ?? a.tipo}${a.titulo ? ": " + a.titulo : ""}`,
+        subtitle: `${a.filho} · ${diaBr(a.data)}${a.student_id && a.origem === "ESCOLA" ? " · só para vocês" : ""}`,
+        lines: [a.texto, ...(a.exige_ciencia ? [a.ciente ? "✅ Ciência confirmada" : "A escola pede a sua ciência."] : []), a.autor ?? ""].filter(Boolean),
+        tone: a.exige_ciencia && !a.ciente ? "purple" : "blue",
+      };
+    });
+    this.say("Agenda escolar:", { cards, quick_replies: [...quick.slice(0, 8), { label: "Mandar bilhete para a escola", action: "intent:bilhete" }] });
+    this.done("Consultou a agenda escolar.");
+  }
+
+  private async agendaCiente(id: string, aluno: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`ag_ok:${id}|${aluno}`)) return;
+    await this.tool("confirm_agenda", "familia_agenda_ciente", { id, student_id: aluno }, `agenda:${id}:${aluno}`);
+    this.done("Deu ciência de um recado da agenda.");
+    this.say("Ciência confirmada ✅ A professora vê a sua confirmação.", { quick_replies: [ESCOLA_MENU[6]] });
+  }
+
+  private async startBilhete(): Promise<void> {
+    if (!this.needGuardian("intent:bilhete")) return;
+    if (!this.ensureVerified("intent:bilhete")) return;
+    const filhos = await this.filhosMatriculados();
+    if (!filhos.length) {
+      this.done();
+      return this.say("O bilhete vai para a agenda da turma; preciso de uma criança com matrícula ativa.", { quick_replies: [MENU[0]] });
+    }
+    this.ctx = { flow: "bilhete", step: "bl_child", data: { filhos } };
+    if (filhos.length === 1) return await this.bilheteStep(filhos[0].id);
+    this.say("O bilhete é sobre qual criança?", { quick_replies: filhos.map((f) => ({ label: f.nome, action: `ans:${f.id}` })) });
+  }
+
+  private async bilheteStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "bl_child") {
+      const filho = (d.filhos as any[]).find((f) => f.id === text || norm(f.nome) === t);
+      if (!filho) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, filho };
+      return this.ask("description", `Escreva o bilhete para a escola de ${filho.nome} (ex.: “vai sair mais cedo amanhã, às 16h, com o pai”).`);
+    }
+    if (this.ctx.step === "description") {
+      if (text.trim().length < 3) return this.say("Escreva o bilhete, por favor.");
+      this.ctx.data = { ...d, texto: text.trim().slice(0, 1000) };
+      return this.ask("bl_ok", `Vou entregar na agenda da turma: “${text.trim().slice(0, 200)}”. Confirma?`, { quick_replies: YES_NO });
+    }
+    if (this.ctx.step === "bl_ok") {
+      if (yesNo(t) === false) {
+        this.done();
+        return this.say("Tudo bem, não enviei.", { quick_replies: [ESCOLA_MENU[6]] });
+      }
+      const r = await this.tool("send_note_to_school", "familia_agenda_enviar", { student_id: d.filho.id, texto: d.texto }, `bilhete:${d.filho.id}:${d.texto.length}`);
+      this.done("Bilhete da família entregue na agenda da turma.");
+      return this.say(`${r.mensagem ?? "Bilhete entregue."} ✅`, { quick_replies: [ESCOLA_MENU[6]] });
+    }
+  }
+
+  private async ocorrencias(): Promise<void> {
+    if (!this.needGuardian("intent:ocorrencias")) return;
+    if (!this.ensureVerified("intent:ocorrencias")) return;
+    const r = await this.tool("get_occurrences", "familia_ocorrencias", {});
+    const todas = ((r?.ocorrencias ?? []) as any[]);
+    const itens = [...todas.filter((o) => o.situacao !== "ENCERRADA"), ...todas.filter((o) => o.situacao === "ENCERRADA")].slice(0, 4);
+    if (!itens.length) {
+      this.done();
+      return this.say("Não há ocorrências registradas sobre seus filhos. 🙂", { quick_replies: [{ label: "Relatar algo à escola", action: "intent:relatar_ocorrencia" }] });
+    }
+    const quick: QuickReply[] = [];
+    const cards: Card[] = itens.map((o) => {
+      if (o.aguarda_ciencia) quick.push({ label: `Ciente: ${TIPO_OCORRENCIA_LABEL[o.tipo] ?? o.tipo}`.slice(0, 24), action: `oc_ok:${o.id}` });
+      const ult = ((o.eventos ?? []) as any[]).slice(-1)[0];
+      return {
+        title: `${TIPO_OCORRENCIA_LABEL[o.tipo] ?? o.tipo} · ${o.primeiro_nome}`,
+        subtitle: `${diaBr(o.ocorrida_em?.slice(0, 10))} · ${o.origem === "FAMILIA" ? "relatada por você" : "registrada pela escola"} · ${SITUACAO_OCORRENCIA_LABEL[o.situacao]}`,
+        lines: [o.descricao, ...(o.providencias ? [`Providências: ${o.providencias}`] : []), ...(ult ? [`Última resposta (${ult.origem === "FAMILIA" ? "você" : "escola"}): ${ult.texto}`] : []),
+          ...(o.aguarda_ciencia ? ["A escola pede a sua ciência."] : [])],
+        tone: o.situacao === "ENCERRADA" ? "green" : o.aguarda_ciencia ? "purple" : "amber",
+      };
+    });
+    this.say("Ocorrências dos seus filhos:", { cards, quick_replies: [...quick.slice(0, 6), { label: "Relatar algo à escola", action: "intent:relatar_ocorrencia" }] });
+    this.done("Consultou as ocorrências.");
+  }
+
+  private async ocorrenciaCiente(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`oc_ok:${id}`)) return;
+    await this.tool("confirm_occurrence", "familia_ocorrencia_ciente", { id }, `ciencia_ocorrencia:${id}`);
+    this.done("Deu ciência de uma ocorrência registrada pela escola.");
+    this.say("Ciência confirmada ✅ Se quiser comentar com a escola, use a Vida escolar no portal ou me conte aqui.", { quick_replies: [ESCOLA_MENU[7]] });
+  }
+
+  private async startOcorrencia(t: string): Promise<void> {
+    if (!this.needGuardian("intent:relatar_ocorrencia")) return;
+    if (!this.ensureVerified("intent:relatar_ocorrencia")) return;
+    const filhos = await this.filhosMatriculados();
+    if (!filhos.length) {
+      this.done();
+      return this.say("O relato vai para a escola da criança; preciso de uma matrícula ativa.", { quick_replies: [MENU[0]] });
+    }
+    this.ctx = { flow: "ocorrencia", step: "oc_child", data: { filhos, tipo: tipoOcorrencia(t) } };
+    if (filhos.length === 1) return await this.ocorrenciaStep(filhos[0].id);
+    this.say("É sobre qual criança?", { quick_replies: filhos.map((f) => ({ label: f.nome, action: `ans:${f.id}` })) });
+  }
+
+  private async ocorrenciaStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "oc_child") {
+      const filho = (d.filhos as any[]).find((f) => f.id === text || norm(f.nome) === t);
+      if (!filho) return this.say("Toque no nome da criança, por favor.");
+      this.ctx.data = { ...d, filho };
+      if (d.tipo) return this.ask("description", `Conte o que aconteceu com ${filho.nome}, com o dia e a hora se souber. A direção da escola recebe na hora.`);
+      return this.ask("oc_tipo", "Sobre o que é?", {
+        quick_replies: ["ACIDENTE", "CONFLITO", "BULLYING", "SAUDE", "PERTENCES", "OUTRO"].map((k) => ({ label: TIPO_OCORRENCIA_LABEL[k], action: `ans:${k}` })),
+      });
+    }
+    if (this.ctx.step === "oc_tipo") {
+      const tipo = /^[A-Z_]+$/.test(text.trim()) ? text.trim() : tipoOcorrencia(t) ?? "OUTRO";
+      this.ctx.data = { ...d, tipo };
+      return this.ask("description", `Conte o que aconteceu com ${d.filho.nome}, com o dia e a hora se souber.`);
+    }
+    if (this.ctx.step === "description") {
+      if (text.trim().length < 10) return this.say("Conte um pouco mais, por favor (pelo menos uma frase).");
+      this.ctx.data = { ...d, descricao: text.trim().slice(0, 2000) };
+      return this.ask("oc_ok", `Vou enviar à escola (${TIPO_OCORRENCIA_LABEL[d.tipo] ?? "relato"}): “${text.trim().slice(0, 200)}”. Confirma?`, { quick_replies: YES_NO });
+    }
+    if (this.ctx.step === "oc_ok") {
+      if (yesNo(t) === false) {
+        this.done();
+        return this.say("Tudo bem, não enviei.", { quick_replies: [ESCOLA_MENU[7]] });
+      }
+      const r = await this.tool("report_occurrence", "ocorrencia_registrar", { student_id: d.filho.id, tipo: d.tipo, descricao: d.descricao }, `ocorrencia:${d.filho.id}:${d.descricao.length}`);
+      this.done(`Família relatou uma ocorrência (${d.tipo}).`);
+      return this.say(`${r.mensagem ?? "Registrado."} ✅`, { quick_replies: [ESCOLA_MENU[7]] });
+    }
   }
 
   private async queueStatus(): Promise<void> {

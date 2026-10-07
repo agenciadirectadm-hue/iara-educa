@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { keepPreviousData } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Plus, Search, ShieldCheck, Users, X } from 'lucide-react';
+import { AlertCircle, Apple, CheckCircle2, ChevronLeft, ChevronRight, MapPin, Plus, Search, ShieldAlert, ShieldCheck, SlidersHorizontal, Users, X } from 'lucide-react';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import { useDebounced, useRpc } from '@/lib/hooks';
-import { useGeoLayers, useUnitsMap } from '@/lib/data';
+import { useBootstrap, useGeoLayers, useUnitsMap } from '@/lib/data';
 import { fmtInt } from '@/lib/format';
 import { PARENTESCO, SITUACAO_ALUNO } from '@/lib/cadastro';
 import { Avatar, Badge, Button, ButtonLink, Card, EmptyState, ErrorState, MarcaSimulado, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
@@ -67,6 +67,20 @@ export default function Alunos() {
   const pendencia = sp.get('pendencia') ?? '';
   const pendentes = sp.get('pendentes') === '1';
   const ordem = sp.get('ordem') ?? 'nome';
+  // filtros da busca avançada (todos na URL)
+  const sexo = sp.get('sexo') ?? '';
+  const idadeMin = sp.get('idade_min') ?? '';
+  const idadeMax = sp.get('idade_max') ?? '';
+  const serie = sp.get('serie') ?? '';
+  const turno = sp.get('turno') ?? '';
+  const turma = sp.get('turma') ?? '';
+  const restricao = sp.get('restricao') ?? '';
+  const ocorrencias = sp.get('ocorrencias') ?? '';
+  const aee = sp.get('aee') === '1';
+  const avancados = [sexo, idadeMin, idadeMax, serie, turno, turma, restricao, ocorrencias, aee ? '1' : ''].filter(Boolean).length;
+  const [maisFiltros, setMaisFiltros] = useState(avancados > 0);
+  const boot = useBootstrap();
+  const catalogo = useRpc<any>('cardapio', {}, { staleTime: 30 * 60_000, enabled: maisFiltros });
   const pagina = Math.max(1, Number(sp.get('pagina') ?? 1));
   const [texto, setTexto] = useState(q);
   const dq = useDebounced(texto, 350);
@@ -79,6 +93,8 @@ export default function Alunos() {
   const res = useRpc<any>('alunos_lista', {
     q: q || null, situacao: situacao || null, unidade_id: unidade || null, territorio_id: territorio || null, pendencia: pendencia || null,
     pendentes, ordem, limite: POR_PAGINA, offset: (pagina - 1) * POR_PAGINA,
+    sexo: sexo || null, idade_min: idadeMin || null, idade_max: idadeMax || null, serie_id: serie || null, turno: turno || null,
+    turma_id: turma || null, restricao: restricao || null, ocorrencias: ocorrencias || null, aee,
   }, { placeholderData: keepPreviousData });
   const d = res.data;
   const c = d?.contagem ?? {};
@@ -126,8 +142,46 @@ export default function Alunos() {
           )}
           <Selecao value={territorio} onChange={(v) => set({ territorio: v })} vazio="Todos os territórios" aria-label="Território" opcoes={territorios} />
           <Selecao value={ordem} onChange={(v) => set({ ordem: v === 'nome' ? null : v })} vazio={false} aria-label="Ordenar"
-            opcoes={[['nome', 'Ordem alfabética'], ['pendencias', 'Mais pendências primeiro'], ['recentes', 'Atualizados recentemente']]} />
+            opcoes={[['nome', 'Ordem alfabética'], ['idade', 'Mais novos primeiro'], ['pendencias', 'Mais pendências primeiro'], ['recentes', 'Atualizados recentemente']]} />
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={maisFiltros ? 'soft' : 'secondary'} icon={SlidersHorizontal} onClick={() => setMaisFiltros(!maisFiltros)}>
+            Mais filtros{avancados ? ` (${avancados})` : ''}
+          </Button>
+          {avancados > 0 && (
+            <Button size="sm" variant="ghost" icon={X} onClick={() => set({ sexo: null, idade_min: null, idade_max: null, serie: null, turno: null, turma: null, restricao: null, ocorrencias: null, aee: null })}>
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+        {maisFiltros && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <Selecao value={sexo} onChange={(v) => set({ sexo: v })} vazio="Sexo: todos" aria-label="Sexo" opcoes={[['F', 'Feminino'], ['M', 'Masculino']]} />
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 pl-1 text-[13px] font-semibold text-muted">Idade</span>
+              <Selecao className="min-w-0 flex-1" value={idadeMin} onChange={(v) => set({ idade_min: v })} vazio="de" aria-label="Idade mínima"
+                opcoes={Array.from({ length: 16 }, (_, i) => [String(i), `${i} ano${i === 1 ? '' : 's'}`] as [string, string])} />
+              <Selecao className="min-w-0 flex-1" value={idadeMax} onChange={(v) => set({ idade_max: v })} vazio="até" aria-label="Idade máxima"
+                opcoes={Array.from({ length: 16 }, (_, i) => [String(i), `${i} ano${i === 1 ? '' : 's'}`] as [string, string])} />
+            </div>
+            <Selecao value={serie} onChange={(v) => set({ serie: v, turma: null })} vazio="Série: todas" aria-label="Série"
+              opcoes={((boot.data?.grades ?? []) as any[]).map((g) => [String(g.id), g.name] as [string, string])} />
+            <Selecao value={turno} onChange={(v) => set({ turno: v })} vazio="Turno: todos" aria-label="Turno"
+              opcoes={[['MANHA', 'Manhã'], ['TARDE', 'Tarde'], ['INTEGRAL', 'Integral'], ['NOITE', 'Noite']]} />
+            <Selecao value={turma} onChange={(v) => set({ turma: v })} disabled={!d?.turmas}
+              vazio={d?.turmas ? 'Turma: todas' : 'Turma: escolha a unidade'} aria-label="Turma"
+              opcoes={((d?.turmas ?? []) as any[]).filter((t) => !turno || t.turno === turno).map((t) => [t.id, t.nome] as [string, string])} />
+            <Selecao value={restricao} onChange={(v) => set({ restricao: v })} vazio="Restrição alimentar: tanto faz" aria-label="Restrição alimentar"
+              opcoes={[['QUALQUER', 'Com alguma restrição'], ...((catalogo.data?.restricoes ?? []) as any[]).map((r) => [r.codigo, r.descricao.split(' (')[0]] as [string, string])]} />
+            <Selecao value={ocorrencias} onChange={(v) => set({ ocorrencias: v })} vazio="Ocorrências: tanto faz" aria-label="Ocorrências"
+              opcoes={[['ABERTAS', 'Com ocorrência em aberto'], ['FAMILIA', 'Relatada pela família'], ['QUALQUER', 'Com alguma ocorrência']]} />
+            <button onClick={() => set({ aee: aee ? null : 1 })} aria-pressed={aee}
+              className={clsx('inline-flex h-12 items-center justify-center gap-1.5 rounded-2xl px-3 text-[14px] font-semibold ring-1 transition',
+                aee ? 'bg-purple-700 text-white ring-purple-700' : 'bg-white text-ink-2 ring-line hover:bg-purple-50')}>
+              <ShieldCheck className="size-4" />Só AEE / inclusão
+            </button>
+          </div>
+        )}
         <PendenciasFrequentes itens={d?.pendencias_frequentes ?? []} ativo={pendencia} onEscolher={(i) => set({ pendencia: i })} />
       </Card>
 
@@ -147,6 +201,8 @@ export default function Alunos() {
                     <span className="font-semibold text-ink">{i.nome}</span>
                     {i.nome_social && <span className="text-[12px] text-muted"> · {i.nome_social}</span>}
                     {i.aee && <ShieldCheck className="ml-1 inline size-3.5 align-[-2px] text-purple-700" aria-label="AEE" />}
+                    {(i.restricoes ?? []).length > 0 && <span title={`Restrição alimentar: ${i.restricoes.join(', ')}`}><Apple className="ml-1 inline size-3.5 align-[-2px] text-red-600" aria-label="Restrição alimentar" /></span>}
+                    {i.ocorrencias_abertas > 0 && <span title={`${i.ocorrencias_abertas} ocorrência(s) em aberto`}><ShieldAlert className="ml-1 inline size-3.5 align-[-2px] text-amber-600" aria-label="Ocorrência em aberto" /></span>}
                     {i.ficticio && <MarcaSimulado className="ml-1" />}
                   </TCelula>
                   <TCelula className="text-muted">{i.idade}</TCelula>

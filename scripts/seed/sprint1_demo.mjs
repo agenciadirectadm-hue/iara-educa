@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Recria os dados FICTÍCIOS do Sprint 1 (pessoal, calendário, frequência, cardápio e nutrição, manutenção, mural)
+// Recria os dados FICTÍCIOS do Sprint 1 (pessoal, calendário, frequência, cardápio e nutrição, manutenção, mural,
+// ocorrências e agenda escolar)
 // em etapas — a frequência e as refeições vão mês a mês para caber no tempo máximo de cada chamada.
 // Só roda com o modo demonstração ligado. Os lançamentos feitos ao vivo (is_demo = false) não são tocados.
 // Uso: SUPABASE_ACCESS_TOKEN=... node scripts/seed/sprint1_demo.mjs [--so=frequencia,nutricao,...]
@@ -48,6 +49,8 @@ if (quer('nutricao')) {
 }
 if (quer('manutencao')) await q(`select iara.demo_gerar_manutencao() r`);
 if (quer('mural')) await q(`select iara.demo_gerar_mural() r`);
+if (quer('ocorrencias')) await q(`select iara.demo_gerar_ocorrencias() r`);
+if (quer('agenda')) await q(`select iara.demo_gerar_agenda() r`);
 await q(`select iara.demo_reforcar_cenario() r`);
 await q(`update iara.tenants set settings = settings || jsonb_build_object('demo_rotina_dia', current_date::text) where id = 1 returning settings ->> 'demo_rotina_dia' as rotina`);
 console.log('Pronto. A rotina diária (housekeeping do gateway) completa os próximos dias letivos sozinha.');

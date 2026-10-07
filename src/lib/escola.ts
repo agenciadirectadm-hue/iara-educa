@@ -121,3 +121,26 @@ export function pctTone(p: number | null | undefined, minimo = 75): Tone {
   if (p < minimo + 10) return 'amber';
   return 'green';
 }
+
+export const TIPO_OCORRENCIA: Record<string, { label: string; tone: Tone }> = {
+  COMPORTAMENTO: { label: 'Comportamento', tone: 'amber' },
+  CONFLITO: { label: 'Conflito entre colegas', tone: 'amber' },
+  ACIDENTE: { label: 'Acidente ou machucado', tone: 'red' },
+  SAUDE: { label: 'Saúde ou mal-estar', tone: 'purple' },
+  BULLYING: { label: 'Bullying ou intimidação', tone: 'red' },
+  PERTENCES: { label: 'Pertences', tone: 'gray' },
+  ATRASO_SAIDA: { label: 'Atraso ou saída antecipada', tone: 'blue' },
+  PEDAGOGICA: { label: 'Aprendizagem', tone: 'teal' },
+  ELOGIO: { label: 'Elogio', tone: 'green' },
+  OUTRO: { label: 'Outro assunto', tone: 'gray' },
+};
+export const GRAVIDADE: Record<string, { label: string; tone: Tone }> = {
+  LEVE: { label: 'Leve', tone: 'gray' }, MODERADA: { label: 'Moderada', tone: 'amber' }, GRAVE: { label: 'Grave', tone: 'red' },
+};
+export const SITUACAO_OCORRENCIA: Record<string, { label: string; tone: Tone }> = {
+  ABERTA: { label: 'Aberta', tone: 'red' }, EM_ACOMPANHAMENTO: { label: 'Em acompanhamento', tone: 'amber' }, ENCERRADA: { label: 'Encerrada', tone: 'green' },
+};
+export const TIPO_AGENDA: Record<string, { label: string; tone: Tone }> = {
+  RECADO: { label: 'Recado', tone: 'purple' }, TAREFA: { label: 'Tarefa de casa', tone: 'blue' }, LEMBRETE: { label: 'Lembrete', tone: 'teal' },
+  MATERIAL: { label: 'Material', tone: 'gray' }, EVENTO: { label: 'Evento', tone: 'amber' }, BILHETE: { label: 'Bilhete', tone: 'green' },
+};

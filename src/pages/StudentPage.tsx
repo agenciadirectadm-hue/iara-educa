@@ -19,14 +19,18 @@ import { useToast } from '@/components/overlays';
 import MapView from '@/components/map/MapView';
 import { LinkMetodologia, TresDistanciasInscricao } from '@/components/distancias';
 import QuadroDistancias from '@/components/QuadroDistancias';
+import { AgendaLista, NovaOcorrenciaSheet, NovoRecadoSheet, OcorrenciaSheet, OcorrenciasTabela, useRecarregarVidaEscolar } from '@/components/vida-escolar';
+import { MOTIVO_RESTRICAO, SITUACAO_RESTRICAO } from '@/lib/escola';
 
-type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia';
+type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
+  | 'alimentacao' | 'ocorrencias' | 'agenda';
 
 export default function StudentPage() {
   const { id } = useParams();
   const [sp, setSp] = useSearchParams();
   const tab = (sp.get('aba') as Tab) ?? 'resumo';
   const res = useRpc<any>('student_detail', { student_id: id });
+  const ve = useRpc<any>('aluno_vida_escolar', { student_id: id }, { enabled: !!id, retry: false });
   const { can } = useSession();
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
@@ -41,6 +45,11 @@ export default function StudentPage() {
     { value: 'atendimentos', label: 'Atendimentos', count: d.cases.length },
     { value: 'fila', label: 'Fila e vagas', count: d.queue.length + d.offers.length },
     ...(d.school && can('frequencia.read') ? [{ value: 'frequencia' as Tab, label: 'Frequência' }] : []),
+    ...(ve.data ? [
+      { value: 'alimentacao' as Tab, label: 'Alimentação', count: (ve.data.restricoes as any[]).filter((r) => r.situacao !== 'RECUSADA').length || null },
+      { value: 'ocorrencias' as Tab, label: 'Ocorrências', count: (ve.data.ocorrencias as any[]).filter((o) => o.situacao !== 'ENCERRADA').length || null },
+      ...(ve.data.class_id ? [{ value: 'agenda' as Tab, label: 'Agenda' }] : []),
+    ] : []),
     { value: 'aee', label: 'AEE/Inclusão' },
     ...(d.audit ? [{ value: 'auditoria' as Tab, label: 'Auditoria' }] : []),
   ];
@@ -61,6 +70,16 @@ export default function StudentPage() {
             <Badge tone="blue">Código {s.registry}</Badge>
             <Badge tone={SITUACAO_ALUNO[s.status]?.tone ?? 'gray'}>{SITUACAO_ALUNO[s.status]?.label ?? s.status}</Badge>
             {s.is_demo && <Simulado detail="Criança fictícia (simulação)." />}
+            {((ve.data?.restricoes ?? []) as any[]).filter((r) => r.situacao !== 'RECUSADA').map((r) => (
+              <button key={r.id} onClick={() => setSp({ aba: 'alimentacao' }, { replace: true })} title={r.orientacao}>
+                <Badge tone={r.situacao === 'VALIDADA' ? 'red' : 'amber'}>{r.descricao.split(' (')[0]}{r.situacao === 'INFORMADA' ? ' · a validar' : ''}</Badge>
+              </button>
+            ))}
+            {((ve.data?.ocorrencias ?? []) as any[]).some((o) => o.situacao !== 'ENCERRADA') && (
+              <button onClick={() => setSp({ aba: 'ocorrencias' }, { replace: true })}>
+                <Badge tone="amber" icon={AlertTriangle}>{((ve.data?.ocorrencias ?? []) as any[]).filter((o) => o.situacao !== 'ENCERRADA').length} ocorrência(s) em aberto</Badge>
+              </button>
+            )}
           </div>
         </div>
         {d.registry?.can_edit && (
@@ -77,6 +96,9 @@ export default function StudentPage() {
         {tab === 'fila' && <QueueOffers d={d} />}
         {tab === 'aee' && <Aee d={d} />}
         {tab === 'frequencia' && <FrequenciaAluno id={s.id} />}
+        {tab === 'alimentacao' && ve.data && <AlimentacaoAluno v={ve.data} studentId={s.id} />}
+        {tab === 'ocorrencias' && ve.data && <OcorrenciasAluno v={ve.data} aluno={{ id: s.id, nome: s.full_name }} />}
+        {tab === 'agenda' && ve.data && <AgendaAluno v={ve.data} aluno={{ id: s.id, nome: s.full_name }} />}
         {tab === 'auditoria' && <Audit d={d} />}
       </div>
     </div>
@@ -458,5 +480,87 @@ function FrequenciaAluno({ id }: { id: string }) {
         </Card>
       </div>
     </div>
+  );
+}
+
+/** Restrições alimentares: o que a cozinha recebe, quem validou e o registro trazido ao balcão (a nutrição valida). */
+function AlimentacaoAluno({ v, studentId }: { v: any; studentId: string }) {
+  const toast = useToast();
+  const recarregar = useRecarregarVidaEscolar();
+  const [codigo, setCodigo] = useState('');
+  const [laudo, setLaudo] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const registrar = async () => {
+    setBusy(true);
+    try {
+      const r = await rpc<any>('aluno_restricao_registrar', { student_id: studentId, codigo, laudo_entregue: laudo });
+      toast({ title: 'Restrição registrada', description: r.mensagem, tone: 'success' });
+      setCodigo(''); setLaudo(false);
+      recarregar();
+    } catch (e) {
+      toast({ title: 'Não registrada', description: (e as Error).message, tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const itens = v.restricoes as any[];
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
+      <Card className="overflow-hidden">
+        {itens.length ? (
+          <Tabela colunas="minmax(220px,1.6fr) 120px 150px minmax(200px,1.4fr)" largura={760} rotulo="Restrições alimentares">
+            <TCabecalho><TCelula>Restrição</TCelula><TCelula>Motivo</TCelula><TCelula>Situação</TCelula><TCelula>Instrução para a cozinha</TCelula></TCabecalho>
+            {itens.map((r) => (
+              <TLinha key={r.id}>
+                <TCelula fixa titulo={r.descricao}><span className="font-semibold">{r.descricao}</span>{r.detalhe ? ` (${r.detalhe})` : ''}</TCelula>
+                <TCelula><Badge tone={MOTIVO_RESTRICAO[r.motivo]?.tone}>{MOTIVO_RESTRICAO[r.motivo]?.label}</Badge></TCelula>
+                <TCelula titulo={r.validada_por ? `${r.validada_por} · ${fmtDate(r.validada_em)}` : `informada em ${fmtDate(r.informada_em)}`}>
+                  <Badge tone={SITUACAO_RESTRICAO[r.situacao]?.tone}>{SITUACAO_RESTRICAO[r.situacao]?.label}</Badge>
+                </TCelula>
+                <TCelula titulo={r.orientacao} className="text-muted">{r.orientacao}</TCelula>
+              </TLinha>
+            ))}
+          </Tabela>
+        ) : <EmptyState compact title="Sem restrição alimentar registrada" body="A família informa pelo portal ou pela IARA; a secretaria pode registrar o que for trazido ao balcão." />}
+      </Card>
+      {v.pode_restricao && (
+        <Card className="space-y-3 p-4">
+          <div className="font-semibold">Registrar restrição trazida pela família</div>
+          <select value={codigo} onChange={(e) => setCodigo(e.target.value)} className="h-11 w-full rounded-2xl bg-white px-3 ring-1 ring-line" aria-label="Restrição">
+            <option value="">Escolha a restrição…</option>
+            {(v.catalogo_restricoes as any[]).map((r) => <option key={r.codigo} value={r.codigo}>{r.descricao}</option>)}
+          </select>
+          <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={laudo} onChange={(e) => setLaudo(e.target.checked)} className="size-5 accent-purple-700" />Laudo entregue na secretaria</label>
+          <Button block loading={busy} disabled={!codigo} onClick={registrar}>Registrar para a nutrição validar</Button>
+          <p className="text-[12px] text-muted">A cozinha recebe só a instrução de preparo, nunca o laudo.</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function OcorrenciasAluno({ v, aluno }: { v: any; aluno: { id: string; nome: string } }) {
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [nova, setNova] = useState(false);
+  return (
+    <>
+      {v.pode_ocorrencia && <div className="mb-3 flex justify-end"><Button icon={ClipboardPlus} onClick={() => setNova(true)}>Registrar ocorrência</Button></div>}
+      <Card className="overflow-hidden"><OcorrenciasTabela itens={v.ocorrencias} onAbrir={setAberta} mostrarAluno={false} /></Card>
+      <p className="mt-2 text-[12px] text-muted">Registradas pela escola ou relatadas pela família (portal e IARA). A família dá ciência do que a escola registra.</p>
+      <OcorrenciaSheet id={aberta} onClose={() => setAberta(null)} />
+      <NovaOcorrenciaSheet open={nova} onClose={() => setNova(false)} alunos={[aluno]} />
+    </>
+  );
+}
+
+function AgendaAluno({ v, aluno }: { v: any; aluno: { id: string; nome: string } }) {
+  const [novo, setNovo] = useState(false);
+  return (
+    <>
+      {v.pode_agenda && <div className="mb-3 flex justify-end"><Button icon={Pencil} onClick={() => setNovo(true)}>Bilhete para a família</Button></div>}
+      <Card className="overflow-hidden"><AgendaLista itens={v.agenda} /></Card>
+      <p className="mt-2 text-[12px] text-muted">Recados e tarefas da turma, bilhetes individuais e o que a família escreveu (últimos 30 dias e próximos 30).</p>
+      {v.class_id && <NovoRecadoSheet open={novo} onClose={() => setNovo(false)} classId={v.class_id} alunos={[]} alunoFixo={aluno} />}
+    </>
   );
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Apple, BellRing, CalendarCheck, CalendarDays, Check, ChevronRight, MessageCircle, Plus, Vote } from 'lucide-react';
+import { Apple, BellRing, CalendarCheck, CalendarDays, Check, ChevronRight, MessageCircle, NotebookPen, Plus, Send, ShieldAlert, Vote } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
@@ -12,8 +12,10 @@ import { Badge, Button, Card, EmptyState, ErrorState, Field, Meter, PageHeader, 
 import { Sheet, useToast } from '@/components/overlays';
 import { ProximosEventos } from '@/components/escola';
 import { GradeCardapio } from './Nutricao';
+import { AgendaLista, NovaOcorrenciaSheet, OcorrenciaSheet, useRecarregarVidaEscolar } from '@/components/vida-escolar';
+import { GRAVIDADE, SITUACAO_OCORRENCIA, TIPO_OCORRENCIA } from '@/lib/escola';
 
-type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario';
+type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -21,22 +23,28 @@ export default function Escola() {
   const [sp, setSp] = useSearchParams();
   const aba = (sp.get('aba') ?? 'avisos') as Aba;
   const avisos = useRpc<any>('familia_avisos', {}, { enabled: !!me?.guardian });
+  const agenda = useRpc<any>('familia_agenda', {}, { enabled: !!me?.guardian });
+  const ocorr = useRpc<any>('familia_ocorrencias', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
   const pend = (avisos.data?.nao_lidos ?? 0) + (avisos.data?.enquetes_abertas ?? 0);
   return (
     <div>
       <PageHeader eyebrow="Portal da família" title={<span className="inline-flex items-center gap-2">Vida escolar<Simulado detail="Frequência, cardápio e avisos de demonstração." /></span>}
-        subtitle="Tudo isto também pela IARA no WhatsApp: pergunte “faltas da Ana”, “cardápio da semana” ou “avisos da escola”."
+        subtitle="Tudo isto também pela IARA no WhatsApp: pergunte “faltas da Ana”, “agenda de hoje”, “cardápio da semana” ou “avisos da escola”."
         actions={<Link to="/iara" className="inline-flex h-10 items-center gap-1.5 rounded-2xl bg-purple-700 px-3 text-[14px] font-semibold text-white"><MessageCircle className="size-4" />Perguntar à IARA</Link>} />
       <Tabs value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })} items={[
         { value: 'avisos', label: 'Avisos', count: pend || null },
+        { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
+        { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
         { value: 'frequencia', label: 'Frequência' },
         { value: 'cardapio', label: 'Cardápio' },
         { value: 'calendario', label: 'Calendário' },
       ]} />
       <div className="mt-3">
         {aba === 'avisos' && <Avisos res={avisos} />}
+        {aba === 'agenda' && <AgendaFamilia res={agenda} />}
+        {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
         {aba === 'frequencia' && <FrequenciaFamilia />}
         {aba === 'cardapio' && <CardapioFamilia />}
         {aba === 'calendario' && <ProximosEventos dias={120} limite={30} />}
@@ -47,6 +55,8 @@ export default function Escola() {
 
 /** Resumo para o início e para a página da família: avisos pendentes e a presença de cada filho. */
 export function VidaEscolarResumo() {
+  const agenda = useRpc<any>('familia_agenda', {});
+  const ocorr = useRpc<any>('familia_ocorrencias', {});
   const avisos = useRpc<any>('familia_avisos', {});
   const freq = useRpc<any[]>('familia_frequencia', {});
   const a = avisos.data;
@@ -72,6 +82,26 @@ export function VidaEscolarResumo() {
           <Badge tone={pctTone(Number(c.percentual), Number(c.minimo))}>{String(c.percentual ?? '—').replace('.', ',')}%</Badge>
         </Link>
       ))}
+      <Link to="/escola?aba=agenda" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
+        <span className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white"><NotebookPen className="size-5" />
+          {(agenda.data?.aguardando_ciencia ?? 0) > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold ring-2 ring-white">{agenda.data.aguardando_ciencia}</span>}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">Agenda escolar</span>
+          <span className="block truncate text-[12.5px] text-muted">{agenda.data ? `${fmtInt(agenda.data.hoje)} para hoje · ${fmtInt(agenda.data.aguardando_ciencia)} pedem ciência` : 'Recados, tarefas e bilhetes'}</span>
+        </span>
+        <ChevronRight className="size-5 text-subtle" />
+      </Link>
+      {(ocorr.data?.em_aberto ?? 0) > 0 && (
+        <Link to="/escola?aba=ocorrencias" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
+          <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 text-white"><ShieldAlert className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Ocorrências</span>
+            <span className="block truncate text-[12.5px] text-muted">{fmtInt(ocorr.data.em_aberto)} em aberto · {fmtInt(ocorr.data.aguardando_ciencia)} aguardam sua ciência</span>
+          </span>
+          <ChevronRight className="size-5 text-subtle" />
+        </Link>
+      )}
       <Link to="/escola?aba=cardapio" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
         <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-lime-500 to-green-700 text-white"><Apple className="size-5" /></span>
         <span className="min-w-0 flex-1"><span className="block font-semibold">Cardápio da semana</span><span className="block truncate text-[12.5px] text-muted">Já com as trocas das restrições validadas</span></span>
@@ -294,5 +324,111 @@ function InformarRestricao({ kid, catalogo, onClose }: { kid: any | null; catalo
         )}
       </div>
     </Sheet>
+  );
+}
+
+/** Crianças matriculadas da família (para escolher a quem se refere o bilhete ou a ocorrência). */
+function useFilhos() {
+  const f = useRpc<any[]>('familia_frequencia', {});
+  return ((f.data ?? []) as any[]).map((k) => ({ id: k.student_id as string, nome: k.primeiro_nome as string }));
+}
+
+function AgendaFamilia({ res }: { res: any }) {
+  const toast = useToast();
+  const recarregar = useRecarregarVidaEscolar();
+  const filhos = useFilhos();
+  const [bilhete, setBilhete] = useState(false);
+  if (res.isLoading) return <SkeletonList rows={4} />;
+  if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
+  const ciente = async (a: any) => {
+    try {
+      await rpc('familia_agenda_ciente', { id: a.id, student_id: a.filho_id });
+      toast({ title: 'Ciência registrada', description: 'A professora vê a sua confirmação.', tone: 'success' });
+      recarregar();
+    } catch (e) {
+      toast({ title: 'Não foi possível', description: (e as Error).message, tone: 'error' });
+    }
+  };
+  return (
+    <>
+      <div className="mb-3 flex justify-end"><Button variant="purple" icon={Send} onClick={() => setBilhete(true)}>Mandar bilhete para a escola</Button></div>
+      <Card className="overflow-hidden"><AgendaLista itens={res.data?.itens ?? []} familia onCiente={ciente} /></Card>
+      <BilheteSheet open={bilhete} onClose={() => setBilhete(false)} filhos={filhos} />
+    </>
+  );
+}
+
+function BilheteSheet({ open, onClose, filhos }: { open: boolean; onClose: () => void; filhos: { id: string; nome: string }[] }) {
+  const toast = useToast();
+  const recarregar = useRecarregarVidaEscolar();
+  const [filho, setFilho] = useState('');
+  const [texto, setTexto] = useState('');
+  const [busy, setBusy] = useState(false);
+  const alvo = filho || (filhos.length === 1 ? filhos[0].id : '');
+  const enviar = async () => {
+    setBusy(true);
+    try {
+      const r = await rpc<any>('familia_agenda_enviar', { student_id: alvo, texto });
+      toast({ title: 'Bilhete enviado', description: r.mensagem, tone: 'success' });
+      recarregar();
+      setTexto('');
+      onClose();
+    } catch (e) {
+      toast({ title: 'Não enviado', description: (e as Error).message, tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open={open} onClose={onClose} title="Bilhete para a escola" subtitle="Vai para a agenda da turma: a professora e a direção veem na hora."
+      footer={<Button block size="lg" icon={Send} loading={busy} disabled={!alvo || texto.trim().length < 3} onClick={enviar}>Enviar</Button>}>
+      <div className="space-y-4 pt-1">
+        {filhos.length > 1 && (
+          <Field label="Sobre qual criança">
+            <select value={filho} onChange={(e) => setFilho(e.target.value)} className={inputCls}>
+              <option value="">Escolha…</option>
+              {filhos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label="Bilhete" hint="Ex.: saída mais cedo, quem vai buscar, um aviso para a professora.">
+          <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={4} maxLength={1000} className={`${inputCls} h-auto py-3`} />
+        </Field>
+      </div>
+    </Sheet>
+  );
+}
+
+function OcorrenciasFamilia({ res }: { res: any }) {
+  const filhos = useFilhos();
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [nova, setNova] = useState(false);
+  if (res.isLoading) return <SkeletonList rows={4} />;
+  if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
+  const itens = (res.data?.ocorrencias ?? []) as any[];
+  return (
+    <>
+      <div className="mb-3 flex justify-end"><Button variant="purple" icon={Plus} onClick={() => setNova(true)}>Relatar algo à escola</Button></div>
+      {!itens.length ? <Card><EmptyState compact title="Nenhuma ocorrência" body="Quando a escola registrar algo sobre seus filhos, ou você relatar, aparece aqui e na IARA." /></Card> : (
+        <div className="space-y-2">
+          {itens.map((o) => (
+            <button key={o.id} onClick={() => setAberta(o.id)} className={clsx('block w-full rounded-3xl bg-white p-4 text-left shadow-soft ring-1 transition hover:ring-purple-200',
+              o.aguarda_ciencia ? 'ring-2 ring-purple-300' : 'ring-line/70')}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone={TIPO_OCORRENCIA[o.tipo]?.tone}>{TIPO_OCORRENCIA[o.tipo]?.label}</Badge>
+                {o.gravidade !== 'LEVE' && <Badge tone={GRAVIDADE[o.gravidade]?.tone}>{GRAVIDADE[o.gravidade]?.label}</Badge>}
+                <Badge tone={SITUACAO_OCORRENCIA[o.situacao]?.tone}>{SITUACAO_OCORRENCIA[o.situacao]?.label}</Badge>
+                <span className="text-[12px] text-muted">{o.primeiro_nome} · {diaCurto(o.ocorrida_em?.slice(0, 10))} · {o.origem === 'FAMILIA' ? 'relatada por você' : 'registrada pela escola'}</span>
+              </div>
+              <p className="mt-1.5 text-[14px]">{o.descricao}</p>
+              {o.aguarda_ciencia && <p className="mt-1 text-[12.5px] font-semibold text-purple-800">Toque para ler e dar ciência</p>}
+              {(o.eventos as any[]).length > 0 && <p className="mt-1 text-[12.5px] text-muted">{(o.eventos as any[]).length} resposta(s) · última: {(o.eventos as any[])[(o.eventos as any[]).length - 1].texto}</p>}
+            </button>
+          ))}
+        </div>
+      )}
+      <OcorrenciaSheet id={aberta} onClose={() => setAberta(null)} />
+      <NovaOcorrenciaSheet open={nova} onClose={() => setNova(false)} alunos={filhos} familia />
+    </>
   );
 }
