@@ -7,10 +7,21 @@ import { Crosshair, Minus, Plus } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
 import { MapLegend } from './MapLegend';
 import {
-  BALANCE_STOPS, CHILDREN_REGION_STOPS, CHILDREN_SETOR_STOPS, DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE,
-  QUEUE_REGION_STOPS, REGION_LINE, REGION_OPACITY, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, SETOR_OPACITY, SIGILO_COLOR, UNIT_COLOR,
-  VACANCY_COLOR, interpolate, type Stops,
+  DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, PURPLE, REGION_LINE, REGION_OPACITY, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, SETOR_OPACITY,
+  SIGILO_COLOR, UNIT_COLOR, VACANCY_COLOR, interpolate,
 } from './mapStyle';
+import type { Faixas } from './MapLegend';
+import { classe, corDe, cortes, legenda, type Pior } from './semaforo';
+
+/** Métricas das áreas (regionMetric) no semáforo: o que é pior e como a legenda fala de cada ponta. */
+const METRICA: Record<NonNullable<RegionMetric>, { pior: Pior; titulo: string; palavras: { pior: string; melhor: string } }> = {
+  balance_creche: { pior: 'menor', titulo: 'saldo de creche (vagas − fila)', palavras: { pior: 'Falta mais vaga', melhor: 'Falta menos vaga' } },
+  balance: { pior: 'menor', titulo: 'saldo de vagas (vagas − fila)', palavras: { pior: 'Falta mais vaga', melhor: 'Falta menos vaga' } },
+  queue: { pior: 'maior', titulo: 'crianças na fila', palavras: { pior: 'Mais fila', melhor: 'Menos fila' } },
+  offerable: { pior: 'menor', titulo: 'vagas ofertáveis', palavras: { pior: 'Menos vagas', melhor: 'Mais vagas' } },
+  criancas_0a4: { pior: 'maior', titulo: 'crianças de 0 a 4 anos (Censo 2022)', palavras: { pior: 'Mais crianças', melhor: 'Menos crianças' } },
+};
+const numero = (v: unknown) => (v == null || v === '' ? null : Number(v));
 
 setWorkerUrl(workerUrl);
 
@@ -18,27 +29,31 @@ const STYLE = 'https://tiles.openfreemap.org/styles/positron';
 const CENTER: [number, number] = [-51.9386, -23.4253];
 
 export type HeatMode = 'queue' | 'queue_creche' | 'enrollments' | 'offerable' | null;
-export type ColorMode = 'type' | 'vacancy';
+/** type: localização (cor neutra); vacancy: vaga no semáforo; classe: cor de cada unidade em corUnidade (semáforo). */
+export type ColorMode = 'type' | 'vacancy' | 'classe';
 export type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | 'criancas_0a4' | null;
 
 /** Mapa de calor genérico (visão do prefeito): densidade (mancha de calor pelo peso de cada ponto) ou taxa (mancha colorida pela escala). */
 export type Calor = {
   modo: 'densidade' | 'taxa';
+  /** Pontos; na taxa, cada um traz a cor do semáforo (cor). */
   pontos: { lat: number; lng: number; valor: number; titulo?: string; cor?: string }[];
-  /** Escala da taxa: [valor, cor] em ordem crescente. */
+  /** Escala da taxa sem cor por ponto (legado): [valor, cor] em ordem crescente. */
   escala?: [number, string][] | null;
   /** Peso máximo da densidade (o resto é proporcional). */
   max?: number | null;
+  /** Densidade: "maior" = concentração é ruim (verde → vermelho); "menor" = concentração é boa (vermelho → verde). */
+  pior?: Pior;
+  /** O que a concentração mede (legenda). */
+  rotulo?: string;
 };
 
 export type Coropleta = {
   tipo: 'area' | 'setor';
+  /** Cada feição traz chave, valor, titulo e cor (do semáforo). */
   feicoes: GeoJSON.FeatureCollection;
-  escala: Stops;
-  /** Título da legenda (ex.: "Setores censitários · Faltas pela casa"). */
-  titulo: string;
-  /** Texto do item "sem valor" na legenda (sigilo do IBGE ou menos pessoas que o mínimo). */
-  semValor?: string | null;
+  /** Legenda: título e as faixas de cor. */
+  faixas: Faixas;
 };
 
 export type GeoLayers = {
@@ -68,6 +83,13 @@ export type MapViewProps = {
   onSelectCoropleta?: (chave: string) => void;
   /** Enquadra nesta caixa ([oeste, sul], [leste, norte]) quando a chave muda (ex.: ao descer para os setores de uma área). */
   enquadrar?: { chave: string; caixa: [[number, number], [number, number]] } | null;
+  /** Áreas que definem os terços do semáforo do regionMetric (padrão: as mostradas). Ex.: a ficha mostra uma área, mas a cor
+   * dela é a posição na cidade. */
+  regioesReferencia?: GeoJSON.FeatureCollection | null;
+  /** Cor de cada unidade no semáforo (colorMode 'classe'). */
+  corUnidade?: Record<number, string> | null;
+  /** Faixas extras na legenda (ex.: escolas pintadas pelo semáforo). */
+  faixas?: Faixas[];
   showAreas?: boolean;
   home?: { lat: number; lng: number; radius_m?: number } | null;
   highlight?: { id: number; label: string }[];
@@ -155,10 +177,35 @@ export function MapView(p: MapViewProps) {
       properties: {
         id: u.id, name: u.short_name, type: u.type, status: u.status, offerable: u.offerable, queue: u.queue, queue_creche: u.queue_creche,
         enrollments: u.public_enrollments ?? 0, vacancy_state: u.offerable > 0 ? 'vaga' : u.queue > 0 ? 'fila' : 'neutro',
+        cor: p.corUnidade?.[u.id] ?? UNIT_COLOR.ESCOLA,
       },
       geometry: { type: 'Point', coordinates: [u.lng, u.lat] },
     })),
-  }), [p.units]);
+  }), [p.units, p.corUnidade]);
+
+  // áreas (regionMetric) e setores (crianças de 0 a 4 anos) no semáforo: cor de cada feição pelos terços dos valores
+  const regioesPintadas = useMemo(() => {
+    const fc = p.geo?.regions;
+    if (!p.regionMetric || !fc) return null;
+    const metrica = p.regionMetric;
+    const m = METRICA[metrica];
+    // vaga, fila e saldo: região sem nenhuma unidade fica cinza (sem dado), como no mapa unificado (api.mapa_recorte)
+    const valor = (f: GeoJSON.Feature) => (metrica !== 'criancas_0a4' && numero(f.properties?.units) === 0 ? null : numero(f.properties?.[metrica]));
+    const c = cortes((p.regioesReferencia ?? fc).features.map(valor), m.pior);
+    return {
+      fc: { ...fc, features: fc.features.map((f) => ({ ...f, properties: { ...f.properties, cor: corDe(classe(valor(f), c)) } })) },
+      faixas: { titulo: `Regiões · ${m.titulo}`, itens: legenda(c, m.palavras, '', metrica !== 'criancas_0a4' ? 'Sem escola aqui' : null) } as Faixas,
+    };
+  }, [p.geo?.regions, p.regionMetric, p.regioesReferencia]);
+  const setoresPintados = useMemo(() => {
+    const fc = p.setores;
+    if (!fc) return null;
+    const c = cortes(fc.features.map((f) => numero(f.properties?.criancas_0a4)), 'maior');
+    return {
+      fc: { ...fc, features: fc.features.map((f) => ({ ...f, properties: { ...f.properties, cor: corDe(classe(numero(f.properties?.criancas_0a4), c)) } })) },
+      faixas: { titulo: 'Microrregiões · crianças de 0 a 4 anos', itens: legenda(c, { pior: 'Mais crianças', melhor: 'Menos crianças' }, '', 'Sigilo do IBGE') } as Faixas,
+    };
+  }, [p.setores]);
 
   // criação do mapa
   useEffect(() => {
@@ -223,7 +270,7 @@ export function MapView(p: MapViewProps) {
       map.addLayer({
         id: 'setores-fill', type: 'fill', source: 'setores', layout: { visibility: 'none' },
         paint: {
-          'fill-color': ['case', ['==', ['get', 'criancas_0a4'], null], SIGILO_COLOR, interpolate(['get', 'criancas_0a4'], CHILDREN_SETOR_STOPS)] as never,
+          'fill-color': ['coalesce', ['get', 'cor'], SIGILO_COLOR] as never,
           'fill-opacity': SETOR_OPACITY,
         },
       });
@@ -427,7 +474,9 @@ export function MapView(p: MapViewProps) {
       'units', 'circle-color',
       p.colorMode === 'vacancy'
         ? ['match', ['get', 'vacancy_state'], 'vaga', VACANCY_COLOR.vaga, 'fila', VACANCY_COLOR.fila, VACANCY_COLOR.neutro]
-        : ['case', ['!=', ['get', 'status'], 'ATIVA'], UNIT_COLOR.VALIDAR, ['==', ['get', 'type'], 'CMEI'], UNIT_COLOR.CMEI, UNIT_COLOR.ESCOLA],
+        : p.colorMode === 'classe'
+          ? ['get', 'cor']
+          : ['case', ['!=', ['get', 'status'], 'ATIVA'], UNIT_COLOR.VALIDAR, UNIT_COLOR.ESCOLA],
     );
   }, [ready, unitFC, p.colorMode, p.showUnits]);
 
@@ -468,10 +517,11 @@ export function MapView(p: MapViewProps) {
       const denso = c.pontos.length > 300;
       map.setPaintProperty('calor-heat', 'heatmap-radius', ['interpolate', ['linear'], ['zoom'], ...(denso ? [10, 12, 13, 26, 16, 60] : [10, 22, 13, 40, 16, 80])]);
       map.setPaintProperty('calor-heat', 'heatmap-intensity', ['interpolate', ['linear'], ['zoom'], ...(denso ? [10, 1.3, 13, 2, 16, 3] : [10, 1.5, 13, 2.1, 16, 3])]);
-    } else {
-      map.setPaintProperty('calor-taxa', 'circle-color', corEscala as never);
+      // semáforo: concentração ruim vai do verde ao vermelho; concentração boa, do vermelho ao verde
+      map.setPaintProperty('calor-heat', 'heatmap-color', interpolate(['heatmap-density'], c.pior === 'menor' ? HEAT_OFFERABLE_STOPS : HEAT_STOPS) as never);
     }
     const temCor = c.pontos.some((x) => x.cor);
+    if (c.modo === 'taxa') map.setPaintProperty('calor-taxa', 'circle-color', (temCor ? ['get', 'cor'] : corEscala) as never);
     map.setPaintProperty('calor-ponto', 'circle-color', (temCor ? ['get', 'cor'] : corEscala) as never);
     vis('calor-heat', c.modo === 'densidade');
     vis('calor-taxa', c.modo === 'taxa');
@@ -483,7 +533,7 @@ export function MapView(p: MapViewProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
-    (map.getSource('regions') as GeoJSONSource).setData(p.geo?.regions ?? empty);
+    (map.getSource('regions') as GeoJSONSource).setData(regioesPintadas?.fc ?? p.geo?.regions ?? empty);
     (map.getSource('areas') as GeoJSONSource).setData(p.geo?.areas ?? empty);
     const muni = p.geo?.municipality;
     (map.getSource('muni') as GeoJSONSource).setData(muni ?? empty);
@@ -498,7 +548,7 @@ export function MapView(p: MapViewProps) {
       })),
     });
     (map.getSource('districts') as GeoJSONSource).setData(p.geo?.districts ?? empty);
-    (map.getSource('setores') as GeoJSONSource).setData(p.setores ?? empty);
+    (map.getSource('setores') as GeoJSONSource).setData(setoresPintados?.fc ?? empty);
     const comSetores = !!p.setores;
     const sobreSetores = comSetores || p.coropleta?.tipo === 'setor';
     const vis = (id: string, on: boolean) => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
@@ -509,15 +559,7 @@ export function MapView(p: MapViewProps) {
     vis('districts-line', recorte && !!p.geo?.districts?.features?.length);
     vis('districts-label', recorte && !!p.geo?.districts?.features?.length);
     if (p.regionMetric) {
-      const m = p.regionMetric;
-      const color = m === 'balance_creche' || m === 'balance'
-        ? interpolate(['get', m], BALANCE_STOPS)
-        : m === 'queue'
-          ? interpolate(['get', 'queue'], QUEUE_REGION_STOPS)
-          : m === 'criancas_0a4'
-            ? interpolate(['get', 'criancas_0a4'], CHILDREN_REGION_STOPS)
-            : interpolate(['get', 'offerable'], OFFERABLE_REGION_STOPS);
-      map.setPaintProperty('regions-fill', 'fill-color', color as never);
+      map.setPaintProperty('regions-fill', 'fill-color', ['coalesce', ['get', 'cor'], SIGILO_COLOR] as never);
       map.setPaintProperty('regions-fill', 'fill-opacity', comSetores ? 0 : REGION_OPACITY);
     } else {
       map.setPaintProperty('regions-fill', 'fill-opacity', 0);
@@ -526,7 +568,7 @@ export function MapView(p: MapViewProps) {
     map.setPaintProperty('regions-line', 'line-width', sobreSetores ? 1.6 : 2);
     // no quesito por área, o contorno é o da própria camada do quesito
     map.setPaintProperty('regions-line', 'line-opacity', recorte && p.coropleta?.tipo !== 'area' ? 0.9 : 0);
-  }, [ready, p.geo, p.regionMetric, p.showAreas, p.setores, p.coropleta]);
+  }, [ready, p.geo, p.regionMetric, p.showAreas, p.setores, p.coropleta, regioesPintadas, setoresPintados]);
 
   // quesito por área de ponderação ou setor censitário (mapa unificado)
   useEffect(() => {
@@ -537,7 +579,7 @@ export function MapView(p: MapViewProps) {
     map.setLayoutProperty('coro-fill', 'visibility', c ? 'visible' : 'none');
     map.setLayoutProperty('coro-line', 'visibility', c ? 'visible' : 'none');
     if (!c) return;
-    map.setPaintProperty('coro-fill', 'fill-color', ['case', ['==', ['get', 'valor'], null], SIGILO_COLOR, interpolate(['get', 'valor'], c.escala)] as never);
+    map.setPaintProperty('coro-fill', 'fill-color', ['coalesce', ['get', 'cor'], SIGILO_COLOR] as never);
     map.setPaintProperty('coro-line', 'line-color', c.tipo === 'area' ? REGION_LINE : '#ffffff');
     map.setPaintProperty('coro-line', 'line-width', c.tipo === 'area' ? 1.4 : 0.6);
   }, [ready, p.coropleta]);
@@ -682,10 +724,15 @@ export function MapView(p: MapViewProps) {
 
   const legendMode = p.legend ?? 'strip';
   const legendInput = {
-    units: p.units, showUnits: p.showUnits, colorMode: p.colorMode, regionMetric: p.regionMetric, heat: p.heat,
+    // unidades pintadas no semáforo: a legenda delas vem nas faixas de quem chamou
+    units: p.colorMode === 'classe' ? [] : p.units, showUnits: p.showUnits, colorMode: p.colorMode === 'classe' ? undefined : p.colorMode, heat: p.heat,
     hasBoundary: !!p.geo?.municipality, showAreas: p.showAreas && !!p.geo?.areas, home: p.home, homeLabel: p.homeLabel,
-    setores: !!p.setores, districts: (!!p.regionMetric || !!p.setores || !!p.coropleta) && !!p.geo?.districts?.features?.length,
-    coropleta: p.coropleta ? { titulo: p.coropleta.titulo, escala: p.coropleta.escala, semValor: p.coropleta.semValor ?? null } : null,
+    districts: (!!p.regionMetric || !!p.setores || !!p.coropleta) && !!p.geo?.districts?.features?.length,
+    faixas: [
+      ...(regioesPintadas ? [regioesPintadas.faixas] : []), ...(setoresPintados ? [setoresPintados.faixas] : []),
+      ...(p.coropleta ? [p.coropleta.faixas] : []), ...(p.faixas ?? []),
+    ],
+    calor: p.calor?.modo === 'densidade' ? { rotulo: p.calor.rotulo ?? 'Concentração', maisEhPior: p.calor.pior !== 'menor' } : null,
     highlight: p.highlight, highlightLabel: p.highlightLabel, lines: p.lines,
     rotas: { A_PE: (p.trajetos ?? []).some((t) => t.modo === 'A_PE'), CARRO: (p.trajetos ?? []).some((t) => t.modo === 'CARRO') },
     selectedUnit: p.selectedId != null ? p.units.find((u) => u.id === p.selectedId) ?? null : null, selectedLabel: p.selectedLabel,

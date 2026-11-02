@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { fmtDateTime, fmtInt } from '@/lib/format';
 import { Card, ErrorState, SkeletonList, SourceChip } from '@/components/ui';
 import { RECORTE_ROTULO, type Quesito, type Recorte, type Tema } from './catalogo';
+import { SEMAFORO, corDe, type Classe } from '@/components/map/semaforo';
 
 const num = (v: unknown, sufixo = '') =>
   v == null ? '—' : `${typeof v === 'number' && !Number.isInteger(v) ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : fmtInt(Number(v))}${sufixo}`;
@@ -16,12 +17,14 @@ export type DadosRecorte = {
 
 /** Painel do quesito no mapa unificado: a pergunta, o resumo e o ranking — de pontos (api.mapa_calor) ou de áreas/setores
  * (api.mapa_recorte). No ranking, tocar numa área desce para os setores dela; tocar num setor aproxima o mapa. */
-export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor, rec, nomes, onArea, onSetor, onVoltar }: {
+export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor, rec, nomes, classes, onArea, onSetor, onVoltar }: {
   tema: Tema; quesito: Quesito; recorte: Recorte; areaNome: string | null; areaId: number | null;
   calor: { data?: any; isLoading: boolean; isFetching: boolean; error: any; refetch: () => void };
   rec: { data?: DadosRecorte; isLoading: boolean; isFetching: boolean; error: any; refetch: () => void };
   /** Nome de cada chave (id da área ou código do setor). */
   nomes: Map<string, string>;
+  /** Cor de cada área ou setor no semáforo (a mesma do mapa). */
+  classes: Map<string, Classe | null> | null;
   onArea: (chave: string) => void;
   onSetor: (chave: string) => void;
   onVoltar: () => void;
@@ -38,7 +41,7 @@ export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor,
       <h2 className="mt-1 font-display text-lg font-extrabold leading-snug">{pergunta}</h2>
       {areaNome && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl bg-purple-50 px-3 py-2 text-[13px] text-purple-900">
-          <span className="min-w-0 flex-1">Setores da <b>{areaNome}</b></span>
+          <span className="min-w-0 flex-1">Microrregiões da <b>{areaNome}</b></span>
           {areaId != null && <Link to={`/territorios/${areaId}`} className="inline-flex items-center gap-0.5 font-semibold underline">Ficha da área<ArrowRight className="size-3.5" /></Link>}
           <button type="button" onClick={onVoltar} className="inline-flex items-center gap-1 font-semibold" aria-label="Voltar para a cidade"><X className="size-4" />Cidade</button>
         </div>
@@ -46,7 +49,7 @@ export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor,
       <div className="mt-3">
         {q.isLoading ? <SkeletonList rows={4} /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : recorte === 'pontos'
           ? <PontosCalor d={calor.data} />
-          : rec.data ? <Recortes d={rec.data} recorte={recorte} areaNome={areaNome} nomes={nomes} onArea={onArea} onSetor={onSetor} /> : null}
+          : rec.data ? <Recortes d={rec.data} recorte={recorte} areaNome={areaNome} nomes={nomes} classes={classes} onArea={onArea} onSetor={onSetor} /> : null}
       </div>
     </div>
   );
@@ -75,12 +78,14 @@ function PontosCalor({ d }: { d: any }) {
   );
 }
 
-function Recortes({ d, recorte, areaNome, nomes, onArea, onSetor }: {
-  d: DadosRecorte; recorte: Recorte; areaNome: string | null; nomes: Map<string, string>; onArea: (c: string) => void; onSetor: (c: string) => void;
+function Recortes({ d, recorte, areaNome, nomes, classes, onArea, onSetor }: {
+  d: DadosRecorte; recorte: Recorte; areaNome: string | null; nomes: Map<string, string>; classes: Map<string, Classe | null> | null;
+  onArea: (c: string) => void; onSetor: (c: string) => void;
 }) {
   const visiveis = d.itens.filter((i) => !i.oculto && i.valor != null);
   const ordem = [...visiveis].sort((a, b) => (d.pior === 'maior' ? (b.valor! - a.valor!) : (a.valor! - b.valor!)));
-  const unidade = recorte === 'area' ? 'área(s)' : 'setor(es)';
+  const unidade = recorte === 'area' ? 'região(ões)' : 'microrregião(ões)';
+  const conta = (k: Classe) => [...(classes?.values() ?? [])].filter((x) => x === k).length;
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -93,13 +98,23 @@ function Recortes({ d, recorte, areaNome, nomes, onArea, onSetor }: {
           <div className="mt-1 text-[12px] leading-tight text-muted">{unidade} com valor{d.ocultos ? ` · ${d.ocultos} em sigilo` : ''}</div>
         </Card>
       </div>
+      {classes && (
+        <div className="flex flex-wrap gap-1.5 text-[12.5px] font-semibold">
+          {(['vermelho', 'amarelo', 'verde'] as Classe[]).map((k) => (
+            <span key={k} className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 ring-1 ring-line">
+              <span className="size-2.5 rounded-full" style={{ background: SEMAFORO[k] }} />{conta(k)} {k === 'vermelho' ? 'para agir primeiro' : k === 'amarelo' ? 'intermediária(s)' : 'melhor(es)'}
+            </span>
+          ))}
+        </div>
+      )}
       {ordem.length > 0 && (
         <Lista
-          titulo={`${d.pior === 'maior' ? 'Maiores valores' : 'Menores valores'} · toque para ${recorte === 'area' ? 'ver os setores' : 'aproximar'}`}
+          titulo={`Onde agir primeiro · toque para ${recorte === 'area' ? 'ver as microrregiões' : 'aproximar'}`}
           itens={ordem.slice(0, 10).map((i) => ({
             nome: nomes.get(i.chave) ?? i.chave,
             detalhe: i.n != null && d.tipo === 'taxa' ? `base ${fmtInt(i.n)}` : undefined,
             valor: num(i.valor, d.sufixo),
+            cor: corDe(classes?.get(i.chave) ?? null),
             onClick: () => (recorte === 'area' ? onArea(i.chave) : onSetor(i.chave)),
           }))}
         />
@@ -112,7 +127,7 @@ function Recortes({ d, recorte, areaNome, nomes, onArea, onSetor }: {
   );
 }
 
-function Lista({ titulo, itens }: { titulo: string; itens: { nome: string; detalhe?: string; valor: string; onClick?: () => void }[] }) {
+function Lista({ titulo, itens }: { titulo: string; itens: { nome: string; detalhe?: string; valor: string; cor?: string; onClick?: () => void }[] }) {
   return (
     <div>
       <div className="mb-1 text-[12.5px] font-semibold text-ink-2">{titulo}</div>
@@ -120,6 +135,7 @@ function Lista({ titulo, itens }: { titulo: string; itens: { nome: string; detal
         {itens.map((x, i) => {
           const conteudo = (
             <>
+              {x.cor ? <span className="size-3 shrink-0 rounded-full" style={{ background: x.cor }} aria-hidden /> : null}
               <span className="w-5 shrink-0 text-right font-bold text-subtle">{i + 1}</span>
               <span className="min-w-0 flex-1 truncate" title={`${x.nome}${x.detalhe ? ` · ${x.detalhe}` : ''}`}><b>{x.nome}</b>{x.detalhe && <span className="text-muted"> · {x.detalhe}</span>}</span>
               <span className="shrink-0 font-semibold tabular">{x.valor}</span>

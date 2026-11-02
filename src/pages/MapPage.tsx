@@ -15,8 +15,13 @@ import { Badge, Button, ButtonLink, Chip, OccupancyBar, Segmented, SourceChip, S
 import { Sheet } from '@/components/overlays';
 import type { DistanciaUnidade, MedidaDistancia } from '@/lib/api';
 import { LinkMetodologia, MEDIDA, SeletorMedida, TresDistancias, metros, modoTracado, trajetosDe, useDistancias } from '@/components/distancias';
-import { CAMADA_ANTIGA, RECORTE_ROTULO, acharQuesito, escalaDosValores, temasVisiveis, type Recorte } from '@/components/mapas/catalogo';
+import { CAMADA_ANTIGA, RECORTE_AJUDA, RECORTE_ROTULO, acharQuesito, temasVisiveis, type Recorte } from '@/components/mapas/catalogo';
 import { PainelQuesito, type DadosRecorte } from '@/components/mapas/PainelQuesito';
+import type { Faixas } from '@/components/map/MapLegend';
+import { SEMAFORO, classe, corDe, cortes, legenda, type Classe } from '@/components/map/semaforo';
+
+/** Veículos agora: a situação de cada um no semáforo (em rota = verde, na escola = amarelo, não realizada = vermelho). */
+const COR_VEICULO: Record<string, string> = { '#2563eb': SEMAFORO.verde, '#f59e0b': SEMAFORO.amarelo, '#dc2626': SEMAFORO.vermelho, '#64748b': SEMAFORO.cinza };
 
 /** Quantas unidades perto do ponto pesquisado ganham número, linha/rota no mapa e as três medidas. */
 const PERTO = 8;
@@ -127,9 +132,10 @@ export default function MapPage() {
   // rotas do transporte escolar (perfis com acesso ao transporte): trajetos pelas ruas e veículos a caminho
   const verRotas = recorte === 'pontos' && quesito.pontos === 'rotas';
   const tr = useRpc<any[]>('transporte_mapa', {}, { enabled: verRotas, refetchInterval: 60_000 });
-  const linhasTr = useMemo(() => (verRotas ? (tr.data ?? []).map((r, i) => ({
+  // rotas: uma cor só (localização); a situação de cada veículo é que usa o semáforo
+  const linhasTr = useMemo(() => (verRotas ? (tr.data ?? []).map((r) => ({
     id: String(r.id), coords: r.linha as [number, number][], rotulo: r.codigo,
-    cor: ['#1D6FD8', '#7A24C5', '#0A8F5B', '#D94C4C', '#F28C38', '#0E7490', '#A21CAF', '#4D7C0F'][i % 8],
+    cor: '#475569',
   })) : null), [tr.data, verRotas]);
   const veiculos = useMemo(() => (verRotas ? (tr.data ?? []).filter((r) => r.agora?.posicao)
     .map((r) => ({ lat: r.agora.posicao.lat, lng: r.agora.posicao.lng, tipo: 'VEICULO' as const, rotulo: '' })) : null), [tr.data, verRotas]);
@@ -139,8 +145,26 @@ export default function MapPage() {
   const calorRes = useRpc<any>('mapa_calor', { camada: quesito.value }, {
     enabled: verCalor, staleTime: 60_000, refetchInterval: quesito.value === 'transporte_veiculos' ? 60_000 : false,
   });
-  const calor = useMemo<Calor | null>(() => (verCalor && calorRes.data
-    ? { modo: calorRes.data.modo, pontos: calorRes.data.pontos ?? [], escala: calorRes.data.escala ?? null, max: calorRes.data.max ?? null } : null), [verCalor, calorRes.data]);
+  // pontos no semáforo: a mancha de calor vai do verde ao vermelho (ou ao contrário, quando mais é melhor); taxas e veículos
+  // viram pontos verdes, amarelos e vermelhos
+  const { calor, faixasCalor } = useMemo<{ calor: Calor | null; faixasCalor: Faixas[] }>(() => {
+    const d = calorRes.data;
+    if (!verCalor || !d) return { calor: null, faixasCalor: [] };
+    const pior = quesito.pior ?? 'maior';
+    let pontos = (d.pontos ?? []) as Calor['pontos'];
+    let faixas: Faixas[] = [];
+    if (quesito.value === 'transporte_veiculos') {
+      pontos = pontos.map((x) => ({ ...x, cor: COR_VEICULO[x.cor ?? ''] ?? SEMAFORO.cinza }));
+      faixas = [{ titulo: 'Veículos agora', itens: [
+        { cor: SEMAFORO.verde, rotulo: 'Em rota' }, { cor: SEMAFORO.amarelo, rotulo: 'Na escola, esperando a volta' },
+        { cor: SEMAFORO.vermelho, rotulo: 'Viagem não realizada' }, { cor: SEMAFORO.cinza, rotulo: 'Fora de viagem' }] }];
+    } else if (d.modo === 'taxa') {
+      const c = cortes(pontos.map((x) => x.valor), pior);
+      pontos = pontos.map((x) => ({ ...x, cor: corDe(classe(x.valor, c)) }));
+      faixas = [{ titulo: `Pontos · ${quesito.label}`, itens: legenda(c, quesito.palavras ?? { pior: 'Pior', melhor: 'Melhor' }, d.sufixo ?? '') }];
+    }
+    return { calor: { modo: d.modo, pontos, max: d.max ?? null, pior, rotulo: quesito.label }, faixasCalor: faixas };
+  }, [verCalor, calorRes.data, quesito]);
 
   // áreas de ponderação e setores censitários
   const recRes = useRpc<DadosRecorte>('mapa_recorte', { camada: quesito.value, recorte: recorte === 'pontos' ? 'area' : recorte, area_id: areaDrill },
@@ -158,34 +182,53 @@ export default function MapPage() {
   const areaFeicao = areaDrill != null ? geo.data?.regions?.features.find((f) => f.properties?.id === areaDrill) : undefined;
   const areaNome = areaFeicao ? String(areaFeicao.properties?.name) : null;
 
-  const coropleta = useMemo<Coropleta | null>(() => {
+  // regiões e microrregiões no semáforo: a cor de cada uma pelos terços dos valores mostrados
+  const coropleta = useMemo<(Coropleta & { classes: Map<string, Classe | null> }) | null>(() => {
     const d = recRes.data;
     if (recorte === 'pontos' || !d) return null;
     const base = recorte === 'area' ? geo.data?.regions : setoresGeo.data;
     if (!base) return null;
     const porChave = new Map(d.itens.map((i) => [String(i.chave), i]));
-    const censo = quesito.value === 'criancas_0a4' || quesito.value === 'pessoas';
-    const feicoes = base.features
+    const pelaCasaOuCenso = d.pela_casa || quesito.value === 'criancas_0a4' || quesito.value === 'pessoas';
+    const linhas = base.features
       .filter((f) => recorte === 'area' || areaDrill == null || f.properties?.area_id === areaDrill)
       .map((f) => {
         const chave = recorte === 'area' ? String(f.properties?.id) : String(f.properties?.code);
         const it = porChave.get(chave);
-        // sem observação: soma = 0 (nada ali); taxa e Censo = sem dado
-        const valor = it ? (it.oculto ? null : it.valor) : d.tipo === 'soma' && !censo ? 0 : null;
-        const nome = nomes.get(chave) ?? chave;
-        const txt = valor != null ? `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}${d.sufixo}`
-          : it?.oculto ? (d.pela_casa ? `sigilo (menos de ${d.minimo} pessoas)` : 'sigilo do IBGE') : 'sem dado';
-        return { type: 'Feature' as const, geometry: f.geometry, properties: { chave, valor, titulo: `${nome}: ${txt}` } };
+        // sem observação: pela casa, soma = 0 (ninguém ali); escola/parada sem nada ali, taxa ou Censo = sem dado
+        const valor = it ? (it.oculto ? null : it.valor) : d.tipo === 'soma' && d.pela_casa ? 0 : null;
+        return { f, chave, it, valor };
       });
-    const valores = feicoes.map((f) => f.properties.valor).filter((v): v is number => v != null);
+    const pior = quesito.pior ?? d.pior;
+    const c = cortes(linhas.map((l) => l.valor), pior);
+    const classes = new Map<string, Classe | null>();
+    const feicoes = linhas.map(({ f, chave, it, valor }) => {
+      const k = classe(valor, c);
+      classes.set(chave, k);
+      const nome = nomes.get(chave) ?? chave;
+      const txt = valor != null ? `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}${d.sufixo}`
+        : it?.oculto ? (d.pela_casa ? `sigilo (menos de ${d.minimo} pessoas)` : 'sigilo do IBGE')
+          : pelaCasaOuCenso ? 'sem dado' : 'sem escola ou parada aqui';
+      return { type: 'Feature' as const, geometry: f.geometry, properties: { chave, valor, cor: corDe(k), titulo: `${nome}: ${txt}` } };
+    });
+    const semDado = d.pela_casa ? `Sem dado ou sigilo (menos de ${d.minimo} pessoas)` : pelaCasaOuCenso ? 'Sem dado ou sigilo do IBGE' : 'Sem escola ou parada aqui';
     return {
       tipo: recorte,
       feicoes: { type: 'FeatureCollection', features: feicoes },
-      escala: quesito.escala?.[recorte] ?? escalaDosValores(valores, d.pior),
-      titulo: `${recorte === 'area' ? 'Áreas de ponderação' : 'Setores censitários'} · ${quesito.label}`,
-      semValor: d.pela_casa ? `Sigilo: menos de ${d.minimo} pessoas` : censo ? 'Sigilo do IBGE' : d.tipo === 'taxa' ? 'Sem dado' : null,
+      faixas: { titulo: `${RECORTE_ROTULO[recorte]} · ${quesito.label}`, itens: legenda(c, quesito.palavras ?? { pior: 'Pior', melhor: 'Melhor' }, d.sufixo, semDado) },
+      classes,
     };
   }, [recRes.data, recorte, geo.data, setoresGeo.data, areaDrill, quesito, nomes]);
+
+  // escolas no semáforo (pontos da rede): fila e matrículas pela posição da escola entre as demais; vagas pela vaga
+  const { corUnidade, faixasUnidades } = useMemo(() => {
+    if (!pontosRede || quesito.porVaga || !quesito.pior || quesito.value === 'unidades') return { corUnidade: null, faixasUnidades: [] as Faixas[] };
+    const val = (u: UnitMapItem) => (quesito.value === 'fila' ? u.queue : quesito.value === 'matriculas' ? u.public_enrollments ?? 0 : null);
+    const c = cortes(list.map(val), quesito.pior);
+    const cores: Record<number, string> = {};
+    for (const u of list) cores[u.id] = corDe(classe(val(u), c));
+    return { corUnidade: cores, faixasUnidades: [{ titulo: `Escolas · ${quesito.label}`, itens: legenda(c, quesito.palavras ?? { pior: 'Pior', melhor: 'Melhor' }) }] };
+  }, [pontosRede, quesito, list]);
 
   // a área detalhada, o setor tocado no ranking ou, ao voltar para a cidade, o conjunto das unidades
   const caixaCidade = useMemo<Caixa | null>(() => {
@@ -214,26 +257,38 @@ export default function MapPage() {
 
   return (
     <div className="flex h-[calc(100dvh-64px-66px-env(safe-area-inset-bottom)-env(safe-area-inset-top))] flex-col overflow-hidden lg:h-[calc(100dvh-64px)]">
-      {/* temas, quesitos e recorte */}
-      <div className="shrink-0 space-y-2 border-b border-line bg-white px-3 pb-2.5 pt-2.5 lg:px-4">
-        <div className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3 lg:mx-0 lg:px-0" role="tablist" aria-label="Temas do mapa">
-          {temas.map((t) => (
-            <Chip key={t.value} icon={t.icon} active={t.value === tema.value} onClick={() => irQuesito(t.quesitos[0].value)}>{t.label}</Chip>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {tema.quesitos.length > 1 && (
-            <div className="no-scrollbar min-w-0 max-w-full flex-1 overflow-x-auto">
-              <Segmented className="whitespace-nowrap" value={quesito.value} onChange={(v) => irQuesito(v, recorte)} items={tema.quesitos.map((x) => ({ value: x.value, label: x.label }))} />
-            </div>
-          )}
+      {/* a pergunta e como ver: duas escolhas só; as cores seguem sempre a mesma regra */}
+      <div className="shrink-0 border-b border-line bg-white px-3 py-2.5 lg:px-4">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <label className="min-w-0 flex-1 basis-72">
+            <span className="mb-1 block text-[12px] font-bold uppercase tracking-wide text-subtle">O que você quer saber?</span>
+            <span className="relative block">
+              <tema.icon className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-purple-700" aria-hidden />
+              <select value={quesito.value} onChange={(e) => irQuesito(e.target.value)} aria-label="O que você quer saber?"
+                className="h-11 w-full appearance-none rounded-2xl bg-white pl-10 pr-9 text-[15px] font-semibold text-ink ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-purple-500">
+                {temas.map((t) => (
+                  <optgroup key={t.value} label={t.label}>
+                    {t.quesitos.map((x) => <option key={x.value} value={x.value}>{x.pergunta}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-subtle" aria-hidden />
+            </span>
+          </label>
           {quesito.recortes.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold text-subtle">Recorte</span>
+            <div>
+              <span className="mb-1 block text-[12px] font-bold uppercase tracking-wide text-subtle">Ver por</span>
               <Segmented className="whitespace-nowrap" value={recorte} onChange={(v) => { setFoco(null); setParams({ recorte: v, area: null }); }}
                 items={quesito.recortes.map((r) => ({ value: r, label: RECORTE_ROTULO[r] }))} />
             </div>
           )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
+          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.vermelho }} />agir primeiro</span>
+          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.amarelo }} />intermediário</span>
+          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.verde }} />melhor</span>
+          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.cinza }} />sem dado</span>
+          <span className="hidden text-subtle sm:inline">· {RECORTE_AJUDA[recorte]}</span>
         </div>
       </div>
 
@@ -246,8 +301,10 @@ export default function MapPage() {
             geo={areaDrill != null && geo.data ? { ...geo.data, regions: { type: 'FeatureCollection', features: areaFeicao ? [areaFeicao] : [] } } : geo.data}
             selectedId={selectedId}
             onSelectUnit={select}
-            heat={pontosRede ? quesito.rede?.heat ?? null : null}
-            colorMode={pontosRede && (quesito.rede?.colorMode === 'vacancy' || filter === 'vaga' || filter === 'creche') ? 'vacancy' : 'type'}
+            heat={pontosRede ? quesito.heat ?? null : null}
+            colorMode={pontosRede && (quesito.porVaga || filter === 'vaga' || filter === 'creche') ? 'vacancy' : corUnidade ? 'classe' : 'type'}
+            corUnidade={corUnidade}
+            faixas={[...faixasCalor, ...faixasUnidades]}
             calor={calor}
             coropleta={coropleta}
             onSelectCoropleta={recorte === 'area' ? descerArea : undefined}
@@ -377,7 +434,7 @@ export default function MapPage() {
                   perto={ordenadas} porUnidade={porUnidade} medida={medida} calculando={dist.calculando} />
               ) : (
                 <PainelQuesito tema={tema} quesito={quesito} recorte={recorte} areaNome={areaNome} areaId={areaDrill}
-                  calor={calorRes} rec={recRes} nomes={nomes} onArea={descerArea} onSetor={focarSetor} onVoltar={voltarCidade} />
+                  calor={calorRes} rec={recRes} nomes={nomes} classes={coropleta?.classes ?? null} onArea={descerArea} onSetor={focarSetor} onVoltar={voltarCidade} />
               )}
             </div>
           </motion.div>

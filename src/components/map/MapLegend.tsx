@@ -2,30 +2,29 @@ import { useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { Info, X } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
-import { PRESSURE } from '@/lib/labels';
 import {
-  BALANCE_LEGEND, CHILDREN_REGION_STOPS, CHILDREN_SETOR_STOPS, DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE,
-  QUEUE_REGION_STOPS, REGION_LINE, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, SIGILO_COLOR, UNIT_COLOR, VACANCY_COLOR, cssGradient,
+  DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, PURPLE, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, UNIT_COLOR, VACANCY_COLOR, cssGradient,
 } from './mapStyle';
 
 type HeatMode = 'queue' | 'queue_creche' | 'enrollments' | 'offerable' | null;
-type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | 'criancas_0a4' | null;
+
+/** Uma medida no semáforo: título e as faixas (vermelho, amarelo, verde e cinza), cada uma com o seu intervalo. */
+export type Faixas = { titulo: string; itens: { cor: string; rotulo: string }[] };
 
 /** O que o mapa está mostrando — a legenda descreve exatamente essas camadas e marcações. */
 export type LegendInput = {
   units?: UnitMapItem[];
   showUnits?: boolean;
   colorMode?: 'type' | 'vacancy';
-  regionMetric?: RegionMetric;
   heat?: HeatMode;
+  /** Mapa de calor de uma camada agregada: o que a concentração mede e se "mais" é pior (vai ao vermelho) ou melhor. */
+  calor?: { rotulo: string; maisEhPior: boolean } | null;
   hasBoundary?: boolean;
   showAreas?: boolean;
-  /** Camada de setores censitários (crianças de 0 a 4 anos, Censo 2022). */
-  setores?: boolean;
   /** Contorno dos distritos (dentro da AP 001). */
   districts?: boolean;
-  /** Quesito pintado por área ou setor (mapa unificado). */
-  coropleta?: { titulo: string; escala: [number, string][]; semValor?: string | null } | null;
+  /** Medidas pintadas no semáforo (áreas, setores, pontos). */
+  faixas?: Faixas[];
   home?: { radius_m?: number } | null;
   homeLabel?: string;
   highlight?: { id: number; label: string }[];
@@ -65,9 +64,8 @@ export function buildLegend(i: LegendInput): Group[] {
       if (st.has('fila')) unitItems.push({ sym: { kind: 'dot', color: VACANCY_COLOR.fila }, label: 'Sem vaga, com fila' });
       if (st.has('neutro')) unitItems.push({ sym: { kind: 'dot', color: VACANCY_COLOR.neutro }, label: 'Sem vaga e sem fila' });
     } else {
-      const active = units.filter((u) => u.status === 'ATIVA');
-      if (active.some((u) => u.type === 'CMEI')) unitItems.push({ sym: { kind: 'dot', color: UNIT_COLOR.CMEI }, label: 'CMEI (educação infantil)' });
-      if (active.some((u) => u.type !== 'CMEI')) unitItems.push({ sym: { kind: 'dot', color: UNIT_COLOR.ESCOLA }, label: 'Escola municipal' });
+      // localização: uma cor só (as medidas é que usam o semáforo)
+      if (units.some((u) => u.status === 'ATIVA')) unitItems.push({ sym: { kind: 'dot', color: UNIT_COLOR.ESCOLA }, label: 'Unidade da rede (CMEI ou escola)' });
       if (units.some((u) => u.status !== 'ATIVA')) unitItems.push({ sym: { kind: 'dot', color: UNIT_COLOR.VALIDAR }, label: 'Situação a validar' });
     }
   }
@@ -83,44 +81,25 @@ export function buildLegend(i: LegendInput): Group[] {
   }
   if (unitItems.length) groups.push({ title: 'Unidades', items: unitItems });
 
-  if (i.regionMetric === 'balance_creche' || i.regionMetric === 'balance') {
-    groups.push({
-      title: i.regionMetric === 'balance_creche' ? 'Áreas de ponderação · saldo de creche (vagas − fila)' : 'Áreas de ponderação · saldo de vagas (vagas − fila)',
-      items: BALANCE_LEGEND.map((b) => ({ sym: { kind: 'area', color: b.color }, label: PRESSURE[b.key].label })),
-    });
-  } else if (i.regionMetric === 'queue') {
-    groups.push({ title: 'Áreas de ponderação', items: [{ sym: { kind: 'scale', gradient: cssGradient(QUEUE_REGION_STOPS) }, label: 'Crianças na fila' }] });
-  } else if (i.regionMetric === 'offerable') {
-    groups.push({ title: 'Áreas de ponderação', items: [{ sym: { kind: 'scale', gradient: cssGradient(OFFERABLE_REGION_STOPS) }, label: 'Vagas ofertáveis' }] });
-  } else if (i.regionMetric === 'criancas_0a4') {
-    groups.push({ title: 'Áreas de ponderação · Censo 2022', items: [{ sym: { kind: 'scale', gradient: cssGradient(CHILDREN_REGION_STOPS) }, label: 'Crianças de 0 a 4 anos' }] });
-  }
-  if (i.coropleta) {
-    const esc = i.coropleta.escala;
-    const n = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-    groups.push({
-      title: i.coropleta.titulo,
-      items: [
-        { sym: { kind: 'scale', gradient: cssGradient(esc) }, label: `de ${n(esc[0][0])} a ${n(esc[esc.length - 1][0])} ou mais` },
-        ...(i.coropleta.semValor ? [{ sym: { kind: 'area' as const, color: SIGILO_COLOR }, label: i.coropleta.semValor }] : []),
-      ],
-    });
-  }
-  if (i.setores) {
-    groups.push({
-      title: 'Setores censitários · Censo 2022',
-      items: [
-        { sym: { kind: 'scale', gradient: cssGradient(CHILDREN_SETOR_STOPS) }, label: 'Crianças de 0 a 4 anos no setor' },
-        { sym: { kind: 'area', color: SIGILO_COLOR }, label: 'Sigilo do IBGE (poucos moradores)' },
-        { sym: { kind: 'line', color: REGION_LINE, style: 'solid' }, label: 'Limite da área de ponderação' },
-      ],
-    });
+  // medidas no semáforo: vermelho = agir primeiro, amarelo = intermediário, verde = melhor, cinza = sem dado
+  for (const f of i.faixas ?? []) {
+    if (f.itens.length) groups.push({ title: f.titulo, items: f.itens.map((x) => ({ sym: { kind: 'area' as const, color: x.cor }, label: x.rotulo })) });
   }
 
+  // mapa de calor: a mancha vai do verde ao vermelho onde "mais" é pior, e do vermelho ao verde onde "mais" é melhor
   if (i.heat) {
+    const melhor = i.heat === 'offerable';
     groups.push({
       title: 'Mapa de calor',
-      items: [{ sym: { kind: 'scale', gradient: cssGradient(i.heat === 'offerable' ? HEAT_OFFERABLE_STOPS : HEAT_STOPS) }, label: HEAT_LABEL[i.heat] }],
+      items: [{ sym: { kind: 'scale', gradient: cssGradient(melhor ? HEAT_OFFERABLE_STOPS : HEAT_STOPS) },
+                label: `${HEAT_LABEL[i.heat]}: ${melhor ? 'verde = mais, vermelho = menos' : 'vermelho = mais, verde = menos'}` }],
+    });
+  }
+  if (i.calor) {
+    groups.push({
+      title: 'Mapa de calor',
+      items: [{ sym: { kind: 'scale', gradient: cssGradient(i.calor.maisEhPior ? HEAT_STOPS : HEAT_OFFERABLE_STOPS) },
+                label: `${i.calor.rotulo}: ${i.calor.maisEhPior ? 'vermelho = mais, verde = menos' : 'verde = mais, vermelho = menos'}` }],
     });
   }
 

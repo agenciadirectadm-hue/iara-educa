@@ -21,7 +21,15 @@ export default function TerritoryPage() {
   const navigate = useNavigate();
   const [camada, setCamada] = useState<'saldo' | 'criancas'>('saldo');
   const kind: string | undefined = res.data?.territory?.kind;
-  const setores = useGeoSetores(camada === 'criancas' && kind === 'AREA_PONDERACAO', tid);
+  // microrregiões (setores do IBGE) com crianças de 0 a 4 anos: as da área, ou as do distrito (dentro da área-mãe)
+  const ehDistrito = kind === 'DISTRITO';
+  const setoresRes = useGeoSetores((camada === 'criancas' && kind === 'AREA_PONDERACAO') || ehDistrito, ehDistrito ? res.data?.territory?.parent?.id : tid);
+  const setores = useMemo(() => {
+    const fc = setoresRes.data;
+    if (!fc || !ehDistrito) return fc ?? null;
+    const nome = String(res.data?.territory?.name ?? '');
+    return { ...fc, features: fc.features.filter((f) => nome.endsWith(String(f.properties?.distrito))) };
+  }, [setoresRes.data, ehDistrito, res.data]);
 
   // só a área (ou o distrito) no mapa; o distrito ganha os números do Censo para colorir pelo total de crianças
   const regionOnly = useMemo<GeoLayers | null>(() => {
@@ -50,7 +58,7 @@ export default function TerritoryPage() {
   const creche = (d.by_grade as any[]).find((g) => g.grade_level_id === 1);
   const deficit = creche ? creche.offerable - creche.queue : 0;
   const distrito = t.kind === 'DISTRITO';
-  const verSetores = camada === 'criancas' && !distrito;
+  const verSetores = distrito || camada === 'criancas';
 
   return (
     <div>
@@ -69,8 +77,9 @@ export default function TerritoryPage() {
           className="h-72 lg:h-96"
           units={inRegion}
           geo={regionOnly}
-          regionMetric={distrito ? 'criancas_0a4' : camada === 'saldo' ? 'balance_creche' : null}
-          setores={verSetores ? setores.data ?? null : null}
+          regionMetric={!distrito && camada === 'saldo' ? 'balance_creche' : null}
+          regioesReferencia={geo.data?.regions ?? null}
+          setores={verSetores ? setores : null}
           heat={camada === 'saldo' && !distrito ? 'queue_creche' : null}
           onSelectUnit={(u) => navigate(`/unidades/${u.id}`)}
           fitKey={`${tid}-${inRegion.length}`}
@@ -80,7 +89,7 @@ export default function TerritoryPage() {
           <div className="pointer-events-none absolute inset-x-0 top-0 flex gap-2 p-3">
             <div className="pointer-events-auto no-scrollbar flex gap-2 overflow-x-auto">
               <Chip icon={Flame} active={camada === 'saldo'} onClick={() => setCamada('saldo')}>Saldo de creche</Chip>
-              <Chip icon={Baby} active={camada === 'criancas'} onClick={() => setCamada('criancas')}>Crianças 0–4 por setor</Chip>
+              <Chip icon={Baby} active={camada === 'criancas'} onClick={() => setCamada('criancas')}>Crianças 0–4 por microrregião</Chip>
             </div>
           </div>
         )}

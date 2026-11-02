@@ -94,11 +94,12 @@ export const VACANCY_EVENT: Record<string, string> = {
   CORRECAO: 'Correção administrativa',
 };
 export const PRESSURE: Record<string, { label: string; tone: Tone; color: string }> = {
-  SEVERO: { label: 'Déficit severo', tone: 'red', color: '#D94C4C' },
-  ALTO: { label: 'Pressão alta', tone: 'amber', color: '#F28C38' },
-  ATENCAO: { label: 'Atenção', tone: 'amber', color: '#F2B640' },
-  EQUILIBRIO: { label: 'Equilíbrio', tone: 'green', color: '#16A36A' },
-  OCIOSO: { label: 'Capacidade ociosa', tone: 'blue', color: '#2A7DE1' },
+  // semáforo dos mapas: vermelho = agir primeiro, amarelo = atenção, verde = situação boa
+  SEVERO: { label: 'Déficit severo', tone: 'red', color: '#DC2626' },
+  ALTO: { label: 'Pressão alta', tone: 'red', color: '#DC2626' },
+  ATENCAO: { label: 'Atenção', tone: 'amber', color: '#EAB308' },
+  EQUILIBRIO: { label: 'Equilíbrio', tone: 'green', color: '#16A34A' },
+  OCIOSO: { label: 'Capacidade ociosa', tone: 'green', color: '#16A34A' },
 };
 export const AUDIT_ACTION: Record<string, string> = {
   INSERT: 'Inclusão', UPDATE: 'Alteração', DELETE: 'Exclusão', OFFER_CREATED: 'Oferta registrada', OFFER_ACCEPTED: 'Aceite registrado',
