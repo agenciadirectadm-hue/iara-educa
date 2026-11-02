@@ -3,9 +3,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  ArrowRight, Building2, Bus, ChevronDown, ChevronUp, Flame, Layers, List, LocateFixed, Map as MapIcon, MapPin, Navigation, Phone, School, Search, Sparkles, X,
+  ArrowRight, Baby, Building2, Bus, ChevronDown, ChevronUp, Flame, Layers, List, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Phone, School,
+  Search, Sparkles, X,
 } from 'lucide-react';
-import { useGeoLayers, useUnitsMap } from '@/lib/data';
+import { useGeoLayers, useGeoSetores, useUnitsMap } from '@/lib/data';
 import { useDebounced, useIsDesktop, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtInt, fmtKm, fmtPct } from '@/lib/format';
@@ -105,6 +106,9 @@ export default function MapPage() {
 
   const heat: HeatMode = layer === 'fila' ? 'queue' : layer === 'matriculas' ? 'enrollments' : layer === 'vagas' ? 'offerable' : null;
   const regionMetric: RegionMetric = layer === 'deficit' ? 'balance_creche' : null;
+  // demanda pelo Censo 2022: crianças de 0 a 4 anos por setor censitário, dentro das áreas de ponderação
+  const verSetores = layer === 'criancas';
+  const setores = useGeoSetores(verSetores);
   const sheetH = { peek: 132, half: desktop ? 0 : 0.5, full: 0.86 }[snap];
 
   return (
@@ -119,6 +123,7 @@ export default function MapPage() {
           onSelectRegion={(id) => navigate(`/territorios/${id}`)}
           heat={heat}
           regionMetric={regionMetric}
+          setores={verSetores ? setores.data ?? null : null}
           colorMode={layer === 'vagas' || filter === 'vaga' || filter === 'creche' ? 'vacancy' : 'type'}
           showAreas={showAreas}
           home={point ? { lat: point.lat, lng: point.lng, radius_m: medida === 'LINHA_RETA' ? 2000 : undefined } : null}
@@ -164,6 +169,8 @@ export default function MapPage() {
                         if (it.kind === 'UNIDADE') {
                           const u = all.find((x) => x.id === it.unit_id);
                           if (u) select(u);
+                        } else if (it.kind === 'AREA') {
+                          navigate(`/territorios/${it.territory_id}`);
                         } else {
                           setPoint({ lat: it.lat, lng: it.lng, label: it.label });
                           setParam('unidade', null);
@@ -171,7 +178,7 @@ export default function MapPage() {
                         }
                       }}
                     >
-                      {it.kind === 'UNIDADE' ? <School className="size-5 text-purple-700" /> : <MapPin className="size-5 text-blue-700" />}
+                      {it.kind === 'UNIDADE' ? <School className="size-5 text-purple-700" /> : it.kind === 'AREA' ? <MapPinned className="size-5 text-purple-700" /> : <MapPin className="size-5 text-blue-700" />}
                       <div className="min-w-0">
                         <div className="truncate font-semibold">{it.label}</div>
                         <div className="truncate text-[12.5px] text-muted">{it.sub}</div>
@@ -240,7 +247,8 @@ export default function MapPage() {
         <div className="space-y-2">
           {[
             { v: 'unidades', icon: School, l: 'Unidades por tipo', d: 'Roxo: CMEI · Azul: escola · Cinza: situação a validar', src: 'publico' as const },
-            { v: 'deficit', icon: Flame, l: 'Déficit de creche por região', d: 'Vermelho: déficit severo → azul: capacidade ociosa. Toque numa região.', src: 'demo' as const },
+            { v: 'deficit', icon: Flame, l: 'Déficit de creche por área de ponderação', d: 'Vermelho: déficit severo → azul: capacidade ociosa. Toque numa área.', src: 'demo' as const },
+            { v: 'criancas', icon: Baby, l: 'Crianças de 0 a 4 anos (Censo 2022)', d: 'Por setor censitário do IBGE, dentro das 29 áreas de ponderação. Toque numa área.', src: 'oficial' as const },
             { v: 'fila', icon: Building2, l: 'Mapa de calor: fila', d: 'Onde se concentra a espera', src: 'demo' as const },
             { v: 'matriculas', icon: School, l: 'Mapa de calor: matrículas', d: 'Agregado público por unidade', src: 'oficial' as const },
             { v: 'vagas', icon: Sparkles, l: 'Vagas ofertáveis', d: 'Verde: com vaga · vermelho: só fila', src: 'demo' as const },

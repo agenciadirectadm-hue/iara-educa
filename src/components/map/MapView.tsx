@@ -7,8 +7,9 @@ import { Crosshair, Minus, Plus } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
 import { MapLegend } from './MapLegend';
 import {
-  BALANCE_STOPS, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, REGION_OPACITY, ROTA_COLOR, ROUTE_LINE,
-  SELECTED_STROKE, UNIT_COLOR, VACANCY_COLOR, interpolate,
+  BALANCE_STOPS, CHILDREN_REGION_STOPS, CHILDREN_SETOR_STOPS, DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE,
+  QUEUE_REGION_STOPS, REGION_LINE, REGION_OPACITY, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, SETOR_OPACITY, SIGILO_COLOR, UNIT_COLOR,
+  VACANCY_COLOR, interpolate,
 } from './mapStyle';
 
 setWorkerUrl(workerUrl);
@@ -18,7 +19,7 @@ const CENTER: [number, number] = [-51.9386, -23.4253];
 
 export type HeatMode = 'queue' | 'queue_creche' | 'enrollments' | 'offerable' | null;
 export type ColorMode = 'type' | 'vacancy';
-export type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | null;
+export type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | 'criancas_0a4' | null;
 
 /** Mapa de calor genérico (visão do prefeito): densidade (mancha de calor pelo peso de cada ponto) ou taxa (mancha colorida pela escala). */
 export type Calor = {
@@ -32,7 +33,10 @@ export type Calor = {
 
 export type GeoLayers = {
   municipality?: GeoJSON.Feature;
+  /** Áreas de ponderação do IBGE (Censo 2022): o recorte territorial do IARA. */
   regions?: GeoJSON.FeatureCollection;
+  /** Distritos (Iguatemi e Floriano), dentro da AP 001. */
+  districts?: GeoJSON.FeatureCollection;
   areas?: GeoJSON.FeatureCollection;
 };
 
@@ -47,6 +51,8 @@ export type MapViewProps = {
   colorMode?: ColorMode;
   heat?: HeatMode;
   regionMetric?: RegionMetric;
+  /** Setores censitários com crianças de 0 a 4 anos (Censo 2022): camada de demanda; tocar numa área abre a área. */
+  setores?: GeoJSON.FeatureCollection | null;
   showAreas?: boolean;
   home?: { lat: number; lng: number; radius_m?: number } | null;
   highlight?: { id: number; label: string }[];
@@ -183,6 +189,9 @@ export function MapView(p: MapViewProps) {
       map.addSource('mask', { type: 'geojson', data: empty });
       map.addSource('muni', { type: 'geojson', data: empty });
       map.addSource('regions', { type: 'geojson', data: empty, promoteId: 'id' });
+      map.addSource('region-labels', { type: 'geojson', data: empty });
+      map.addSource('districts', { type: 'geojson', data: empty });
+      map.addSource('setores', { type: 'geojson', data: empty });
       map.addSource('areas', { type: 'geojson', data: empty });
       map.addSource('units', { type: 'geojson', data: empty, promoteId: 'id' });
       map.addSource('radius', { type: 'geojson', data: empty });
@@ -195,9 +204,29 @@ export function MapView(p: MapViewProps) {
 
       map.addLayer({ id: 'mask', type: 'fill', source: 'mask', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.55 } });
       map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': '#A846E8', 'fill-opacity': 0 } });
+      map.addLayer({
+        id: 'setores-fill', type: 'fill', source: 'setores', layout: { visibility: 'none' },
+        paint: {
+          'fill-color': ['case', ['==', ['get', 'criancas_0a4'], null], SIGILO_COLOR, interpolate(['get', 'criancas_0a4'], CHILDREN_SETOR_STOPS)] as never,
+          'fill-opacity': SETOR_OPACITY,
+        },
+      });
+      map.addLayer({ id: 'setores-line', type: 'line', source: 'setores', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.6, 'line-opacity': 0.7 } });
       map.addLayer({ id: 'regions-line', type: 'line', source: 'regions', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0 } });
+      map.addLayer({
+        id: 'districts-line', type: 'line', source: 'districts', layout: { visibility: 'none' },
+        paint: { 'line-color': DISTRICT_LINE, 'line-width': 1.8, 'line-opacity': 0.9, 'line-dasharray': [2, 1.5] },
+      });
       map.addLayer({ id: 'areas-line', type: 'line', source: 'areas', layout: { visibility: 'none' }, paint: { 'line-color': PURPLE, 'line-width': 1, 'line-opacity': 0.45, 'line-dasharray': [2, 2] } });
       map.addLayer({ id: 'muni-line', type: 'line', source: 'muni', paint: { 'line-color': PURPLE, 'line-width': 2.2, 'line-opacity': 0.7, 'line-dasharray': [3, 2] } });
+      map.addLayer({
+        id: 'regions-label', type: 'symbol', source: 'region-labels', layout: { visibility: 'none', 'text-field': ['get', 'label'], 'text-size': 11, 'text-font': ['Noto Sans Bold'] },
+        paint: { 'text-color': REGION_LINE, 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
+      });
+      map.addLayer({
+        id: 'districts-label', type: 'symbol', source: 'districts', minzoom: 11, layout: { visibility: 'none', 'text-field': ['get', 'name'], 'text-size': 11, 'text-font': ['Noto Sans Regular'] },
+        paint: { 'text-color': DISTRICT_LINE, 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 },
+      });
       map.addLayer({
         id: 'heat', type: 'heatmap', source: 'units', layout: { visibility: 'none' },
         paint: {
@@ -305,6 +334,16 @@ export function MapView(p: MapViewProps) {
       map.on('mousemove', 'calor-hit', (e) => { map.getCanvas().style.cursor = 'pointer'; mostrar(e); });
       map.on('mouseleave', 'calor-hit', () => { map.getCanvas().style.cursor = ''; dica.remove(); });
       map.on('click', 'calor-hit', mostrar);
+      // resumo do setor censitário (Censo 2022) ao passar o mouse
+      const dicaSetor = new Popup({ closeButton: false, closeOnClick: false, offset: 10, maxWidth: '300px', className: 'calor-dica' });
+      map.on('mousemove', 'setores-fill', (e) => {
+        const s = e.features?.[0]?.properties;
+        if (!s) return;
+        const n = (v: unknown) => Number(v).toLocaleString('pt-BR');
+        const criancas = s.criancas_0a4 == null || s.criancas_0a4 === 'null' ? 'crianças de 0 a 4 anos: sigilo do IBGE' : `${n(s.criancas_0a4)} crianças de 0 a 4 anos`;
+        dicaSetor.setLngLat(e.lngLat).setText(`${s.area} · setor ${String(s.code).slice(-6)}${s.bairro ? ` (${s.bairro})` : ''}: ${criancas} · ${n(s.pessoas)} pessoas`).addTo(map);
+      });
+      map.on('mouseleave', 'setores-fill', () => dicaSetor.remove());
       map.addLayer({ id: 'ranks-circle', type: 'circle', source: 'ranks', paint: { 'circle-radius': 13, 'circle-color': PURPLE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
       map.addLayer({
         id: 'ranks-label', type: 'symbol', source: 'ranks',
@@ -324,7 +363,7 @@ export function MapView(p: MapViewProps) {
         const hits = map.queryRenderedFeatures(e.point, { layers: ['units', 'ranks-circle'] });
         if (hits.length) return;
         const reg = map.queryRenderedFeatures(e.point, { layers: ['regions-fill'] });
-        if (reg.length && cb.current.regionMetric && cb.current.onSelectRegion) {
+        if (reg.length && (cb.current.regionMetric || cb.current.setores) && cb.current.onSelectRegion) {
           cb.current.onSelectRegion(Number(reg[0].properties?.id));
           return;
         }
@@ -418,21 +457,41 @@ export function MapView(p: MapViewProps) {
     const mask = maskOutside(muni);
     (map.getSource('mask') as GeoJSONSource).setData(mask ? { type: 'FeatureCollection', features: [mask] } : empty);
     map.setLayoutProperty('areas-line', 'visibility', p.showAreas ? 'visible' : 'none');
+    // rótulo de cada área (AP 017…) no ponto central que vem do banco
+    (map.getSource('region-labels') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: (p.geo?.regions?.features ?? []).filter((f) => f.properties?.lat != null).map((f) => ({
+        type: 'Feature', properties: { label: f.properties!.label ?? '' }, geometry: { type: 'Point', coordinates: [f.properties!.lng, f.properties!.lat] },
+      })),
+    });
+    (map.getSource('districts') as GeoJSONSource).setData(p.geo?.districts ?? empty);
+    (map.getSource('setores') as GeoJSONSource).setData(p.setores ?? empty);
+    const comSetores = !!p.setores;
+    const vis = (id: string, on: boolean) => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+    vis('setores-fill', comSetores);
+    vis('setores-line', comSetores);
+    const recorte = !!p.regionMetric || comSetores;
+    vis('regions-label', recorte);
+    vis('districts-line', recorte && !!p.geo?.districts?.features?.length);
+    vis('districts-label', recorte && !!p.geo?.districts?.features?.length);
     if (p.regionMetric) {
       const m = p.regionMetric;
       const color = m === 'balance_creche' || m === 'balance'
         ? interpolate(['get', m], BALANCE_STOPS)
         : m === 'queue'
           ? interpolate(['get', 'queue'], QUEUE_REGION_STOPS)
-          : interpolate(['get', 'offerable'], OFFERABLE_REGION_STOPS);
+          : m === 'criancas_0a4'
+            ? interpolate(['get', 'criancas_0a4'], CHILDREN_REGION_STOPS)
+            : interpolate(['get', 'offerable'], OFFERABLE_REGION_STOPS);
       map.setPaintProperty('regions-fill', 'fill-color', color as never);
-      map.setPaintProperty('regions-fill', 'fill-opacity', REGION_OPACITY);
-      map.setPaintProperty('regions-line', 'line-opacity', 0.9);
+      map.setPaintProperty('regions-fill', 'fill-opacity', comSetores ? 0 : REGION_OPACITY);
     } else {
       map.setPaintProperty('regions-fill', 'fill-opacity', 0);
-      map.setPaintProperty('regions-line', 'line-opacity', 0);
     }
-  }, [ready, p.geo, p.regionMetric, p.showAreas]);
+    map.setPaintProperty('regions-line', 'line-color', comSetores ? REGION_LINE : '#ffffff');
+    map.setPaintProperty('regions-line', 'line-width', comSetores ? 1.6 : 2);
+    map.setPaintProperty('regions-line', 'line-opacity', recorte ? 0.9 : 0);
+  }, [ready, p.geo, p.regionMetric, p.showAreas, p.setores]);
 
   // residência, raio, rotas e ranking
   useEffect(() => {
@@ -567,6 +626,7 @@ export function MapView(p: MapViewProps) {
   const legendInput = {
     units: p.units, showUnits: p.showUnits, colorMode: p.colorMode, regionMetric: p.regionMetric, heat: p.heat,
     hasBoundary: !!p.geo?.municipality, showAreas: p.showAreas && !!p.geo?.areas, home: p.home, homeLabel: p.homeLabel,
+    setores: !!p.setores, districts: (!!p.regionMetric || !!p.setores) && !!p.geo?.districts?.features?.length,
     highlight: p.highlight, highlightLabel: p.highlightLabel, lines: p.lines,
     rotas: { A_PE: (p.trajetos ?? []).some((t) => t.modo === 'A_PE'), CARRO: (p.trajetos ?? []).some((t) => t.modo === 'CARRO') },
     selectedUnit: p.selectedId != null ? p.units.find((u) => u.id === p.selectedId) ?? null : null, selectedLabel: p.selectedLabel,

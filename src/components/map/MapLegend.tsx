@@ -4,12 +4,12 @@ import { Info, X } from 'lucide-react';
 import type { UnitMapItem } from '@/lib/types';
 import { PRESSURE } from '@/lib/labels';
 import {
-  BALANCE_LEGEND, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE, QUEUE_REGION_STOPS, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE,
-  UNIT_COLOR, VACANCY_COLOR, cssGradient,
+  BALANCE_LEGEND, CHILDREN_REGION_STOPS, CHILDREN_SETOR_STOPS, DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE,
+  QUEUE_REGION_STOPS, REGION_LINE, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, SIGILO_COLOR, UNIT_COLOR, VACANCY_COLOR, cssGradient,
 } from './mapStyle';
 
 type HeatMode = 'queue' | 'queue_creche' | 'enrollments' | 'offerable' | null;
-type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | null;
+type RegionMetric = 'balance_creche' | 'balance' | 'queue' | 'offerable' | 'criancas_0a4' | null;
 
 /** O que o mapa está mostrando — a legenda descreve exatamente essas camadas e marcações. */
 export type LegendInput = {
@@ -20,6 +20,10 @@ export type LegendInput = {
   heat?: HeatMode;
   hasBoundary?: boolean;
   showAreas?: boolean;
+  /** Camada de setores censitários (crianças de 0 a 4 anos, Censo 2022). */
+  setores?: boolean;
+  /** Contorno dos distritos (dentro da AP 001). */
+  districts?: boolean;
   home?: { radius_m?: number } | null;
   homeLabel?: string;
   highlight?: { id: number; label: string }[];
@@ -79,13 +83,25 @@ export function buildLegend(i: LegendInput): Group[] {
 
   if (i.regionMetric === 'balance_creche' || i.regionMetric === 'balance') {
     groups.push({
-      title: i.regionMetric === 'balance_creche' ? 'Regiões · saldo de creche (vagas − fila)' : 'Regiões · saldo de vagas (vagas − fila)',
+      title: i.regionMetric === 'balance_creche' ? 'Áreas de ponderação · saldo de creche (vagas − fila)' : 'Áreas de ponderação · saldo de vagas (vagas − fila)',
       items: BALANCE_LEGEND.map((b) => ({ sym: { kind: 'area', color: b.color }, label: PRESSURE[b.key].label })),
     });
   } else if (i.regionMetric === 'queue') {
-    groups.push({ title: 'Regiões', items: [{ sym: { kind: 'scale', gradient: cssGradient(QUEUE_REGION_STOPS) }, label: 'Crianças na fila' }] });
+    groups.push({ title: 'Áreas de ponderação', items: [{ sym: { kind: 'scale', gradient: cssGradient(QUEUE_REGION_STOPS) }, label: 'Crianças na fila' }] });
   } else if (i.regionMetric === 'offerable') {
-    groups.push({ title: 'Regiões', items: [{ sym: { kind: 'scale', gradient: cssGradient(OFFERABLE_REGION_STOPS) }, label: 'Vagas ofertáveis' }] });
+    groups.push({ title: 'Áreas de ponderação', items: [{ sym: { kind: 'scale', gradient: cssGradient(OFFERABLE_REGION_STOPS) }, label: 'Vagas ofertáveis' }] });
+  } else if (i.regionMetric === 'criancas_0a4') {
+    groups.push({ title: 'Áreas de ponderação · Censo 2022', items: [{ sym: { kind: 'scale', gradient: cssGradient(CHILDREN_REGION_STOPS) }, label: 'Crianças de 0 a 4 anos' }] });
+  }
+  if (i.setores) {
+    groups.push({
+      title: 'Setores censitários · Censo 2022',
+      items: [
+        { sym: { kind: 'scale', gradient: cssGradient(CHILDREN_SETOR_STOPS) }, label: 'Crianças de 0 a 4 anos no setor' },
+        { sym: { kind: 'area', color: SIGILO_COLOR }, label: 'Sigilo do IBGE (poucos moradores)' },
+        { sym: { kind: 'line', color: REGION_LINE, style: 'solid' }, label: 'Limite da área de ponderação' },
+      ],
+    });
   }
 
   if (i.heat) {
@@ -103,6 +119,7 @@ export function buildLegend(i: LegendInput): Group[] {
   }
   if (i.rotas?.A_PE) refs.push({ sym: { kind: 'line', color: ROTA_COLOR.A_PE, style: 'dashed', thick: true }, label: 'Rota a pé' });
   if (i.rotas?.CARRO) refs.push({ sym: { kind: 'line', color: ROTA_COLOR.CARRO, style: 'solid', thick: true }, label: 'Rota de carro' });
+  if (i.districts) refs.push({ sym: { kind: 'line', color: DISTRICT_LINE, style: 'dashed' }, label: 'Distritos (Iguatemi e Floriano)' });
   if (i.showAreas) refs.push({ sym: { kind: 'line', color: PURPLE, style: 'dashed', thin: true }, label: 'Áreas de influência (proximidade)' });
   if (i.hasBoundary) refs.push({ sym: { kind: 'line', color: PURPLE, style: 'dashed' }, label: 'Limite do município' });
   if (refs.length) groups.push({ title: 'Referências', items: refs });

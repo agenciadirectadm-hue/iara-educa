@@ -156,7 +156,7 @@ export default function PainelControle() {
           </Card>
         </Section>
 
-        <Section title={<span className="inline-flex items-center gap-2"><MapPinned className="size-5 text-purple-700" />Saldo por região</span>} subtitle="Vagas ofertáveis − crianças aguardando (negativo = falta vaga)">
+        <Section title={<span className="inline-flex items-center gap-2"><MapPinned className="size-5 text-purple-700" />Saldo por área de ponderação</span>} subtitle="Vagas ofertáveis − crianças aguardando (negativo = falta vaga)">
           <Card className="p-3">
             <BarList items={(d.regioes as any[]).map((x) => ({
               key: x.regiao, label: x.regiao, value: x.saldo,

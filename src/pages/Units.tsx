@@ -44,12 +44,15 @@ export default function Units() {
         <Chip active={type === 'ESCOLA'} onClick={() => set('tipo', 'ESCOLA')}>Escolas</Chip>
         <Chip active={hasVacancy} onClick={() => set('vaga', hasVacancy ? null : '1')}>Com vaga</Chip>
         <Chip active={stage === 'EJA'} onClick={() => set('etapa', stage === 'EJA' ? null : 'EJA')}>Com EJA</Chip>
-        {(boot.data?.territories ?? []).map((t) => (
-          <Chip key={t.id} active={territory === String(t.id)} onClick={() => set('territorio', territory === String(t.id) ? null : String(t.id))}>{t.name}</Chip>
-        ))}
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-[13px] text-muted">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
         <span>{res.data ? `${fmtInt(res.data.total)} unidade(s)` : ''}</span>
+        {/* 29 áreas de ponderação (IBGE, Censo 2022): seletor no lugar de botões */}
+        <select value={territory} onChange={(e) => set('territorio', e.target.value || null)} aria-label="Área de ponderação"
+          className="h-9 max-w-full rounded-xl bg-white px-2 text-[13px] font-semibold text-ink ring-1 ring-line sm:max-w-xs">
+          <option value="">Todas as áreas de ponderação</option>
+          {(boot.data?.territories ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
         <label className="flex items-center gap-2">
           Ordenar
           <select value={sort} onChange={(e) => set('ordem', e.target.value)} className="h-9 rounded-xl bg-white px-2 text-[13px] font-semibold text-ink ring-1 ring-line">

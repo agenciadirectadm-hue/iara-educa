@@ -127,8 +127,9 @@ begin
   r := pg_temp.as_call('oa-secretario', 'pessoal_lista', jsonb_build_object('carga', 'EXCESSO'));
   v_out := v_out || jsonb_build_object('passo', 'B4. Profissionais com aulas acima da capacidade', 'ok', (r ->> 'total')::int > 0
     and not exists (select 1 from jsonb_array_elements(r -> 'itens') x where (x ->> 'disponivel')::int >= 0), 'total', r ->> 'total');
-  r := pg_temp.as_call('oa-secretario', 'pessoal_lista', jsonb_build_object('q', 'silva', 'regiao_id', (select id from iara.territories where kind = 'MACRORREGIAO' order by id limit 1), 'situacao', 'ATIVO'));
-  v_out := v_out || jsonb_build_object('passo', 'B5. Profissionais: nome parcial + região + situação', 'ok', r ->> 'erro' is null and pg_temp.n(r -> 'opcoes' -> 'regioes') = 5
+  r := pg_temp.as_call('oa-secretario', 'pessoal_lista', jsonb_build_object('q', 'silva', 'regiao_id', (select id from iara.territories where kind = 'AREA_PONDERACAO' order by id limit 1), 'situacao', 'ATIVO'));
+  v_out := v_out || jsonb_build_object('passo', 'B5. Profissionais: nome parcial + área de ponderação + situação', 'ok', r ->> 'erro' is null
+    and pg_temp.n(r -> 'opcoes' -> 'regioes') = (select count(*) from iara.territories where kind = 'AREA_PONDERACAO')
     and not exists (select 1 from jsonb_array_elements(r -> 'itens') x where x ->> 'nome' not ilike '%silva%' or x ->> 'situacao' <> 'ATIVO'), 'total', r ->> 'total');
 
   raise exception 'RESULTADO: %', v_out;

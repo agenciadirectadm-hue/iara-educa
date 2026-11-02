@@ -172,7 +172,7 @@ begin
   from tmp_cls;
 
   -- =========================================================================
-  -- 2. ALUNOS MATRICULADOS + FAMÍLIAS (agrupadas por macrorregião → irmãos em unidades próximas)
+  -- 2. ALUNOS MATRICULADOS + FAMÍLIAS (agrupadas por área de ponderação → irmãos em unidades próximas)
   -- =========================================================================
   create temp table tmp_seat on commit drop as
   select gen_random_uuid() as student_id, c.id as class_id, c.unit_id, c.grade_level_id, c.gcode, c.macro,
@@ -535,7 +535,10 @@ begin
 
   select u.id into v_unit_maria
   from iara.education_units u
-  where u.unit_type = 'CMEI' and u.status = 'ATIVA' and u.macro_territory_id in (2, 4)
+  where u.unit_type = 'CMEI' and u.status = 'ATIVA'
+    -- uma das 10 áreas de ponderação com mais crianças de 0 a 4 anos (Censo 2022): cenário de pressão por creche
+    and u.macro_territory_id in (select s.area_ponderacao_id from iara.setores_censitarios s group by 1
+                                 order by sum(coalesce(s.criancas_0a4, 0)) desc limit 10)
     and exists (select 1 from iara.classes c where c.unit_id = u.id and c.grade_level_id = 1 and c.offerable_vacancies_count >= 2)
     and exists (select 1 from iara.classes c where c.unit_id = u.id and c.grade_level_id = 2)
     and not exists (select 1 from iara.waiting_list_entries w where w.preferred_unit_id = u.id and w.grade_level_id = 1 and w.priority_score >= 95)
@@ -936,6 +939,10 @@ begin
   -- 13. CONVERSAS DA IARA (WhatsApp simulado) — histórico para a caixa de entrada
   -- =========================================================================
   perform iara.demo_seed_conversations(v_staff1);
+
+  -- área de ponderação pelo ponto do endereço: o ponto fictício, a até 3 km da unidade, cai muitas vezes na área vizinha
+  with novo as (select a.id, iara.area_do_ponto(a.location) as ap from iara.addresses a where a.is_demo and a.location is not null)
+  update iara.addresses a set territory_id = n.ap from novo n where n.id = a.id and a.territory_id is distinct from n.ap;
 
   update iara.tenants set settings = settings || jsonb_build_object('demo_baseline_at', v_now, 'demo_unit_maria', v_unit_maria,
          'demo_guardian_maria', v_maria, 'demo_student_ana', v_ana, 'demo_student_davi', v_davi, 'demo_entry_davi', v_davi_entry,

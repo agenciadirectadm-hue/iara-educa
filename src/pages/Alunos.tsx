@@ -140,7 +140,7 @@ export default function Alunos() {
             <Selecao value={unidade} onChange={(v) => set({ unidade: v })} vazio="Todas as unidades" aria-label="Unidade"
               opcoes={((units.data?.units ?? []) as any[]).slice().sort((a, b) => a.name.localeCompare(b.name)).map((u) => [String(u.id), u.name] as [string, string])} />
           )}
-          <Selecao value={territorio} onChange={(v) => set({ territorio: v })} vazio="Todos os territórios" aria-label="Território" opcoes={territorios} />
+          <Selecao value={territorio} onChange={(v) => set({ territorio: v })} vazio="Todas as áreas de ponderação" aria-label="Área de ponderação" opcoes={territorios} />
           <Selecao value={ordem} onChange={(v) => set({ ordem: v === 'nome' ? null : v })} vazio={false} aria-label="Ordenar"
             opcoes={[['nome', 'Ordem alfabética'], ['idade', 'Mais novos primeiro'], ['pendencias', 'Mais pendências primeiro'], ['recentes', 'Atualizados recentemente']]} />
         </div>

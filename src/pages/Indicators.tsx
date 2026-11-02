@@ -16,7 +16,7 @@ const REPORTS: { key: string; title: string; desc: string; network?: boolean }[]
   { key: 'ocupacao_por_unidade', title: 'Ocupação por unidade', desc: 'Turmas, capacidade, matrículas, ocupação, vagas ofertáveis e fila' },
   { key: 'vagas_por_turma', title: 'Vagas por turma', desc: 'Capacidade, matrículas, bloqueios, reservas e ofertáveis — fórmula oficial' },
   { key: 'fila_por_unidade', title: 'Fila por unidade e faixa', desc: 'Aguardando, com oferta, espera média e vagas disponíveis' },
-  { key: 'fila_por_regiao', title: 'Demanda × oferta por região', desc: 'Saldo por macrorregião e faixa etária', network: true },
+  { key: 'fila_por_regiao', title: 'Demanda × oferta por área de ponderação', desc: 'Saldo por área de ponderação (IBGE) e faixa etária', network: true },
   { key: 'protocolos', title: 'Protocolos abertos', desc: 'Por tipo e status, com vencidos no prazo (SLA)' },
 ];
 
@@ -32,7 +32,7 @@ function NetworkIndicators() {
   const [stage, setStage] = useState<string>(me?.stage_filter ?? '');
   const pre = useRpc<any>('dashboard_prefeito', {}, { staleTime: 60_000 });
   const sec = useRpc<any>('dashboard_secretario', { stage: stage || null }, { staleTime: 60_000 });
-  const [sort, setSort] = useState<'balance_creche' | 'queue' | 'offerable' | 'occupancy' | 'avg_km'>('balance_creche');
+  const [sort, setSort] = useState<'balance_creche' | 'queue' | 'offerable' | 'occupancy' | 'avg_km' | 'criancas_0a4'>('balance_creche');
   const regions = useMemo(() => {
     const r = [...((pre.data?.regions ?? []) as any[])];
     r.sort((a, b) => (sort === 'balance_creche' ? a.balance_creche - b.balance_creche : (b[sort] ?? 0) - (a[sort] ?? 0)));
@@ -98,18 +98,18 @@ function NetworkIndicators() {
       </div>
 
       <Section
-        title="Comparativo por região"
-        subtitle="Alternativa em lista ao mapa — toque na região para o detalhe"
+        title="Comparativo por área de ponderação"
+        subtitle="As 29 áreas do IBGE (Censo 2022), em lista — toque na área para o detalhe"
         action={<Link to="/mapa" className="inline-flex items-center gap-1 text-[13px] font-semibold text-blue-700"><MapPinned className="size-4" /> Ver no mapa</Link>}
       >
         <Card className="overflow-hidden">
           <div className="no-scrollbar overflow-x-auto">
-            <table className="w-full min-w-[720px] text-[13.5px]">
+            <table className="w-full min-w-[800px] text-[13.5px]">
               <thead className="bg-slate-50 text-left text-[11.5px] font-bold uppercase tracking-wide text-subtle">
                 <tr>
-                  <th className="px-4 py-2.5">Região</th>
+                  <th className="px-4 py-2.5">Área de ponderação</th>
                   <th className="px-3 py-2.5 text-right">Unidades</th>
-                  {([['offerable', 'Ofertáveis'], ['queue', 'Fila'], ['balance_creche', 'Saldo creche'], ['occupancy', 'Ocupação'], ['avg_km', 'Dist. média']] as const).map(([k, l]) => (
+                  {([['criancas_0a4', 'Crianças 0–4'], ['offerable', 'Ofertáveis'], ['queue', 'Fila'], ['balance_creche', 'Saldo creche'], ['occupancy', 'Ocupação'], ['avg_km', 'Dist. média']] as const).map(([k, l]) => (
                     <th key={k} className="px-3 py-2.5 text-right">
                       <button onClick={() => setSort(k)} className={clsx('inline-flex items-center gap-1', sort === k && 'text-purple-700')} aria-label={`Ordenar por ${l}`}>
                         {l} <ArrowDownUp className="size-3" />
@@ -124,6 +124,7 @@ function NetworkIndicators() {
                   <tr key={r.id} className="cursor-pointer transition hover:bg-purple-50/50" onClick={() => navigate(`/territorios/${r.id}`)}>
                     <td className="px-4 py-3 font-semibold"><span className="mr-2 inline-block size-2.5 rounded-full" style={{ background: r.color }} /><Link to={`/territorios/${r.id}`} onClick={(e) => e.stopPropagation()}>{r.name}</Link></td>
                     <td className="px-3 py-3 text-right tabular">{fmtInt(r.units)}</td>
+                    <td className="px-3 py-3 text-right tabular" title="Censo 2022 (IBGE)">{fmtInt(r.criancas_0a4)}</td>
                     <td className="px-3 py-3 text-right tabular">{fmtInt(r.offerable)}</td>
                     <td className="px-3 py-3 text-right tabular">{fmtInt(r.queue)}</td>
                     <td className={clsx('px-3 py-3 text-right font-bold tabular', r.balance_creche < 0 ? 'text-red-700' : 'text-green-700')}>{r.balance_creche > 0 ? '+' : ''}{fmtInt(r.balance_creche)}</td>

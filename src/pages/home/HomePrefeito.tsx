@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import clsx from 'clsx';
 import {
-  AlertTriangle, Building2, ChevronRight, ClipboardList, Flame, GraduationCap, Hammer, Info, ListOrdered, Map as MapIcon, Route, Sparkles, Timer, Users,
+  AlertTriangle, Baby, Building2, ChevronRight, ClipboardList, Flame, GraduationCap, Hammer, Info, ListOrdered, Map as MapIcon, Route, Sparkles, Timer, Users,
 } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
-import { useGeoLayers, useUnitsMap } from '@/lib/data';
+import { useGeoLayers, useGeoSetores, useUnitsMap } from '@/lib/data';
 import { fmt1, fmtInt, fmtPct } from '@/lib/format';
 import { PRESSURE } from '@/lib/labels';
 import { Badge, Card, Chip, ErrorState, Kpi, LinkCard, PageHeader, Section, SkeletonList, SourceChip } from '@/components/ui';
@@ -13,7 +13,9 @@ import { AreaChart, BarList } from '@/components/charts';
 import { IaraBubble } from '@/components/iara';
 import MapView, { type HeatMode, type RegionMetric } from '@/components/map/MapView';
 
-type Layer = 'deficit' | 'queue' | 'enrollments' | 'offerable';
+type Layer = 'deficit' | 'criancas' | 'queue' | 'enrollments' | 'offerable';
+/** Áreas de ponderação mostradas antes de "ver todas" (as de maior pressão vêm primeiro). */
+const AREAS_INICIAIS = 6;
 
 export default function HomePrefeito() {
   const dash = useRpc<any>('dashboard_prefeito');
@@ -21,6 +23,8 @@ export default function HomePrefeito() {
   const geo = useGeoLayers();
   const navigate = useNavigate();
   const [layer, setLayer] = useState<Layer>('deficit');
+  const [todasAreas, setTodasAreas] = useState(false);
+  const setores = useGeoSetores(layer === 'criancas');
 
   if (dash.isLoading) return <SkeletonList rows={6} />;
   if (dash.error) return <ErrorState error={dash.error} onRetry={() => dash.refetch()} />;
@@ -32,7 +36,7 @@ export default function HomePrefeito() {
 
   return (
     <div>
-      <PageHeader eyebrow="Visão do Prefeito · cidade inteira" title="Onde precisamos investir?" subtitle="Mapa de pressão por vagas, déficit por território e capacidade ociosa — somente dados agregados, sem dados pessoais." />
+      <PageHeader eyebrow="Visão do Prefeito · cidade inteira" title="Onde precisamos investir?" subtitle="Mapa de pressão por vagas, déficit por área de ponderação (IBGE) e capacidade ociosa — somente dados agregados, sem dados pessoais." />
 
       <Card className="relative overflow-hidden">
         <MapView
@@ -40,6 +44,7 @@ export default function HomePrefeito() {
           units={units.data?.units ?? []}
           geo={geo.data}
           regionMetric={regionMetric}
+          setores={layer === 'criancas' ? setores.data ?? null : null}
           heat={heat}
           colorMode={layer === 'offerable' ? 'vacancy' : 'type'}
           onSelectRegion={(id) => navigate(`/territorios/${id}`)}
@@ -47,11 +52,12 @@ export default function HomePrefeito() {
           fitKey="cidade"
           cooperative
           padding={{ top: 64, bottom: 30, left: 24, right: 64 }}
-          legendNote={<>{layer === 'deficit' ? 'Toque numa região para explorar' : 'Toque numa unidade para abrir'} <SourceChip kind={layer === 'enrollments' ? 'oficial' : 'demo'} /></>}
+          legendNote={<>{layer === 'deficit' || layer === 'criancas' ? 'Toque numa área para explorar' : 'Toque numa unidade para abrir'} <SourceChip kind={layer === 'enrollments' || layer === 'criancas' ? 'oficial' : 'demo'} /></>}
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-2 p-3">
           <div className="pointer-events-auto no-scrollbar flex gap-2 overflow-x-auto">
             <Chip icon={Flame} active={layer === 'deficit'} onClick={() => setLayer('deficit')}>Déficit de creche</Chip>
+            <Chip icon={Baby} active={layer === 'criancas'} onClick={() => setLayer('criancas')}>Crianças 0–4 (Censo)</Chip>
             <Chip icon={ListOrdered} active={layer === 'queue'} onClick={() => setLayer('queue')}>Calor: fila</Chip>
             <Chip icon={Users} active={layer === 'enrollments'} onClick={() => setLayer('enrollments')}>Calor: matrículas</Chip>
             <Chip icon={Sparkles} active={layer === 'offerable'} onClick={() => setLayer('offerable')}>Vagas ofertáveis</Chip>
@@ -74,22 +80,27 @@ export default function HomePrefeito() {
       {worst && worst.balance_creche < 0 && (
         <div className="mt-5">
           <IaraBubble compact>
-            A região com maior pressão é a <b>{worst.name}</b>: {fmtInt(worst.queue_creche)} crianças aguardam creche para {fmtInt(worst.offerable_creche)} vagas ofertáveis
-            (saldo <b className="text-red-700">{fmtInt(worst.balance_creche)}</b>). <Link className="font-semibold text-purple-700 underline" to={`/territorios/${worst.id}`}>Explorar região</Link>
+            A área com maior pressão é a <b>{worst.name}</b>: {fmtInt(worst.queue_creche)} crianças aguardam creche para {fmtInt(worst.offerable_creche)} vagas ofertáveis
+            (saldo <b className="text-red-700">{fmtInt(worst.balance_creche)}</b>; {fmtInt(worst.criancas_0a4)} crianças de 0 a 4 anos moram ali, pelo Censo 2022). <Link className="font-semibold text-purple-700 underline" to={`/territorios/${worst.id}`}>Explorar área</Link>
           </IaraBubble>
         </div>
       )}
 
-      <Section title="Pressão por território" subtitle="Saldo de creche = vagas ofertáveis − crianças na fila (demonstração)">
+      <Section title="Pressão por área de ponderação" subtitle="Saldo de creche = vagas ofertáveis − crianças na fila (demonstração). Áreas do IBGE, Censo 2022."
+        action={d.regions.length > AREAS_INICIAIS ? (
+          <button type="button" onClick={() => setTodasAreas(!todasAreas)} className="text-[13px] font-semibold text-purple-700">
+            {todasAreas ? 'Mostrar só as de maior pressão' : `Ver as ${d.regions.length} áreas`}
+          </button>
+        ) : undefined}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {d.regions.map((r: any) => {
+          {(todasAreas ? d.regions : d.regions.slice(0, AREAS_INICIAIS)).map((r: any) => {
             const pr = PRESSURE[r.pressure];
             return (
               <LinkCard key={r.id} to={`/territorios/${r.id}`} className="p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-display text-lg font-extrabold">{r.name}</div>
-                    <div className="text-[12.5px] text-muted">{r.units} unidades · {fmtInt(r.enrollments)} matrículas</div>
+                  <div className="min-w-0">
+                    <div className="font-display text-lg font-extrabold leading-tight">{r.name}</div>
+                    <div className="text-[12.5px] text-muted">{r.units} unidades · {fmtInt(r.enrollments)} matrículas · {fmtInt(r.criancas_0a4)} crianças de 0 a 4 anos</div>
                   </div>
                   <Badge tone={pr.tone} dot>{pr.label}</Badge>
                 </div>
@@ -136,7 +147,7 @@ export default function HomePrefeito() {
           <Card className="p-4">
             {d.expansion.length ? (
               <BarList
-                items={d.expansion.map((e: any) => ({
+                items={[...d.expansion].sort((a: any, b: any) => b.deficit_creche - a.deficit_creche).slice(0, 8).map((e: any) => ({
                   key: e.territory, label: e.territory, value: e.deficit_creche, color: 'linear-gradient(90deg,#F2B640,#D94C4C)',
                   sub: `≈ ${e.suggested_classes} novas turmas de creche (capacidade de referência 20)`,
                   to: `/territorios/${d.regions.find((r: any) => r.name === e.territory)?.id ?? ''}`,
@@ -144,7 +155,7 @@ export default function HomePrefeito() {
                 valueSuffix=" crianças"
               />
             ) : (
-              <p className="text-sm text-muted">Nenhum território com déficit de creche no momento.</p>
+              <p className="text-sm text-muted">Nenhuma área de ponderação com déficit de creche no momento.</p>
             )}
             <div className="mt-3 flex items-start gap-2 rounded-2xl bg-purple-50 p-3 text-[12.5px] text-purple-900">
               <Hammer className="mt-0.5 size-4 shrink-0" /> Expansões e obras entram aqui quando o módulo de infraestrutura for integrado.

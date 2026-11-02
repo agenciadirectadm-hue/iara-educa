@@ -19,7 +19,7 @@ pessoas, fila, protocolos e conversas são fictícios e marcados com a bandeirin
 
 | # | Perfil | O que mostrar | Pergunta que a tela responde |
 |---|---|---|---|
-| 1 | Prefeito(a) | Início, mapa por região, déficit de creche | Onde precisamos investir? |
+| 1 | Prefeito(a) | Início, mapa por área de ponderação (IBGE), déficit de creche e crianças de 0 a 4 anos (Censo 2022) | Onde precisamos investir? |
 | 2 | Secretário(a) | Demanda × oferta por série, fila por categoria, funil de ofertas, prazos por equipe | Onde está o gargalo? |
 | 3 | Analista da Central de Vagas | Buscar vaga → ofertar ao 1º da fila (reserva de 72 h) | Qual vaga posso oferecer agora? |
 | 4 | Cidadão (Maria) | Minha família, posição do Davi e critérios aplicados (com "não aplicado"), três distâncias | Por que meu filho está nesta posição? |

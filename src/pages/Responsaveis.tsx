@@ -62,7 +62,7 @@ export default function Responsaveis() {
           {texto && <button className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setTexto('')} aria-label="Limpar"><X className="size-5 text-subtle" /></button>}
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Selecao value={territorio} onChange={(v) => set({ territorio: v })} vazio="Todos os territórios" aria-label="Território" opcoes={territorios} />
+          <Selecao value={territorio} onChange={(v) => set({ territorio: v })} vazio="Todas as áreas de ponderação" aria-label="Área de ponderação" opcoes={territorios} />
           <Selecao value={ordem} onChange={(v) => set({ ordem: v === 'nome' ? null : v })} vazio={false} aria-label="Ordenar"
             opcoes={[['nome', 'Ordem alfabética'], ['pendencias', 'Mais pendências primeiro'], ['recentes', 'Atualizados recentemente']]} />
         </div>

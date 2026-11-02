@@ -12,7 +12,7 @@ Feita primeiro para o celular: interativa, clicável e com visões diferentes pa
 
 | Perfil | Pergunta que a tela responde | Destaques |
 |---|---|---|
-| Prefeito(a) | Onde precisamos investir? | Mapa coroplético por região, déficit de creche, projeção (cenário), distância casa-escola |
+| Prefeito(a) | Onde precisamos investir? | Mapa coroplético pelas 29 áreas de ponderação do IBGE, déficit de creche, crianças de 0 a 4 anos por setor (Censo 2022), projeção (cenário), distância casa-escola |
 | Secretário(a) / Superintendência / Gerência EI | Onde está o gargalo? | Demanda × oferta por faixa, fila por categoria, funil de ofertas, SLA por equipe |
 | Analista da Central de Vagas | Qual vaga posso oferecer agora? | Busca inteligente de vaga, fila com critérios, oferta transacional, caixa da IARA |
 | Direção / Secretaria escolar | Como está minha unidade? / O que falta para a matrícula? | Turmas com ocupação, checklist de documentos, confirmação de matrícula |
@@ -66,7 +66,7 @@ criança e cada responsável com ficha completa, editável por quem tem permiss�
   (fica no histórico, com motivo) e a criança nunca fica sem responsável.
 - **Dados geográficos:** CEP → rua e bairro (ViaCEP); endereço → ponto no mapa (OpenStreetMap; quando o serviço recusa o
   servidor em nuvem, o navegador consulta direto); o servidor confere/ajusta o ponto tocando no mapa. Cada endereço guarda
-  precisão e fonte, zona, ponto de referência, território (macrorregião/distrito pelo polígono) e mostra o bairro de referência
+  precisão e fonte, zona, ponto de referência, área de ponderação (e distrito, pelo polígono do IBGE) e mostra o bairro de referência
   e as unidades mais próximas com vagas na faixa da criança. Só o endereço sai do sistema — nunca nome ou CPF.
 - **Pendências:** cada ficha mostra o % completo e o que falta (aluno: 7 itens do Censo/matrícula; responsável: 5); as listas
   (um registro por linha, em colunas; em tela estreita rolam de lado com o nome fixo) filtram por situação, unidade,
@@ -100,7 +100,7 @@ direito à vaga — a mesma visão fica disponível para o(a) Secretário(a) e a
 - **Painel** (`#/inicio` do perfil, `#/controle` para a Secretaria): ordem conferida em cada fila (posição registrada = posição
   calculada pela regra), crianças aguardando e tempo de espera por faixa, **vagas ofertáveis paradas em filas com crianças**,
   ofertas × ordem da fila em 12 meses (ao 1º da fila, em outra unidade, fora da ordem por laudo), aceites, recusas, ofertas
-  expiradas (silêncio não é aceite), protocolos com prazo vencido, saldo por região, as três medidas de distância e a
+  expiradas (silêncio não é aceite), protocolos com prazo vencido, saldo por área de ponderação, as três medidas de distância e a
   **trilha de governança** (mudanças de regra, exceções, recálculos e as próprias consultas do controle externo).
 - **Exceções à ordem** vêm da auditoria imutável, com a justificativa registrada pela equipe — CIDs, CPFs e nomes são ocultados.
 - **Fila pública** (`#/controle/fila`): cada inscrição pelo **código público** (pseudônimo, ex.: `F-3A9C1B`), com posição,
@@ -196,11 +196,13 @@ SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_generate()" 
 SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                     # publica o gateway
 ```
 
-Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `19`/`20`/`21`/`22` (funções de demo)
+Ordem de aplicação: `supabase/migrations/*` (em ordem) → `supabase/seed/10_dados_publicos.sql` → `supabase/seed/11_areas_ponderacao.sql`
+(áreas de ponderação e setores do Censo 2022; gerado por `node scripts/seed/gerar_areas_ponderacao.mjs`) → `19`/`20`/`21`/`22` (funções de demo)
 → `select iara.demo_generate();` → **sempre por último** `supabase/migrations/20261003009900_privilegios.sql` (idempotente; reaplicar
 após criar funções novas). Testes: `supabase/tests/rls_smoke.sql`, `supabase/tests/jornada_e2e.sql`,
 `supabase/tests/prioridade_laudo.sql`, `supabase/tests/vida_familia.sql`, `supabase/tests/conversas_unidades.sql`,
-`supabase/tests/cadastro_pessoas.sql`, `supabase/tests/distancias_rota.sql` e `supabase/tests/controle_externo.sql` (os sete
+`supabase/tests/cadastro_pessoas.sql`, `supabase/tests/distancias_rota.sql`, `supabase/tests/controle_externo.sql` e
+`supabase/tests/areas_ponderacao.sql` (recorte pelas áreas de ponderação do IBGE) (os oito
 últimos rodam numa transação revertida e não deixam resíduo na demonstração;
 para ver o resultado completo, use `SQL_OUT_LIMIT=200000`).
 Conversa da IARA pelo gateway publicado, sem chaves: `node scripts/teste-iara.mjs nova` (família recém-chegada) ou
@@ -229,7 +231,8 @@ src/
 supabase/
   migrations/     esquema, regras de negócio, RLS, APIs, privilégios
   functions/api/  gateway + agente IARA
-  seed/           dados públicos (118 unidades, territórios) e geradores da camada de demonstração
+  seed/           dados públicos (118 unidades, territórios, áreas de ponderação e setores do Censo 2022) e geradores da
+                  camada de demonstração
   tests/          RLS e jornada ponta a ponta em SQL
 scripts/          SQL/deploy via API de gerenciamento, gerador do seed público, tratamento do mascote
 ```

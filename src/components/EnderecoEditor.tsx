@@ -12,7 +12,7 @@ import MapView from './map/MapView';
 import type { MedidaDistancia } from '@/lib/api';
 import { MEDIDA, SeletorMedida, TresDistancias, modoTracado, trajetosDe, useDistancias } from './distancias';
 
-type Ponto = { dentro_maringa: boolean; territorio: string | null; territorio_tipo: string | null; bairro: string | null; bairro_distancia_m: number | null;
+type Ponto = { dentro_maringa: boolean; territorio: string | null; territorio_tipo: string | null; distrito?: string | null; bairro: string | null; bairro_distancia_m: number | null;
   unidades: { id: number; nome: string; tipo_rotulo: string | null; distancia_m: number; vagas: number | null }[] };
 
 /**
@@ -206,7 +206,7 @@ export default function EnderecoEditor({ value, onChange, faixaId }: { value: En
                   exata ? 'bg-green-50 text-green-900 ring-green-200' : 'bg-amber-50 text-amber-900 ring-amber-200')}>
                   {exata ? <CheckCircle2 className="size-3.5" /> : <TriangleAlert className="size-3.5" />}{precisaoRotulo(value.precisao)}
                 </span>
-                {p && <span><b>Território:</b> {p.dentro_maringa ? p.territorio ?? '—' : 'fora de Maringá'}</span>}
+                {p && <span><b>Área de ponderação:</b> {p.dentro_maringa ? p.territorio ?? '—' : 'fora de Maringá'}{p.distrito ? ` · ${p.distrito}` : ''}</span>}
                 {p?.bairro && <span><b>Bairro de referência:</b> {p.bairro}</span>}
                 <span className="text-subtle">{value.lat!.toFixed(5)}, {value.lng!.toFixed(5)}</span>
               </div>
