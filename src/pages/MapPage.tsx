@@ -17,6 +17,7 @@ import type { DistanciaUnidade, MedidaDistancia } from '@/lib/api';
 import { LinkMetodologia, MEDIDA, SeletorMedida, TresDistancias, metros, modoTracado, trajetosDe, useDistancias } from '@/components/distancias';
 import { CAMADA_ANTIGA, RECORTE_AJUDA, RECORTE_ROTULO, acharQuesito, temasVisiveis, type Recorte } from '@/components/mapas/catalogo';
 import { PainelQuesito, type DadosRecorte } from '@/components/mapas/PainelQuesito';
+import { caixaDe, type Caixa } from '@/components/map/geometria';
 import type { Faixas } from '@/components/map/MapLegend';
 import { SEMAFORO, classe, corDe, cortes, legenda, type Classe } from '@/components/map/semaforo';
 
@@ -28,7 +29,6 @@ const PERTO = 8;
 
 type Filter = 'todas' | 'cmei' | 'escola' | 'vaga' | 'creche';
 type Snap = 'peek' | 'half' | 'full';
-type Caixa = [[number, number], [number, number]];
 
 function distance(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371000;
@@ -38,14 +38,6 @@ function distance(a: { lat: number; lng: number }, b: { lat: number; lng: number
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-/** Caixa ([oeste, sul], [leste, norte]) de um polígono ou multipolígono. */
-function caixaDe(g?: GeoJSON.Geometry | null): Caixa | null {
-  if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return null;
-  const aneis = g.type === 'Polygon' ? g.coordinates : g.coordinates.flat();
-  let [o, s, l, n] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (const anel of aneis) for (const [x, y] of anel) { o = Math.min(o, x); s = Math.min(s, y); l = Math.max(l, x); n = Math.max(n, y); }
-  return Number.isFinite(o) ? [[o, s], [l, n]] : null;
-}
 
 /** Mapa unificado (Mapa + Mapas de calor): tema e quesito no topo, recorte em pontos, áreas de ponderação ou setores
  * censitários; tocar numa área desce para os setores dela. Endereço: ?q=quesito&recorte=area|setor|pontos&area=id. */

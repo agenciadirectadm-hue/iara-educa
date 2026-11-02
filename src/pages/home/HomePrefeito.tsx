@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import clsx from 'clsx';
 import {
-  AlertTriangle, Building2, ChevronRight, ClipboardList, Flame, GraduationCap, Hammer, Info, ListOrdered, Map as MapIcon, Route, Sparkles, Timer, Users,
+  AlertTriangle, Building2, ChevronRight, ClipboardList, Flame, GraduationCap, Hammer, Info, ListOrdered, Map as MapIcon, Route, School, Sparkles, Timer, Users, X,
 } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useGeoLayers, useGeoSetores, useUnitsMap } from '@/lib/data';
@@ -13,6 +13,8 @@ import { AreaChart, BarList } from '@/components/charts';
 import { IaraBubble } from '@/components/iara';
 import MapView, { type Coropleta } from '@/components/map/MapView';
 import { PURPLE } from '@/components/map/mapStyle';
+import { caixaDe, pontoDentro, type Caixa } from '@/components/map/geometria';
+import type { UnitMapItem } from '@/lib/types';
 import type { DadosRecorte } from '@/components/mapas/PainelQuesito';
 
 /** O mapa do Início: as unidades da rede sobre a divisão do IBGE — por região (área de ponderação) ou microrregião (setor). */
@@ -26,32 +28,56 @@ export default function HomePrefeito() {
   const geo = useGeoLayers();
   const navigate = useNavigate();
   const [ver, setVer] = useState<Ver>('area');
+  // região ou microrregião aberta no mapa (chave: id da área ou código do setor)
+  const [aberta, setAberta] = useState<string | null>(null);
   const [todasAreas, setTodasAreas] = useState(false);
   const setores = useGeoSetores(ver === 'setor');
   // quantas unidades há em cada região ou microrregião (para a dica ao passar o mouse)
   const contagem = useRpc<DadosRecorte>('mapa_recorte', { camada: 'unidades', recorte: ver }, { staleTime: 10 * 60_000 });
 
-  // só a divisão (localização, sem medida): contorno e fundo quase transparente; tocar abre a ficha da região
-  const divisao = useMemo<(Coropleta & { areaDe: Map<string, number> }) | null>(() => {
+  // só a divisão (localização, sem medida): contorno e fundo quase transparente; tocar abre a região ou microrregião
+  const divisao = useMemo<Coropleta | null>(() => {
     const base = ver === 'area' ? geo.data?.regions : setores.data;
     if (!base) return null;
     const n = new Map((contagem.data?.itens ?? []).map((i) => [String(i.chave), Number(i.valor ?? 0)]));
-    const areaDe = new Map<string, number>();
     const feicoes = base.features.map((f) => {
       const p = f.properties ?? {};
       const chave = ver === 'area' ? String(p.id) : String(p.code);
-      areaDe.set(chave, Number(ver === 'area' ? p.id : p.area_id));
       const nome = ver === 'area' ? String(p.name) : `Microrregião ${String(p.code).slice(-6)}${p.bairro ? ` · ${p.bairro}` : ''} (${p.area})`;
       const k = n.get(chave) ?? 0;
-      return { type: 'Feature' as const, geometry: f.geometry, properties: { chave, cor: PURPLE, titulo: `${nome}: ${k === 0 ? 'nenhuma unidade' : `${k} unidade(s)`}` } };
+      return { type: 'Feature' as const, geometry: f.geometry, properties: { chave, cor: PURPLE, sel: chave === aberta, titulo: `${nome}: ${k === 0 ? 'nenhuma unidade' : `${k} unidade(s)`}` } };
     });
     return {
-      tipo: ver, neutra: true, areaDe,
+      tipo: ver, neutra: true,
       feicoes: { type: 'FeatureCollection', features: feicoes },
       faixas: { titulo: ver === 'area' ? 'Regiões do IBGE (áreas de ponderação)' : 'Microrregiões do IBGE (setores censitários)',
-                itens: [{ cor: 'rgba(122,36,197,0.25)', rotulo: ver === 'area' ? '29 regiões · toque para abrir a ficha' : '793 microrregiões · toque para abrir a ficha da região' }] },
+                itens: [{ cor: 'rgba(122,36,197,0.25)', rotulo: ver === 'area' ? '29 regiões · toque para abrir' : '793 microrregiões · toque para abrir' }] },
     };
-  }, [ver, geo.data, setores.data, contagem.data]);
+  }, [ver, geo.data, setores.data, contagem.data, aberta]);
+
+  // o que foi aberto: nome, Censo, as unidades que ficam ali e a caixa para aproximar o mapa
+  const info = useMemo(() => {
+    if (!aberta) return null;
+    const base = ver === 'area' ? geo.data?.regions : setores.data;
+    const f = base?.features.find((x) => String(ver === 'area' ? x.properties?.id : x.properties?.code) === aberta);
+    if (!f) return null;
+    const p = f.properties ?? {};
+    const todas = units.data?.units ?? [];
+    const lista: UnitMapItem[] = (ver === 'area' ? todas.filter((u) => u.macro_id === Number(p.id)) : todas.filter((u) => pontoDentro(u.lng, u.lat, f.geometry)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return {
+      tipo: ver, areaId: Number(ver === 'area' ? p.id : p.area_id), caixa: caixaDe(f.geometry),
+      nome: ver === 'area' ? String(p.name) : `Microrregião ${String(p.code).slice(-6)}${p.bairro ? ` · ${p.bairro}` : ''}`,
+      dentroDe: ver === 'setor' ? (geo.data?.regions?.features.find((r) => r.properties?.id === p.area_id)?.properties?.name as string | undefined) : undefined,
+      pessoas: (p.pessoas ?? null) as number | null, criancas: (p.criancas_0a4 ?? null) as number | null, lista,
+    };
+  }, [aberta, ver, geo.data, setores.data, units.data]);
+  const caixaCidade = useMemo<Caixa | null>(() => {
+    const todas = units.data?.units ?? [];
+    if (!todas.length) return null;
+    return [[Math.min(...todas.map((u) => u.lng)), Math.min(...todas.map((u) => u.lat))], [Math.max(...todas.map((u) => u.lng)), Math.max(...todas.map((u) => u.lat))]];
+  }, [units.data]);
+  const enquadrar = info?.caixa ? { chave: `${ver}-${aberta}`, caixa: info.caixa } : caixaCidade ? { chave: 'cidade', caixa: caixaCidade } : null;
 
   if (dash.isLoading) return <SkeletonList rows={6} />;
   if (dash.error) return <ErrorState error={dash.error} onRetry={() => dash.refetch()} />;
@@ -69,22 +95,25 @@ export default function HomePrefeito() {
           units={units.data?.units ?? []}
           geo={geo.data}
           coropleta={divisao}
-          onSelectCoropleta={(chave) => { const id = divisao?.areaDe.get(chave); if (id) navigate(`/territorios/${id}`); }}
+          onSelectCoropleta={setAberta}
+          enquadrar={enquadrar}
           onSelectUnit={(u) => navigate(`/unidades/${u.id}`)}
           fitKey="cidade"
           cooperative
-          padding={{ top: 64, bottom: 30, left: 24, right: 64 }}
-          legendNote={<>Toque numa unidade ou região para abrir <SourceChip kind="publico" /></>}
+          // com o cartão aberto, a região fica à direita dele (computador) ou acima dele (celular)
+          padding={info ? (typeof window !== 'undefined' && window.innerWidth >= 640 ? { top: 64, bottom: 30, left: 370, right: 64 } : { top: 64, bottom: 330, left: 24, right: 64 }) : { top: 64, bottom: 30, left: 24, right: 64 }}
+          legendNote={<>Toque numa região para ver as unidades dela <SourceChip kind="publico" /></>}
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-2 p-3">
           <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-            <Segmented className="whitespace-nowrap shadow-soft" value={ver} onChange={setVer}
+            <Segmented className="whitespace-nowrap shadow-soft" value={ver} onChange={(v) => { setVer(v); setAberta(null); }}
               items={[{ value: 'area', label: 'Regiões' }, { value: 'setor', label: 'Microrregiões' }]} />
             <Link to="/mapa" className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-purple-700 px-4 text-[13.5px] font-semibold text-white shadow-soft hover:bg-purple-800">
               <MapIcon className="size-4" aria-hidden />Todos os mapas<ChevronRight className="size-4" aria-hidden />
             </Link>
           </div>
         </div>
+        {info && <CartaoRegiao info={info} onFechar={() => setAberta(null)} />}
       </Card>
 
       <div className="no-scrollbar -mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:px-0 lg:grid-cols-6">
@@ -247,6 +276,63 @@ export default function HomePrefeito() {
             ))}
           </Card>
         </Section>
+      </div>
+    </div>
+  );
+}
+
+/** Cartão da região ou microrregião aberta no mapa do Início: Censo, as unidades que ficam ali e os atalhos. */
+function CartaoRegiao({ info, onFechar }: {
+  info: { tipo: Ver; areaId: number; nome: string; dentroDe?: string; pessoas: number | null; criancas: number | null; lista: UnitMapItem[] };
+  onFechar: () => void;
+}) {
+  const cmeis = info.lista.filter((u) => u.type === 'CMEI').length;
+  return (
+    <div className="absolute inset-x-3 bottom-3 z-20 sm:inset-x-auto sm:bottom-auto sm:left-3 sm:top-[68px] sm:w-[340px]">
+      <div className="rounded-3xl bg-white/95 p-4 shadow-lift ring-1 ring-line backdrop-blur">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11.5px] font-bold uppercase tracking-wide text-purple-700">{info.tipo === 'area' ? 'Região do IBGE' : 'Microrregião do IBGE'}</div>
+            <div className="font-display text-[17px] font-extrabold leading-snug">{info.nome}</div>
+            {info.dentroDe && <div className="text-[12.5px] text-muted">na {info.dentroDe}</div>}
+          </div>
+          <button type="button" onClick={onFechar} className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100" aria-label="Fechar"><X className="size-4" /></button>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-line">
+            <div className="font-display text-xl font-extrabold tabular">{fmtInt(info.lista.length)}</div>
+            <div className="text-[11px] leading-tight text-muted">unidade(s){info.lista.length ? ` · ${cmeis} CMEI(s)` : ''}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-line">
+            <div className="font-display text-xl font-extrabold tabular">{info.pessoas == null ? '—' : fmtInt(info.pessoas)}</div>
+            <div className="text-[11px] leading-tight text-muted">moradores (Censo)</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-line">
+            <div className="font-display text-xl font-extrabold tabular">{info.criancas == null ? 'sigilo' : fmtInt(info.criancas)}</div>
+            <div className="text-[11px] leading-tight text-muted">crianças de 0 a 4</div>
+          </div>
+        </div>
+        {info.lista.length ? (
+          <div className="mt-3 max-h-40 divide-y divide-line overflow-y-auto rounded-2xl ring-1 ring-line">
+            {info.lista.map((u) => (
+              <Link key={u.id} to={`/unidades/${u.id}`} className="flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-purple-50">
+                <School className="size-4 shrink-0 text-slate-600" />
+                <span className="min-w-0 flex-1 truncate font-semibold">{u.name}</span>
+                <span className="shrink-0 text-[11.5px] text-muted">{u.type === 'CMEI' ? 'CMEI' : 'Escola'}</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-[13px] text-muted">Nenhuma unidade da rede fica aqui.</p>
+        )}
+        <div className="mt-3 flex gap-2">
+          <Link to={`/territorios/${info.areaId}`} className="inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-purple-700 text-[13px] font-semibold text-white hover:bg-purple-800">
+            Ficha da região<ChevronRight className="size-4" />
+          </Link>
+          <Link to={`/mapa?q=deficit&recorte=setor&area=${info.areaId}`} className="inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-white text-[13px] font-semibold ring-1 ring-line hover:bg-slate-50">
+            Ver nos mapas<ChevronRight className="size-4" />
+          </Link>
+        </div>
       </div>
     </div>
   );

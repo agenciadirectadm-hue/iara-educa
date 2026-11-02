@@ -597,10 +597,12 @@ export function MapView(p: MapViewProps) {
     map.setLayoutProperty('coro-line', 'visibility', c ? 'visible' : 'none');
     if (!c) return;
     map.setPaintProperty('coro-fill', 'fill-color', ['coalesce', ['get', 'cor'], SIGILO_COLOR] as never);
-    map.setPaintProperty('coro-fill', 'fill-opacity', c.neutra ? 0.06 : SETOR_OPACITY);
+    // a feição aberta (propriedade sel) ganha fundo e contorno mais fortes
+    const sel = ['boolean', ['get', 'sel'], false];
+    map.setPaintProperty('coro-fill', 'fill-opacity', (c.neutra ? ['case', sel, 0.3, 0.06] : SETOR_OPACITY) as never);
     map.setPaintProperty('coro-line', 'line-color', c.tipo === 'area' || c.neutra ? REGION_LINE : '#ffffff');
-    map.setPaintProperty('coro-line', 'line-width', c.tipo === 'area' ? 1.4 : c.neutra ? 0.5 : 0.6);
-    map.setPaintProperty('coro-line', 'line-opacity', c.neutra && c.tipo === 'setor' ? 0.45 : 0.85);
+    map.setPaintProperty('coro-line', 'line-width', ['case', sel, 3, c.tipo === 'area' ? 1.4 : c.neutra ? 0.5 : 0.6] as never);
+    map.setPaintProperty('coro-line', 'line-opacity', ['case', sel, 1, c.neutra && c.tipo === 'setor' ? 0.45 : 0.85] as never);
   }, [ready, p.coropleta]);
 
   // enquadra numa área (ao descer para os setores dela)
