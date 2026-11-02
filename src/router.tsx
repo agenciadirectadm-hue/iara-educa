@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { createHashRouter, Navigate, useRouteError } from 'react-router';
+import { createHashRouter, Navigate, useRouteError, useSearchParams } from 'react-router';
 import { AppShell } from './app/AppShell';
 import Splash, { SPLASH_KEY } from './pages/Splash';
 import Entrar from './pages/Entrar';
@@ -76,7 +76,6 @@ const Rematricula = lazy(() => import('./pages/Rematricula'));
 const Ensalamento = lazy(() => import('./pages/Ensalamento'));
 const Eventos = lazy(() => import('./pages/Eventos'));
 const Certificado = lazy(() => import('./pages/Declaracao').then((m) => ({ default: m.Certificado })));
-const MapasCalor = lazy(() => import('./pages/MapasCalor'));
 
 function Loader() {
   return (
@@ -106,6 +105,13 @@ function RequireSession({ children }: { children: ReactNode }) {
   if (!ready) return <Loader />;
   if (!session) return <Navigate to="/entrar" replace />;
   return <>{children}</>;
+}
+
+/** Mapas de calor viraram temas do mapa unificado: o endereço antigo leva ao mesmo quesito, em pontos. */
+function RedirecionaCalor() {
+  const [sp] = useSearchParams();
+  const camada = sp.get('camada') ?? 'transporte_necessidade';
+  return <Navigate to={`/mapa?q=${encodeURIComponent(camada)}&recorte=pontos`} replace />;
 }
 
 function RouteError() {
@@ -162,7 +168,7 @@ export const router = createHashRouter([
       { path: '/rematricula', element: <RequireSession>{S(<Rematricula />)}</RequireSession>, handle: { wide: true } },
       { path: '/ensalamento', element: <RequireSession>{S(<Ensalamento />)}</RequireSession>, handle: { wide: true } },
       { path: '/eventos', element: <RequireSession>{S(<Eventos />)}</RequireSession>, handle: { wide: true } },
-      { path: '/mapas-de-calor', element: <RequireSession>{S(<MapasCalor />)}</RequireSession>, handle: { wide: true } },
+      { path: '/mapas-de-calor', element: <RedirecionaCalor /> },
       { path: '/suporte', element: <RequireSession>{S(<Suporte />)}</RequireSession>, handle: { wide: true } },
       { path: '/busca-ativa', element: <RequireSession>{S(<BuscaAtiva />)}</RequireSession>, handle: { wide: true } },
       { path: '/busca-ativa/regras', element: <RequireSession>{S(<RegrasFrequencia />)}</RequireSession>, handle: { wide: true } },

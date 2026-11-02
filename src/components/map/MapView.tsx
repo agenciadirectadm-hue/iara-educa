@@ -9,7 +9,7 @@ import { MapLegend } from './MapLegend';
 import {
   BALANCE_STOPS, CHILDREN_REGION_STOPS, CHILDREN_SETOR_STOPS, DISTRICT_LINE, HEAT_OFFERABLE_STOPS, HEAT_STOPS, OFFERABLE_REGION_STOPS, PURPLE,
   QUEUE_REGION_STOPS, REGION_LINE, REGION_OPACITY, ROTA_COLOR, ROUTE_LINE, SELECTED_STROKE, SETOR_OPACITY, SIGILO_COLOR, UNIT_COLOR,
-  VACANCY_COLOR, interpolate,
+  VACANCY_COLOR, interpolate, type Stops,
 } from './mapStyle';
 
 setWorkerUrl(workerUrl);
@@ -29,6 +29,16 @@ export type Calor = {
   escala?: [number, string][] | null;
   /** Peso máximo da densidade (o resto é proporcional). */
   max?: number | null;
+};
+
+export type Coropleta = {
+  tipo: 'area' | 'setor';
+  feicoes: GeoJSON.FeatureCollection;
+  escala: Stops;
+  /** Título da legenda (ex.: "Setores censitários · Faltas pela casa"). */
+  titulo: string;
+  /** Texto do item "sem valor" na legenda (sigilo do IBGE ou menos pessoas que o mínimo). */
+  semValor?: string | null;
 };
 
 export type GeoLayers = {
@@ -53,6 +63,11 @@ export type MapViewProps = {
   regionMetric?: RegionMetric;
   /** Setores censitários com crianças de 0 a 4 anos (Censo 2022): camada de demanda; tocar numa área abre a área. */
   setores?: GeoJSON.FeatureCollection | null;
+  /** Quesito pintado por área de ponderação ou setor censitário (mapa unificado). Cada feição traz chave, valor e titulo. */
+  coropleta?: Coropleta | null;
+  onSelectCoropleta?: (chave: string) => void;
+  /** Enquadra nesta caixa ([oeste, sul], [leste, norte]) quando a chave muda (ex.: ao descer para os setores de uma área). */
+  enquadrar?: { chave: string; caixa: [[number, number], [number, number]] } | null;
   showAreas?: boolean;
   home?: { lat: number; lng: number; radius_m?: number } | null;
   highlight?: { id: number; label: string }[];
@@ -192,6 +207,7 @@ export function MapView(p: MapViewProps) {
       map.addSource('region-labels', { type: 'geojson', data: empty });
       map.addSource('districts', { type: 'geojson', data: empty });
       map.addSource('setores', { type: 'geojson', data: empty });
+      map.addSource('coropleta', { type: 'geojson', data: empty });
       map.addSource('areas', { type: 'geojson', data: empty });
       map.addSource('units', { type: 'geojson', data: empty, promoteId: 'id' });
       map.addSource('radius', { type: 'geojson', data: empty });
@@ -212,6 +228,8 @@ export function MapView(p: MapViewProps) {
         },
       });
       map.addLayer({ id: 'setores-line', type: 'line', source: 'setores', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.6, 'line-opacity': 0.7 } });
+      map.addLayer({ id: 'coro-fill', type: 'fill', source: 'coropleta', layout: { visibility: 'none' }, paint: { 'fill-color': SIGILO_COLOR, 'fill-opacity': SETOR_OPACITY } });
+      map.addLayer({ id: 'coro-line', type: 'line', source: 'coropleta', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.8, 'line-opacity': 0.85 } });
       map.addLayer({ id: 'regions-line', type: 'line', source: 'regions', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0 } });
       map.addLayer({
         id: 'districts-line', type: 'line', source: 'districts', layout: { visibility: 'none' },
@@ -344,6 +362,14 @@ export function MapView(p: MapViewProps) {
         dicaSetor.setLngLat(e.lngLat).setText(`${s.area} · setor ${String(s.code).slice(-6)}${s.bairro ? ` (${s.bairro})` : ''}: ${criancas} · ${n(s.pessoas)} pessoas`).addTo(map);
       });
       map.on('mouseleave', 'setores-fill', () => dicaSetor.remove());
+      // quesito por área/setor: o título da feição ao passar o mouse
+      map.on('mousemove', 'coro-fill', (e) => {
+        const t = String(e.features?.[0]?.properties?.titulo ?? '');
+        if (!t) return;
+        map.getCanvas().style.cursor = cb.current.onSelectCoropleta ? 'pointer' : '';
+        dicaSetor.setLngLat(e.lngLat).setText(t).addTo(map);
+      });
+      map.on('mouseleave', 'coro-fill', () => { map.getCanvas().style.cursor = ''; dicaSetor.remove(); });
       map.addLayer({ id: 'ranks-circle', type: 'circle', source: 'ranks', paint: { 'circle-radius': 13, 'circle-color': PURPLE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
       map.addLayer({
         id: 'ranks-label', type: 'symbol', source: 'ranks',
@@ -362,6 +388,13 @@ export function MapView(p: MapViewProps) {
       map.on('click', (e) => {
         const hits = map.queryRenderedFeatures(e.point, { layers: ['units', 'ranks-circle'] });
         if (hits.length) return;
+        if (cb.current.coropleta && cb.current.onSelectCoropleta) {
+          const co = map.queryRenderedFeatures(e.point, { layers: ['coro-fill'] });
+          if (co.length) {
+            cb.current.onSelectCoropleta(String(co[0].properties?.chave));
+            return;
+          }
+        }
         const reg = map.queryRenderedFeatures(e.point, { layers: ['regions-fill'] });
         if (reg.length && (cb.current.regionMetric || cb.current.setores) && cb.current.onSelectRegion) {
           cb.current.onSelectRegion(Number(reg[0].properties?.id));
@@ -467,10 +500,11 @@ export function MapView(p: MapViewProps) {
     (map.getSource('districts') as GeoJSONSource).setData(p.geo?.districts ?? empty);
     (map.getSource('setores') as GeoJSONSource).setData(p.setores ?? empty);
     const comSetores = !!p.setores;
+    const sobreSetores = comSetores || p.coropleta?.tipo === 'setor';
     const vis = (id: string, on: boolean) => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
     vis('setores-fill', comSetores);
     vis('setores-line', comSetores);
-    const recorte = !!p.regionMetric || comSetores;
+    const recorte = !!p.regionMetric || comSetores || !!p.coropleta;
     vis('regions-label', recorte);
     vis('districts-line', recorte && !!p.geo?.districts?.features?.length);
     vis('districts-label', recorte && !!p.geo?.districts?.features?.length);
@@ -488,10 +522,34 @@ export function MapView(p: MapViewProps) {
     } else {
       map.setPaintProperty('regions-fill', 'fill-opacity', 0);
     }
-    map.setPaintProperty('regions-line', 'line-color', comSetores ? REGION_LINE : '#ffffff');
-    map.setPaintProperty('regions-line', 'line-width', comSetores ? 1.6 : 2);
-    map.setPaintProperty('regions-line', 'line-opacity', recorte ? 0.9 : 0);
-  }, [ready, p.geo, p.regionMetric, p.showAreas, p.setores]);
+    map.setPaintProperty('regions-line', 'line-color', sobreSetores ? REGION_LINE : '#ffffff');
+    map.setPaintProperty('regions-line', 'line-width', sobreSetores ? 1.6 : 2);
+    // no quesito por área, o contorno é o da própria camada do quesito
+    map.setPaintProperty('regions-line', 'line-opacity', recorte && p.coropleta?.tipo !== 'area' ? 0.9 : 0);
+  }, [ready, p.geo, p.regionMetric, p.showAreas, p.setores, p.coropleta]);
+
+  // quesito por área de ponderação ou setor censitário (mapa unificado)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const c = p.coropleta;
+    (map.getSource('coropleta') as GeoJSONSource).setData(c?.feicoes ?? empty);
+    map.setLayoutProperty('coro-fill', 'visibility', c ? 'visible' : 'none');
+    map.setLayoutProperty('coro-line', 'visibility', c ? 'visible' : 'none');
+    if (!c) return;
+    map.setPaintProperty('coro-fill', 'fill-color', ['case', ['==', ['get', 'valor'], null], SIGILO_COLOR, interpolate(['get', 'valor'], c.escala)] as never);
+    map.setPaintProperty('coro-line', 'line-color', c.tipo === 'area' ? REGION_LINE : '#ffffff');
+    map.setPaintProperty('coro-line', 'line-width', c.tipo === 'area' ? 1.4 : 0.6);
+  }, [ready, p.coropleta]);
+
+  // enquadra numa área (ao descer para os setores dela)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !p.enquadrar) return;
+    const pad = safePadding(map, p.padding ?? 60);
+    if (pad) map.fitBounds(p.enquadrar.caixa, { padding: pad, duration: 900, maxZoom: 15.5 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, p.enquadrar?.chave]);
 
   // residência, raio, rotas e ranking
   useEffect(() => {
@@ -626,7 +684,8 @@ export function MapView(p: MapViewProps) {
   const legendInput = {
     units: p.units, showUnits: p.showUnits, colorMode: p.colorMode, regionMetric: p.regionMetric, heat: p.heat,
     hasBoundary: !!p.geo?.municipality, showAreas: p.showAreas && !!p.geo?.areas, home: p.home, homeLabel: p.homeLabel,
-    setores: !!p.setores, districts: (!!p.regionMetric || !!p.setores) && !!p.geo?.districts?.features?.length,
+    setores: !!p.setores, districts: (!!p.regionMetric || !!p.setores || !!p.coropleta) && !!p.geo?.districts?.features?.length,
+    coropleta: p.coropleta ? { titulo: p.coropleta.titulo, escala: p.coropleta.escala, semValor: p.coropleta.semValor ?? null } : null,
     highlight: p.highlight, highlightLabel: p.highlightLabel, lines: p.lines,
     rotas: { A_PE: (p.trajetos ?? []).some((t) => t.modo === 'A_PE'), CARRO: (p.trajetos ?? []).some((t) => t.modo === 'CARRO') },
     selectedUnit: p.selectedId != null ? p.units.find((u) => u.id === p.selectedId) ?? null : null, selectedLabel: p.selectedLabel,

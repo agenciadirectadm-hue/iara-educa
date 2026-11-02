@@ -24,6 +24,8 @@ export type LegendInput = {
   setores?: boolean;
   /** Contorno dos distritos (dentro da AP 001). */
   districts?: boolean;
+  /** Quesito pintado por área ou setor (mapa unificado). */
+  coropleta?: { titulo: string; escala: [number, string][]; semValor?: string | null } | null;
   home?: { radius_m?: number } | null;
   homeLabel?: string;
   highlight?: { id: number; label: string }[];
@@ -92,6 +94,17 @@ export function buildLegend(i: LegendInput): Group[] {
     groups.push({ title: 'Áreas de ponderação', items: [{ sym: { kind: 'scale', gradient: cssGradient(OFFERABLE_REGION_STOPS) }, label: 'Vagas ofertáveis' }] });
   } else if (i.regionMetric === 'criancas_0a4') {
     groups.push({ title: 'Áreas de ponderação · Censo 2022', items: [{ sym: { kind: 'scale', gradient: cssGradient(CHILDREN_REGION_STOPS) }, label: 'Crianças de 0 a 4 anos' }] });
+  }
+  if (i.coropleta) {
+    const esc = i.coropleta.escala;
+    const n = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+    groups.push({
+      title: i.coropleta.titulo,
+      items: [
+        { sym: { kind: 'scale', gradient: cssGradient(esc) }, label: `de ${n(esc[0][0])} a ${n(esc[esc.length - 1][0])} ou mais` },
+        ...(i.coropleta.semValor ? [{ sym: { kind: 'area' as const, color: SIGILO_COLOR }, label: i.coropleta.semValor }] : []),
+      ],
+    });
   }
   if (i.setores) {
     groups.push({

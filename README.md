@@ -192,6 +192,7 @@ Os scripts usam a API de gerenciamento do Supabase com um **token pessoal** pass
 
 ```bash
 SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs supabase/migrations/<arquivo>.sql   # aplica SQL
+node scripts/aplicar.mjs <migration>.sql [<teste>.sql ...]   # aplica em ordem; sem a variável, pede o token copiado (área de transferência) e grava log em %TEMP%/iara-aplicar.log
 SUPABASE_ACCESS_TOKEN=... node scripts/sql.mjs -e "select iara.demo_generate()"   # recria a base de demonstração (~25 s)
 SUPABASE_ACCESS_TOKEN=... node scripts/deploy-function.mjs api                     # publica o gateway
 ```

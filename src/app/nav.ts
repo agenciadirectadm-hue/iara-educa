@@ -1,4 +1,4 @@
-import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, ChartLine, DoorOpen, Flame, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -19,7 +19,7 @@ export type NavItem = { to: string; label: string; icon: ComponentType<{ classNa
 
 const I = {
   inicio: { to: '/inicio', label: 'Início', icon: House },
-  mapa: { to: '/mapa', label: 'Mapa', icon: MapIcon, grupo: 'estrutura' },
+  mapa: { to: '/mapa', label: 'Mapas', icon: MapIcon, grupo: 'estrutura' },
   unidades: { to: '/unidades', label: 'Unidades', icon: Building2, grupo: 'estrutura' },
   indicadores: { to: '/indicadores', label: 'Indicadores', icon: ChartColumn, grupo: 'gestao' },
   atendimentos: { to: '/atendimentos', label: 'Atendimentos', icon: ClipboardList, grupo: 'atendimento' },
@@ -66,7 +66,6 @@ const I = {
   rematricula: { to: '/rematricula', label: 'Rematrícula', icon: ArrowRightLeft, grupo: 'matricula' },
   ensalamento: { to: '/ensalamento', label: 'Ensalamento', icon: DoorOpen, grupo: 'estrutura' },
   eventos: { to: '/eventos', label: 'Eventos e certificados', icon: Award, grupo: 'pedagogico' },
-  calor: { to: '/mapas-de-calor', label: 'Mapas de calor', icon: Flame, grupo: 'gestao' },
 } satisfies Record<string, NavItem>;
 
 /** Agrupa os itens na ordem dos grupos, mantendo a ordem de cada grupo. */
@@ -79,7 +78,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
   const unitId = me?.unit?.id;
   switch (role) {
     case 'PREFEITO':
-      return { primary: [I.inicio, I.mapa, I.calor, I.indicadores], more: [I.unidades, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
     case 'SECRETARIO':
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
@@ -90,7 +89,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.frequencia, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
           I.unidades, I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
-          I.gestao, I.calor, I.pessoal, I.indicadores,
+          I.gestao, I.pessoal, I.indicadores,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.auditoria, I.qualidade, I.regras,
           I.suporte, I.ajuda],

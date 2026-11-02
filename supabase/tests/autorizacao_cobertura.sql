@@ -48,7 +48,7 @@ begin
 
   select coalesce(jsonb_agg(p.proname order by p.proname), '[]') into v_lista from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'api' and has_function_privilege('anon', p.oid, 'execute')
-    and p.proname not in ('bootstrap', 'units_map', 'geo_layers', 'geo_setores', 'units_list', 'unit_detail', 'territory_detail', 'network_kpis',
+    and p.proname not in ('bootstrap', 'units_map', 'geo_layers', 'geo_setores', 'mapa_recorte', 'units_list', 'unit_detail', 'territory_detail', 'network_kpis',
                           'grade_for_birthdate', 'search_vacancies', 'geo_search', 'knowledge_search', 'service_catalog', 'rules_list',
                           'data_quality', 'persona_units', 'declaracao_verificar');
   v_out := v_out || jsonb_build_object('passo', 'E3. Visitante sem login só chama as funções públicas', 'ok', v_lista = '[]', 'lista', v_lista);
