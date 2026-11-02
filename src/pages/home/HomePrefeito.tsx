@@ -1,19 +1,22 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import clsx from 'clsx';
 import {
-  AlertTriangle, Baby, Building2, ChevronRight, ClipboardList, Flame, GraduationCap, Hammer, Info, ListOrdered, Map as MapIcon, Route, Sparkles, Timer, Users,
+  AlertTriangle, Building2, ChevronRight, ClipboardList, Flame, GraduationCap, Hammer, Info, ListOrdered, Map as MapIcon, Route, Sparkles, Timer, Users,
 } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useGeoLayers, useGeoSetores, useUnitsMap } from '@/lib/data';
 import { fmt1, fmtInt, fmtPct } from '@/lib/format';
 import { PRESSURE } from '@/lib/labels';
-import { Badge, Card, Chip, ErrorState, Kpi, LinkCard, PageHeader, Section, SkeletonList, SourceChip } from '@/components/ui';
+import { Badge, Card, ErrorState, Kpi, LinkCard, PageHeader, Section, Segmented, SkeletonList, SourceChip } from '@/components/ui';
 import { AreaChart, BarList } from '@/components/charts';
 import { IaraBubble } from '@/components/iara';
-import MapView, { type HeatMode, type RegionMetric } from '@/components/map/MapView';
+import MapView, { type Coropleta } from '@/components/map/MapView';
+import { PURPLE } from '@/components/map/mapStyle';
+import type { DadosRecorte } from '@/components/mapas/PainelQuesito';
 
-type Layer = 'deficit' | 'criancas' | 'queue' | 'enrollments' | 'offerable';
+/** O mapa do Início: as unidades da rede sobre a divisão do IBGE — por região (área de ponderação) ou microrregião (setor). */
+type Ver = 'area' | 'setor';
 /** Áreas de ponderação mostradas antes de "ver todas" (as de maior pressão vêm primeiro). */
 const AREAS_INICIAIS = 6;
 
@@ -22,47 +25,63 @@ export default function HomePrefeito() {
   const units = useUnitsMap();
   const geo = useGeoLayers();
   const navigate = useNavigate();
-  const [layer, setLayer] = useState<Layer>('deficit');
+  const [ver, setVer] = useState<Ver>('area');
   const [todasAreas, setTodasAreas] = useState(false);
-  const setores = useGeoSetores(layer === 'criancas');
+  const setores = useGeoSetores(ver === 'setor');
+  // quantas unidades há em cada região ou microrregião (para a dica ao passar o mouse)
+  const contagem = useRpc<DadosRecorte>('mapa_recorte', { camada: 'unidades', recorte: ver }, { staleTime: 10 * 60_000 });
+
+  // só a divisão (localização, sem medida): contorno e fundo quase transparente; tocar abre a ficha da região
+  const divisao = useMemo<(Coropleta & { areaDe: Map<string, number> }) | null>(() => {
+    const base = ver === 'area' ? geo.data?.regions : setores.data;
+    if (!base) return null;
+    const n = new Map((contagem.data?.itens ?? []).map((i) => [String(i.chave), Number(i.valor ?? 0)]));
+    const areaDe = new Map<string, number>();
+    const feicoes = base.features.map((f) => {
+      const p = f.properties ?? {};
+      const chave = ver === 'area' ? String(p.id) : String(p.code);
+      areaDe.set(chave, Number(ver === 'area' ? p.id : p.area_id));
+      const nome = ver === 'area' ? String(p.name) : `Microrregião ${String(p.code).slice(-6)}${p.bairro ? ` · ${p.bairro}` : ''} (${p.area})`;
+      const k = n.get(chave) ?? 0;
+      return { type: 'Feature' as const, geometry: f.geometry, properties: { chave, cor: PURPLE, titulo: `${nome}: ${k === 0 ? 'nenhuma unidade' : `${k} unidade(s)`}` } };
+    });
+    return {
+      tipo: ver, neutra: true, areaDe,
+      feicoes: { type: 'FeatureCollection', features: feicoes },
+      faixas: { titulo: ver === 'area' ? 'Regiões do IBGE (áreas de ponderação)' : 'Microrregiões do IBGE (setores censitários)',
+                itens: [{ cor: 'rgba(122,36,197,0.25)', rotulo: ver === 'area' ? '29 regiões · toque para abrir a ficha' : '793 microrregiões · toque para abrir a ficha da região' }] },
+    };
+  }, [ver, geo.data, setores.data, contagem.data]);
 
   if (dash.isLoading) return <SkeletonList rows={6} />;
   if (dash.error) return <ErrorState error={dash.error} onRetry={() => dash.refetch()} />;
   const d = dash.data;
   const k = d.kpis;
-  const heat: HeatMode = layer === 'queue' ? 'queue_creche' : layer === 'enrollments' ? 'enrollments' : layer === 'offerable' ? 'offerable' : null;
-  const regionMetric: RegionMetric = layer === 'deficit' ? 'balance_creche' : null;
   const worst = d.regions?.[0];
 
   return (
     <div>
-      <PageHeader eyebrow="Visão do Prefeito · cidade inteira" title="Onde precisamos investir?" subtitle="Mapa de pressão por vagas, déficit por área de ponderação (IBGE) e capacidade ociosa — somente dados agregados, sem dados pessoais." />
+      <PageHeader eyebrow="Visão do Prefeito · cidade inteira" title="Onde precisamos investir?" subtitle="Todas as unidades da rede — CMEIs e escolas — por região do IBGE. Os demais mapas ficam em Mapas." />
 
       <Card className="relative overflow-hidden">
         <MapView
           className="h-[52vh] min-h-[360px] lg:h-[480px]"
           units={units.data?.units ?? []}
           geo={geo.data}
-          regionMetric={regionMetric}
-          setores={layer === 'criancas' ? setores.data ?? null : null}
-          heat={heat}
-          colorMode={layer === 'offerable' ? 'vacancy' : 'type'}
-          onSelectRegion={(id) => navigate(`/territorios/${id}`)}
+          coropleta={divisao}
+          onSelectCoropleta={(chave) => { const id = divisao?.areaDe.get(chave); if (id) navigate(`/territorios/${id}`); }}
           onSelectUnit={(u) => navigate(`/unidades/${u.id}`)}
           fitKey="cidade"
           cooperative
           padding={{ top: 64, bottom: 30, left: 24, right: 64 }}
-          legendNote={<>{layer === 'deficit' || layer === 'criancas' ? 'Toque numa área para explorar' : 'Toque numa unidade para abrir'} <SourceChip kind={layer === 'enrollments' || layer === 'criancas' ? 'oficial' : 'demo'} /></>}
+          legendNote={<>Toque numa unidade ou região para abrir <SourceChip kind="publico" /></>}
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-2 p-3">
-          <div className="pointer-events-auto no-scrollbar flex gap-2 overflow-x-auto">
-            <Chip icon={Flame} active={layer === 'deficit'} onClick={() => setLayer('deficit')}>Déficit de creche</Chip>
-            <Chip icon={Baby} active={layer === 'criancas'} onClick={() => setLayer('criancas')}>Crianças 0–4 (Censo)</Chip>
-            <Chip icon={ListOrdered} active={layer === 'queue'} onClick={() => setLayer('queue')}>Calor: fila</Chip>
-            <Chip icon={Users} active={layer === 'enrollments'} onClick={() => setLayer('enrollments')}>Calor: matrículas</Chip>
-            <Chip icon={Sparkles} active={layer === 'offerable'} onClick={() => setLayer('offerable')}>Vagas ofertáveis</Chip>
-            <Link to="/mapa?q=deficit&recorte=area" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-purple-700 px-3.5 text-[13px] font-semibold text-white shadow-soft hover:bg-purple-800">
-              <Flame className="size-4" aria-hidden />Todos os mapas<ChevronRight className="size-4" aria-hidden />
+          <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+            <Segmented className="whitespace-nowrap shadow-soft" value={ver} onChange={setVer}
+              items={[{ value: 'area', label: 'Regiões' }, { value: 'setor', label: 'Microrregiões' }]} />
+            <Link to="/mapa" className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-purple-700 px-4 text-[13.5px] font-semibold text-white shadow-soft hover:bg-purple-800">
+              <MapIcon className="size-4" aria-hidden />Todos os mapas<ChevronRight className="size-4" aria-hidden />
             </Link>
           </div>
         </div>

@@ -54,6 +54,8 @@ export type Coropleta = {
   feicoes: GeoJSON.FeatureCollection;
   /** Legenda: título e as faixas de cor. */
   faixas: Faixas;
+  /** Só a divisão (localização): contorno com fundo quase transparente, sem medida — sem a chave das cores. */
+  neutra?: boolean;
 };
 
 export type GeoLayers = {
@@ -595,8 +597,10 @@ export function MapView(p: MapViewProps) {
     map.setLayoutProperty('coro-line', 'visibility', c ? 'visible' : 'none');
     if (!c) return;
     map.setPaintProperty('coro-fill', 'fill-color', ['coalesce', ['get', 'cor'], SIGILO_COLOR] as never);
-    map.setPaintProperty('coro-line', 'line-color', c.tipo === 'area' ? REGION_LINE : '#ffffff');
-    map.setPaintProperty('coro-line', 'line-width', c.tipo === 'area' ? 1.4 : 0.6);
+    map.setPaintProperty('coro-fill', 'fill-opacity', c.neutra ? 0.06 : SETOR_OPACITY);
+    map.setPaintProperty('coro-line', 'line-color', c.tipo === 'area' || c.neutra ? REGION_LINE : '#ffffff');
+    map.setPaintProperty('coro-line', 'line-width', c.tipo === 'area' ? 1.4 : c.neutra ? 0.5 : 0.6);
+    map.setPaintProperty('coro-line', 'line-opacity', c.neutra && c.tipo === 'setor' ? 0.45 : 0.85);
   }, [ready, p.coropleta]);
 
   // enquadra numa área (ao descer para os setores dela)
@@ -739,7 +743,7 @@ export function MapView(p: MapViewProps) {
 
   const legendMode = p.legend ?? 'strip';
   // o mapa mostra alguma medida (e não só onde ficam as unidades): a chave das cores aparece
-  const temMedida = !!(p.coropleta || p.regionMetric || p.setores || p.heat || p.calor || p.colorMode === 'vacancy' || p.colorMode === 'classe');
+  const temMedida = !!((p.coropleta && !p.coropleta.neutra) || p.regionMetric || p.setores || p.heat || p.calor || p.colorMode === 'vacancy' || p.colorMode === 'classe');
   const legendInput = {
     // unidades pintadas no semáforo: a legenda delas vem nas faixas de quem chamou
     units: p.colorMode === 'classe' ? [] : p.units, showUnits: p.showUnits, colorMode: p.colorMode === 'classe' ? undefined : p.colorMode, heat: p.heat,
