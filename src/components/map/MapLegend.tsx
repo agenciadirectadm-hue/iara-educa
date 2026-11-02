@@ -178,7 +178,8 @@ export function MapLegend({ variant = 'strip', note, className, defaultOpen = tr
   className?: string;
   defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  // no celular a legenda detalhada começa fechada: a chave das cores já fica sempre à vista no mapa
+  const [open, setOpen] = useState(() => defaultOpen && !(variant === 'overlay' && typeof window !== 'undefined' && window.innerWidth < 1024));
   const groups = buildLegend(input);
   if (!groups.length && !note) return null;
 

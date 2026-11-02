@@ -283,13 +283,7 @@ export default function MapPage() {
             </div>
           )}
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
-          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.vermelho }} />agir primeiro</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.amarelo }} />intermediário</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.verde }} />melhor</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full" style={{ background: SEMAFORO.cinza }} />sem dado</span>
-          <span className="hidden text-subtle sm:inline">· {RECORTE_AJUDA[recorte]}</span>
-        </div>
+        <p className="mt-1.5 hidden text-[12px] text-subtle sm:block">{RECORTE_AJUDA[recorte]}</p>
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -319,6 +313,7 @@ export default function MapPage() {
             pontos={veiculos}
             onSelectLinha={(id) => navigate(`/transporte/rotas/${id}`)}
             homeLabel="Ponto pesquisado"
+            chave={desktop ? 'right-3 top-[68px]' : 'bottom-[142px] right-3'}
             legend="overlay"
             legendClassName={desktop ? 'bottom-3 left-[424px]' : 'left-3 top-[66px]'}
             focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : point && pontosRede ? { lat: point.lat, lng: point.lng, zoom: 13.6 } : null}

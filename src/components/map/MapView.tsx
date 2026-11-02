@@ -11,7 +11,7 @@ import {
   SIGILO_COLOR, UNIT_COLOR, VACANCY_COLOR, interpolate,
 } from './mapStyle';
 import type { Faixas } from './MapLegend';
-import { classe, corDe, cortes, legenda, type Pior } from './semaforo';
+import { SEMAFORO, classe, corDe, cortes, legenda, type Pior } from './semaforo';
 
 /** Métricas das áreas (regionMetric) no semáforo: o que é pior e como a legenda fala de cada ponta. */
 const METRICA: Record<NonNullable<RegionMetric>, { pior: Pior; titulo: string; palavras: { pior: string; melhor: string } }> = {
@@ -90,6 +90,8 @@ export type MapViewProps = {
   corUnidade?: Record<number, string> | null;
   /** Faixas extras na legenda (ex.: escolas pintadas pelo semáforo). */
   faixas?: Faixas[];
+  /** Posição da chave das cores (aparece sozinha quando o mapa mostra uma medida); false esconde. Padrão: canto inferior direito. */
+  chave?: string | false;
   showAreas?: boolean;
   home?: { lat: number; lng: number; radius_m?: number } | null;
   highlight?: { id: number; label: string }[];
@@ -132,6 +134,19 @@ function circle(lat: number, lng: number, r: number, n = 72): GeoJSON.Feature<Ge
     coords.push([lng + (r * Math.sin(a)) / (111320 * Math.cos((lat * Math.PI) / 180)), lat + (r * Math.cos(a)) / 110540]);
   }
   return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } };
+}
+
+/** A regra das cores, numa linha, em todo mapa que mostra uma medida (a legenda completa detalha as faixas). */
+const CHAVE: [keyof typeof SEMAFORO, string][] = [['vermelho', 'Agir primeiro'], ['amarelo', 'Intermediário'], ['verde', 'Melhor'], ['cinza', 'Sem dado']];
+function ChaveCores({ className }: { className: string }) {
+  return (
+    <div role="note" aria-label="Como ler as cores: vermelho, agir primeiro; amarelo, intermediário; verde, melhor; cinza, sem dado"
+      className={clsx('pointer-events-none absolute z-10 flex max-w-[calc(100%-24px)] flex-wrap items-center gap-x-2.5 gap-y-0.5 rounded-full bg-white/90 px-3 py-1.5 text-[11.5px] font-semibold text-ink-2 shadow-soft ring-1 ring-line/80 backdrop-blur', className)}>
+      {CHAVE.map(([k, t]) => (
+        <span key={k} className="inline-flex items-center gap-1 whitespace-nowrap"><span className="size-2.5 rounded-full" style={{ background: SEMAFORO[k] }} aria-hidden />{t}</span>
+      ))}
+    </div>
+  );
 }
 
 function maskOutside(f?: GeoJSON.Feature): GeoJSON.Feature | null {
@@ -723,6 +738,8 @@ export function MapView(p: MapViewProps) {
   }
 
   const legendMode = p.legend ?? 'strip';
+  // o mapa mostra alguma medida (e não só onde ficam as unidades): a chave das cores aparece
+  const temMedida = !!(p.coropleta || p.regionMetric || p.setores || p.heat || p.calor || p.colorMode === 'vacancy' || p.colorMode === 'classe');
   const legendInput = {
     // unidades pintadas no semáforo: a legenda delas vem nas faixas de quem chamou
     units: p.colorMode === 'classe' ? [] : p.units, showUnits: p.showUnits, colorMode: p.colorMode === 'classe' ? undefined : p.colorMode, heat: p.heat,
@@ -742,6 +759,7 @@ export function MapView(p: MapViewProps) {
     <div className={clsx('overflow-hidden', !/\b(absolute|fixed|sticky)\b/.test(p.className ?? '') && 'relative', p.className)}>
       <div ref={ref} className="h-full w-full" role="application" aria-label="Mapa interativo das unidades de Maringá" />
       {!ready && <div className="skeleton absolute inset-0" aria-hidden />}
+      {ready && p.chave !== false && temMedida && <ChaveCores className={p.chave || 'bottom-7 right-3'} />}
       {legendMode === 'overlay' && <MapLegend variant="overlay" className={p.legendClassName ?? 'bottom-3 left-3'} note={p.legendNote} {...legendInput} />}
       {p.controls !== false && (
         <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
