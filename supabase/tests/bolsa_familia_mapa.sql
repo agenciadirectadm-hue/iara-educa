@@ -51,5 +51,17 @@ begin
     and pg_temp.as_call('bfm-pref', 'bolsa_familia_motivos', '{"faixa": "99"}') ->> 'codigo' = '22023'
     and pg_temp.as_call('bfm-dir', 'bolsa_familia_motivos', '{}') ->> 'codigo' = '42501',
     'ano', r - 'de' - 'ate', 'recorte', r2 -> 'total_faltas', 'erro', coalesce(r ->> 'erro', r2 ->> 'erro'));
+  -- camadas do mapa (095): reincidência e faltas sem justificativa, com a mesma conta da pizza
+  r := pg_temp.as_call('bfm-pref', 'bolsa_familia_resumo', '{"ano": 2026, "atualizar": true}');
+  r2 := pg_temp.as_call('bfm-pref', 'bolsa_familia_motivos', '{"ano": 2026}');
+  v_out := v_out || jsonb_build_object('passo', 'M4. Camadas diferentes: reincidência ≤ deixaram de receber; faltas sem justificativa batem com a pizza', 'ok',
+    not exists (select 1 from jsonb_array_elements(r -> 'mapa_unidades') x where x ? 'acompanhados' and not (x ? 'taxa_2' and x ? 'taxa_sem_just'))
+    and not exists (select 1 from jsonb_array_elements(r -> 'mapa_unidades') x where (x ->> 'taxa_2')::numeric > (x ->> 'taxa')::numeric)
+    and not exists (select 1 from jsonb_array_elements(r -> 'mapa_unidades') x where x -> 'abaixo_2' = 'null'::jsonb and x -> 'taxa_2' <> 'null'::jsonb)
+    and (select sum((x ->> 'sem_justificativa')::int) from jsonb_array_elements(r -> 'mapa_unidades') x where x ? 'sem_justificativa')
+        <= (select (c ->> 'faltas')::int from jsonb_array_elements(r2 -> 'categorias') c where c ->> 'categoria' = 'SEM_JUSTIFICATIVA')
+    and (select sum((x ->> 'sem_justificativa')::int) from jsonb_array_elements(r -> 'mapa_unidades') x where x ? 'sem_justificativa')
+        > 0.95 * (select (c ->> 'faltas')::int from jsonb_array_elements(r2 -> 'categorias') c where c ->> 'categoria' = 'SEM_JUSTIFICATIVA'),
+    'exemplo', (select x from jsonb_array_elements(r -> 'mapa_regioes') x where x ? 'taxa_2' limit 1));
   raise exception 'RESULTADO: %', v_out;
 end $$;

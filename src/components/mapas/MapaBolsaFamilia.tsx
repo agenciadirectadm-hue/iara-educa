@@ -9,8 +9,12 @@ import MapView, { type Coropleta } from '@/components/map/MapView';
 import { SEMAFORO, classe, corDe, cortes, legenda } from '@/components/map/semaforo';
 import { caixaDe, type Caixa } from '@/components/map/geometria';
 
-export type ItemMapa = { id: number; sigilo?: boolean; acompanhados?: number; abaixo?: number | null; abaixo_2?: number | null; assiduos?: number; taxa?: number };
-type Medida = 'deixaram' | 'assiduos';
+export type ItemMapa = {
+  id: number; sigilo?: boolean; acompanhados?: number; abaixo?: number | null; abaixo_2?: number | null; assiduos?: number;
+  /** % dos acompanhados que deixaram de receber; taxa_2: % em dois ou mais bimestres; taxa_sem_just: % das faltas sem justificativa */
+  taxa?: number | null; taxa_2?: number | null; faltas?: number; sem_justificativa?: number; taxa_sem_just?: number | null;
+};
+type Medida = 'deixaram' | 'reincidencia' | 'sem_justificativa';
 type Detalhe = {
   unidade: { id: number; nome: string; tipo: string; regiao?: string | null }; sigilo?: boolean; nota?: string;
   alunos?: number; acompanhados?: number; assiduos?: number; deixaram_de_receber?: number | null; abaixo_2?: number | null;
@@ -19,14 +23,24 @@ type Detalhe = {
 };
 
 const CURTO = ['', 'Fev–mar', 'Abr–mai', 'Jun–jul', 'Ago–set', 'Out–nov'];
-const MEDIDA: Record<Medida, { titulo: string; pior: 'maior' | 'menor'; palavras: { pior: string; melhor: string } }> = {
-  deixaram: { titulo: 'deixaram de receber (% dos acompanhados)', pior: 'maior', palavras: { pior: 'Mais deixaram de receber', melhor: 'Menos deixaram de receber' } },
-  assiduos: { titulo: 'têm recebido assiduamente (% dos acompanhados)', pior: 'menor', palavras: { pior: 'Menos assíduos', melhor: 'Mais assíduos' } },
+// três camadas que dizem coisas diferentes, cada uma ligada a uma ação
+const MEDIDA: Record<Medida, { rotulo: string; titulo: string; explica: string; campo: 'taxa' | 'taxa_2' | 'taxa_sem_just'; palavras: { pior: string; melhor: string } }> = {
+  deixaram: { rotulo: 'Deixaram de receber', titulo: 'deixaram de receber (% dos acompanhados)', campo: 'taxa',
+    explica: 'Onde a perda acontece: alunos abaixo da frequência mínima em ao menos um bimestre do ano.',
+    palavras: { pior: 'Mais deixaram de receber', melhor: 'Menos deixaram de receber' } },
+  reincidencia: { rotulo: 'Reincidência', titulo: 'abaixo do mínimo em 2 ou mais bimestres (% dos acompanhados)', campo: 'taxa_2',
+    explica: 'Onde o corte do benefício é mais provável: a repetição leva a bloqueio, suspensão ou cancelamento.',
+    palavras: { pior: 'Mais reincidência', melhor: 'Menos reincidência' } },
+  sem_justificativa: { rotulo: 'Faltas sem justificativa', titulo: 'faltas sem justificativa (% das faltas)', campo: 'taxa_sem_just',
+    explica: 'Onde a escola precisa falar com as famílias: faltas sem atestado, sem motivo escrito e fora de dia sem transporte.',
+    palavras: { pior: 'Mais faltas sem justificativa', melhor: 'Menos faltas sem justificativa' } },
 };
 const num = (v: number | null | undefined) => (v == null ? 'menos de 3' : fmtInt(v));
-const valorDe = (i: ItemMapa | undefined, m: Medida) => (!i || i.sigilo || i.taxa == null ? null : m === 'deixaram' ? i.taxa : Math.round((100 - i.taxa) * 10) / 10);
+const valorDe = (i: ItemMapa | undefined, m: Medida) => (!i || i.sigilo ? null : i[MEDIDA[m].campo] ?? null);
+const pctTxt = (v: number | null | undefined) => (v == null ? 'sigilo' : `${v.toLocaleString('pt-BR')}%`);
 
-/** Mapa do Bolsa Família na escola: regiões e unidades no semáforo (deixaram de receber ou assiduidade). Tocar numa região
+/** Mapa do Bolsa Família na escola: regiões e unidades no semáforo (deixaram de receber, reincidência ou faltas sem
+ * justificativa). Tocar numa região
  * abre os números dela e das unidades que ficam ali; tocar numa unidade abre cada período e os motivos sugeridos. */
 export function MapaBolsaFamilia({ regioes, unidades }: { regioes: ItemMapa[]; unidades: ItemMapa[] }) {
   const geo = useGeoLayers();
@@ -40,12 +54,13 @@ export function MapaBolsaFamilia({ regioes, unidades }: { regioes: ItemMapa[]; u
   const coropleta = useMemo<Coropleta | null>(() => {
     const base = geo.data?.regions;
     if (!base) return null;
-    const c = cortes(base.features.map((f) => valorDe(porRegiao.get(Number(f.properties?.id)), medida)), m.pior);
+    const c = cortes(base.features.map((f) => valorDe(porRegiao.get(Number(f.properties?.id)), medida)), 'maior');
     const feicoes = base.features.map((f) => {
       const id = Number(f.properties?.id);
       const it = porRegiao.get(id);
       const v = valorDe(it, medida);
-      const txt = v == null ? (it?.sigilo ? 'sigilo (menos de 3 alunos)' : 'sem alunos do Bolsa Família') : `${v.toLocaleString('pt-BR')}% (${fmtInt(it!.acompanhados)} acompanhados)`;
+      const txt = v == null ? (it && !it.sigilo ? 'sigilo (menos de 3)' : it?.sigilo ? 'sigilo (menos de 3 alunos)' : 'sem alunos do Bolsa Família')
+        : `${v.toLocaleString('pt-BR')}% (${fmtInt(it!.acompanhados)} acompanhados)`;
       return { type: 'Feature' as const, geometry: f.geometry, properties: { chave: String(id), valor: v, cor: corDe(classe(v, c)), sel: aberta?.tipo === 'regiao' && aberta.id === id, titulo: `${f.properties?.name}: ${txt}` } };
     });
     return { tipo: 'area', feicoes: { type: 'FeatureCollection', features: feicoes },
@@ -54,9 +69,12 @@ export function MapaBolsaFamilia({ regioes, unidades }: { regioes: ItemMapa[]; u
 
   const { corUnidade, faixas } = useMemo(() => {
     const lista = units.data?.units ?? [];
-    const c = cortes(lista.map((u) => valorDe(porUnidade.get(u.id), medida)), m.pior);
+    const c = cortes(lista.map((u) => valorDe(porUnidade.get(u.id), medida)), 'maior');
     const cores: Record<number, string> = {};
-    for (const u of lista) cores[u.id] = porUnidade.get(u.id)?.taxa != null ? corDe(classe(valorDe(porUnidade.get(u.id), medida), c)) : SEMAFORO.cinza;
+    for (const u of lista) {
+      const v = valorDe(porUnidade.get(u.id), medida);
+      cores[u.id] = v != null ? corDe(classe(v, c)) : SEMAFORO.cinza;
+    }
     return { corUnidade: cores, faixas: [{ titulo: `Unidades · ${m.titulo}`, itens: legenda(c, m.palavras, '%', 'Sigilo ou sem alunos do Bolsa Família') }] };
   }, [units.data, porUnidade, medida, m]);
 
@@ -91,9 +109,10 @@ export function MapaBolsaFamilia({ regioes, unidades }: { regioes: ItemMapa[]; u
         padding={aberta ? (largo ? { top: 64, bottom: 30, left: 380, right: 48 } : { top: 64, bottom: 360, left: 24, right: 48 }) : { top: 64, bottom: 30, left: 24, right: 48 }}
         legendNote="Toque numa região ou numa unidade para ver o detalhe"
       />
-      <div className="pointer-events-none absolute inset-x-0 top-0 p-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-start gap-1.5 p-3">
         <Segmented className="pointer-events-auto whitespace-nowrap shadow-soft" value={medida} onChange={(v) => setMedida(v as Medida)}
-          items={[{ value: 'deixaram', label: 'Deixaram de receber' }, { value: 'assiduos', label: 'Assiduidade' }]} />
+          items={(Object.keys(MEDIDA) as Medida[]).map((k) => ({ value: k, label: MEDIDA[k].rotulo }))} />
+        <p className="max-w-[460px] rounded-xl bg-white/90 px-2.5 py-1 text-[12px] text-ink-2 shadow-soft ring-1 ring-line backdrop-blur">{m.explica}</p>
       </div>
       {regiaoAberta && (
         <Cartao titulo={String(regiaoAberta.properties?.name)} rotulo="Região do IBGE" onFechar={() => setAberta(null)}>
@@ -101,16 +120,16 @@ export function MapaBolsaFamilia({ regioes, unidades }: { regioes: ItemMapa[]; u
           <div className="mt-3 max-h-44 divide-y divide-line overflow-y-auto rounded-2xl ring-1 ring-line">
             {(units.data?.units ?? []).filter((u) => u.macro_id === aberta!.id)
               .map((u) => ({ u, it: porUnidade.get(u.id) }))
-              .sort((a, b) => (b.it?.taxa ?? -1) - (a.it?.taxa ?? -1))
+              .sort((a, b) => (valorDe(b.it, medida) ?? -1) - (valorDe(a.it, medida) ?? -1))
               .map(({ u, it }) => (
                 <button key={u.id} type="button" onClick={() => setAberta({ tipo: 'unidade', id: u.id })} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-purple-50">
                   <span className="size-2.5 shrink-0 rounded-full" style={{ background: corUnidade[u.id] }} aria-hidden />
                   <span className="min-w-0 flex-1 truncate font-semibold">{u.name}</span>
-                  <span className="shrink-0 text-[12px] tabular text-muted">{it?.taxa == null ? 'sigilo' : `${num(it.abaixo)} de ${fmtInt(it.acompanhados)}`}</span>
+                  <span className="shrink-0 text-[12px] tabular text-muted">{!it || it.sigilo ? 'sigilo' : pctTxt(valorDe(it, medida))}</span>
                 </button>
               ))}
           </div>
-          <p className="mt-2 text-[11.5px] text-muted">Por unidade: quantos deixaram de receber, dos acompanhados. Toque para abrir.</p>
+          <p className="mt-2 text-[11.5px] text-muted">Por unidade: {m.titulo}. Toque para abrir.</p>
         </Cartao>
       )}
       {unidadeAberta && <CartaoUnidade id={unidadeAberta.id} nome={unidadeAberta.name} item={porUnidade.get(unidadeAberta.id)} onFechar={() => setAberta(null)}
@@ -143,6 +162,10 @@ function Numeros({ item }: { item?: ItemMapa }) {
       <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-line"><div className="font-display text-xl font-extrabold tabular">{fmtInt(item.acompanhados)}</div><div className="text-[11px] leading-tight text-muted">acompanhados</div></div>
       <div className="rounded-2xl bg-red-50 p-2 ring-1 ring-red-100"><div className="font-display text-xl font-extrabold tabular text-red-700">{num(item.abaixo)}</div><div className="text-[11px] leading-tight text-muted">deixaram de receber{item.taxa != null ? ` (${item.taxa.toLocaleString('pt-BR')}%)` : ''}</div></div>
       <div className="rounded-2xl bg-green-50 p-2 ring-1 ring-green-100"><div className="font-display text-xl font-extrabold tabular text-green-700">{fmtInt(item.assiduos)}</div><div className="text-[11px] leading-tight text-muted">assíduos</div></div>
+      <div className="col-span-3 grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-amber-50 p-2 ring-1 ring-amber-100"><div className="font-display text-lg font-extrabold tabular text-amber-800">{num(item.abaixo_2)}</div><div className="text-[11px] leading-tight text-muted">reincidência: 2 ou mais bimestres{item.taxa_2 != null ? ` (${item.taxa_2.toLocaleString('pt-BR')}%)` : ''}</div></div>
+        <div className="rounded-2xl bg-blue-50 p-2 ring-1 ring-blue-100"><div className="font-display text-lg font-extrabold tabular text-blue-900">{pctTxt(item.taxa_sem_just)}</div><div className="text-[11px] leading-tight text-muted">das {fmtInt(item.faltas)} faltas sem justificativa</div></div>
+      </div>
     </div>
   );
 }
