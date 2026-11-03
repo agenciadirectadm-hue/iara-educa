@@ -1,4 +1,4 @@
-import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -41,6 +41,7 @@ const I = {
   // vida escolar (Sprint 1)
   pessoal: { to: '/pessoal', label: 'Pessoal', icon: IdCard, grupo: 'gestao' },
   frequencia: { to: '/frequencia', label: 'Frequência', icon: CalendarCheck, grupo: 'escolar' },
+  presenca: { to: '/presenca', label: 'Sistema Presença', icon: ClipboardCheck, grupo: 'escolar' },
   nutricao: { to: '/nutricao', label: 'Cardápio e nutrição', icon: Apple, grupo: 'estrutura' },
   cozinha: { to: '/cozinha', label: 'Cozinha', icon: ChefHat, grupo: 'estrutura' },
   manutencao: { to: '/manutencao', label: 'Manutenção', icon: Wrench, grupo: 'estrutura' },
@@ -93,7 +94,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
         more: [I.iara, I.whatsapp,
           I.vagas, I.ofertas, I.rematricula, I.alunos, I.responsaveis, I.validacoes,
-          I.frequencia, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
+          I.frequencia, I.presenca, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
           I.unidades, I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
           I.gestao, I.pessoal, I.indicadores,
@@ -125,7 +126,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.rematricula, I.alunos, I.responsaveis, I.validacoes,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}`, grupo: 'escolar' },
-          I.frequencia, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
+          I.frequencia, I.presenca, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
           I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.gestao, I.indicadores, I.auditoria, I.regras, I.suporte, I.ajuda,
@@ -142,7 +143,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [
           I.atendimentos, I.rematricula, I.responsaveis, I.validacoes, { ...I.fila, to: `/fila?unidade=${unitId}` },
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, grupo: 'escolar' },
-          I.frequencia, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
+          I.frequencia, I.presenca, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos, I.verificar,
           I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.suporte, I.ajuda,

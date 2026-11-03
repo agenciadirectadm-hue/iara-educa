@@ -70,6 +70,7 @@ const PublicosPrefeito = lazy(() => import('./pages/PublicosPrefeito'));
 const Oraculo = lazy(() => import('./pages/Oraculo'));
 const MeuPonto = lazy(() => import('./pages/MeuPonto'));
 const PontoEquipe = lazy(() => import('./pages/PontoEquipe'));
+const SistemaPresenca = lazy(() => import('./pages/SistemaPresenca'));
 const Embarque = lazy(() => import('./pages/Rota').then((m) => ({ default: m.Embarque })));
 const BuscaAtiva = lazy(() => import('./pages/BuscaAtiva'));
 const GestaoRede = lazy(() => import('./pages/GestaoRede'));
@@ -214,6 +215,7 @@ export const router = createHashRouter([
       { path: '/oraculo', element: <RequireSession>{S(<Oraculo />)}</RequireSession>, handle: { wide: true } },
       { path: '/ponto', element: <RequireSession>{S(<MeuPonto />)}</RequireSession>, handle: { wide: true } },
       { path: '/ponto/equipe', element: <RequireSession>{S(<PontoEquipe />)}</RequireSession>, handle: { wide: true } },
+      { path: '/presenca', element: <RequireSession>{S(<SistemaPresenca />)}</RequireSession>, handle: { wide: true } },
       { path: '/fila', element: <RequireSession>{S(<Queue />)}</RequireSession>, handle: { wide: true } },
       { path: '/fila/:id', element: <RequireSession>{S(<QueueEntry />)}</RequireSession> },
       { path: '/ofertas', element: <RequireSession>{S(<Offers />)}</RequireSession> },
