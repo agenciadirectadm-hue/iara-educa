@@ -27,6 +27,9 @@ IARA_EDUCA_ESTRUTURA_E_PRIORIDADES*.md
 dashoboard-conceito-iara-educa.png
 IARA_Educa_Microdados_2025_Nivel3_REAL.xlsx
 mascote-ipe-roxo.png
+# Preços e propostas comerciais (calculadora e dados do simulador) — nunca no repositório público
+docs/apresentacao/
+supabase/privado/
 
 # Sistema
 .DS_Store

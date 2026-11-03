@@ -1,4 +1,4 @@
-import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardList, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -66,6 +66,8 @@ const I = {
   rematricula: { to: '/rematricula', label: 'Rematrícula', icon: ArrowRightLeft, grupo: 'matricula' },
   ensalamento: { to: '/ensalamento', label: 'Ensalamento', icon: DoorOpen, grupo: 'estrutura' },
   eventos: { to: '/eventos', label: 'Eventos e certificados', icon: Award, grupo: 'pedagogico' },
+  // comercial (só o perfil Comercial)
+  simulador: { to: '/simulador', label: 'Simulador de preços', icon: Calculator, grupo: 'gestao' },
 } satisfies Record<string, NavItem>;
 
 /** Agrupa os itens na ordem dos grupos, mantendo a ordem de cada grupo. */
@@ -182,6 +184,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.mural, I.calendario],
         more: [I.eventos, I.regras, I.suporte, I.ajuda],
       };
+    case 'COMERCIAL':
+      return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [] };
     case 'MANUTENCAO':
       return {
         primary: [I.inicio, { ...I.manutencao, label: 'Chamados' }, I.materiais, I.mapa],

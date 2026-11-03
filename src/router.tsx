@@ -65,6 +65,7 @@ const Declaracao = lazy(() => import('./pages/Declaracao'));
 const Verificar = lazy(() => import('./pages/Declaracao').then((m) => ({ default: m.Verificar })));
 const Transporte = lazy(() => import('./pages/Transporte'));
 const Rota = lazy(() => import('./pages/Rota'));
+const SimuladorPrecos = lazy(() => import('./pages/SimuladorPrecos'));
 const Embarque = lazy(() => import('./pages/Rota').then((m) => ({ default: m.Embarque })));
 const BuscaAtiva = lazy(() => import('./pages/BuscaAtiva'));
 const GestaoRede = lazy(() => import('./pages/GestaoRede'));
@@ -204,6 +205,7 @@ export const router = createHashRouter([
       { path: '/atendimentos/novo', element: <RequireSession>{S(<CaseNew />)}</RequireSession> },
       { path: '/atendimentos/:id', element: <RequireSession>{S(<CasePage />)}</RequireSession> },
       { path: '/vagas', element: S(<VacancySearch />) },
+      { path: '/simulador', element: <RequireSession>{S(<SimuladorPrecos />)}</RequireSession>, handle: { wide: true } },
       { path: '/fila', element: <RequireSession>{S(<Queue />)}</RequireSession>, handle: { wide: true } },
       { path: '/fila/:id', element: <RequireSession>{S(<QueueEntry />)}</RequireSession> },
       { path: '/ofertas', element: <RequireSession>{S(<Offers />)}</RequireSession> },
