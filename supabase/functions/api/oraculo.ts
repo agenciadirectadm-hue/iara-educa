@@ -15,7 +15,7 @@ type Bloco = { type: string; id?: string; name?: string; input?: unknown; text?:
 type Consulta = { topico?: string; recorte?: string; numeros?: unknown[] };
 
 const TOPICOS = ["visao_geral", "matriculas", "fila", "vagas", "creche", "frequencia", "ocorrencias", "profissionais", "transporte",
-  "alfabetizacao", "busca_ativa", "unidades", "cadastros"];
+  "alfabetizacao", "busca_ativa", "unidades", "cadastros", "bolsa_familia"];
 
 export const FERRAMENTAS = [
   {
@@ -23,7 +23,9 @@ export const FERRAMENTAS = [
     description: "Números consolidados da rede municipal de educação sobre um tópico, na cidade toda, numa unidade (CMEI ou escola) " +
       "ou numa região (área de ponderação do IBGE). Tópicos: visao_geral (resumo), matriculas, fila (fila de espera por vaga), vagas, " +
       "creche, frequencia (presença dos últimos 30 dias, alertas e busca ativa), ocorrencias (últimos 90 dias), profissionais, " +
-      "transporte (escolar), alfabetizacao (sondagens do ano), busca_ativa, unidades, cadastros (completude dos cadastros). " +
+      "transporte (escolar), alfabetizacao (sondagens do ano), busca_ativa, unidades, cadastros (completude dos cadastros), " +
+      "bolsa_familia (alunos em famílias do Bolsa Família; deixaram de receber = abaixo da frequência mínima em ao menos um período " +
+      "do ano; têm recebido assiduamente = sempre dentro do mínimo). " +
       "Devolve só números agregados, nunca nomes nem contatos.",
     input_schema: {
       type: "object",

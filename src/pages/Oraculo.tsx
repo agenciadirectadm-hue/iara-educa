@@ -14,6 +14,7 @@ const SUGESTOES = [
   'Quantas ocorrências graves tivemos nos últimos 90 dias?',
   'Como está a alfabetização das crianças?',
   'Quantas vagas temos na AP 002?',
+  'Quantos alunos do Bolsa Família ficaram abaixo da frequência mínima?',
 ];
 const MAX_AUDIO_S = 60;
 

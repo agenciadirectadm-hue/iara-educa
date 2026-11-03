@@ -1,4 +1,4 @@
-import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -42,6 +42,7 @@ const I = {
   pessoal: { to: '/pessoal', label: 'Pessoal', icon: IdCard, grupo: 'gestao' },
   frequencia: { to: '/frequencia', label: 'Frequência', icon: CalendarCheck, grupo: 'escolar' },
   presenca: { to: '/presenca', label: 'Sistema Presença', icon: ClipboardCheck, grupo: 'escolar' },
+  bolsaFamilia: { to: '/bolsa-familia', label: 'Bolsa Família', icon: HandCoins, grupo: 'gestao' },
   nutricao: { to: '/nutricao', label: 'Cardápio e nutrição', icon: Apple, grupo: 'estrutura' },
   cozinha: { to: '/cozinha', label: 'Cozinha', icon: ChefHat, grupo: 'estrutura' },
   manutencao: { to: '/manutencao', label: 'Manutenção', icon: Wrench, grupo: 'estrutura' },
@@ -86,7 +87,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
   const unitId = me?.unit?.id;
   switch (role) {
     case 'PREFEITO':
-      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.oraculo, I.publicos, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.oraculo, I.bolsaFamilia, I.publicos, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
     case 'SECRETARIO':
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
@@ -94,7 +95,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
         more: [I.iara, I.whatsapp,
           I.vagas, I.ofertas, I.rematricula, I.alunos, I.responsaveis, I.validacoes,
-          I.frequencia, I.presenca, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
+          I.frequencia, I.presenca, I.bolsaFamilia, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
           I.unidades, I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
           I.gestao, I.pessoal, I.indicadores,
