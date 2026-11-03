@@ -112,3 +112,33 @@ export function rotasFila(tempoS = 100) {
 export function rotasStatus() {
   return request<{ provedor: string; a_pe: { ok: boolean; ms: number; erro?: string }; carro: { ok: boolean; ms: number; erro?: string } }>('/rotas/status', { method: 'GET' });
 }
+
+/** Oráculo do Prefeito: números consolidados do município (Claude Opus 5.5 quando há chave; regras do IARA sem ela). */
+export type OraculoNumero = { rotulo: string; valor: number | null; sufixo?: string; casas?: number };
+export type OraculoConsulta = { topico?: string; recorte?: string; numeros?: OraculoNumero[] };
+export type OraculoResposta = {
+  pergunta: string; canal: 'TEXTO' | 'AUDIO'; transcricao: string | null; modo: 'CLAUDE' | 'REGRAS'; modelo?: string;
+  resposta: string; aviso?: string | null; consultas: OraculoConsulta[];
+};
+export type OraculoStatus = {
+  claude: boolean; modelo: string | null; audio: boolean;
+  historico: { id: string; criado_em: string; pergunta: string; canal: 'TEXTO' | 'AUDIO'; modo: 'CLAUDE' | 'REGRAS'; resposta: string }[];
+};
+export function oraculoStatus() {
+  return request<OraculoStatus>('/oraculo', { method: 'GET' });
+}
+export function oraculoPerguntar(body: { pergunta?: string; audio_base64?: string; audio_tipo?: string }) {
+  return request<OraculoResposta>('/oraculo', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** Ponto com a biometria do aparelho: opções do desafio, cadastro da credencial e marcação (conferidos no gateway). */
+export function pontoOpcoes(tipo: 'CADASTRO' | 'MARCACAO') {
+  return request<any>('/ponto/biometria/opcoes', { method: 'POST', body: JSON.stringify({ tipo }) });
+}
+export function pontoCadastrar(resposta: unknown) {
+  return request<{ ok: boolean; id: string }>('/ponto/biometria/cadastrar', { method: 'POST', body: JSON.stringify({ resposta }) });
+}
+export function pontoMarcar(body: { resposta: unknown; lat?: number | null; lng?: number | null; precisao?: number | null }) {
+  return request<{ tipo?: 'ENTRADA' | 'SAIDA'; hora?: string; distancia_m?: number | null; fora?: boolean; sem_local?: boolean; raio_m?: number; repetida?: boolean; aviso?: string }>(
+    '/ponto/marcar', { method: 'POST', body: JSON.stringify(body) });
+}

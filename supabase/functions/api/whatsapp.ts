@@ -95,7 +95,7 @@ const EXT_AUDIO: Record<string, string> = {
 /** Frases que o Whisper "ouve" em áudio vazio ou só com ruído — não são o que a pessoa disse. */
 const ALUCINACAO = /amara\.org|legendas? pela comunidade|obrigad[oa] por assistir|inscreva-se no canal|^\W*$/i;
 
-async function transcrever(base64: string, tipo: string): Promise<string | null> {
+export async function transcrever(base64: string, tipo: string): Promise<string | null> {
   if (!GROQ || !base64 || base64.length > 12_000_000) return null;
   try {
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));

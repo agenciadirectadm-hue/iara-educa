@@ -10,6 +10,10 @@
 //   POST   /rotas            { lat, lng, unidades?|proximas?, geometria_unidade? } → linha reta, a pé e de carro (ver rotas.ts)
 //   POST   /rotas/fila       { unidades? }             → rotas da fila ativa em lote (Secretaria)
 //   GET    /rotas/status                               → situação do motor de rotas
+//   GET    /oraculo                                    → Oráculo do Prefeito: modo (Claude ou regras), áudio e histórico
+//   POST   /oraculo          { pergunta } | { audio_base64, audio_tipo } → números consolidados do município (ver oraculo.ts)
+//   POST   /mcp              JSON-RPC 2.0                → servidor MCP do Oráculo (sessão do Prefeito em Authorization: Bearer)
+//   POST   /ponto/biometria/opcoes · /ponto/biometria/cadastrar · /ponto/marcar → ponto com a biometria do aparelho (ver ponto.ts)
 //   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
 import { asSystem, callApi, gravarRotas, mapDbError, modoDemo, sql, type RequestMeta } from "./db.ts";
 import { Agent, type ConvSnapshot } from "./iara.ts";
@@ -17,6 +21,8 @@ import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 import { localizarEndereco } from "./geo.ts";
 import { ARQUIVO_MAX_BYTES, descartarArquivos, guardarArquivo, lerArquivo } from "./arquivos.ts";
 import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
+import { claudeDisponivel, mcp, perguntarOraculo, statusOraculo } from "./oraculo.ts";
+import { pontoBiometria } from "./ponto.ts";
 
 // CORS restrito (SEC-AT-03): só o portal publicado, o ambiente local e os domínios de CORS_ORIGINS (produção).
 // A ponte do WhatsApp fala de servidor para servidor (sem Origin) e não depende disto.
@@ -28,7 +34,7 @@ function cors(req: Request): Record<string, string> {
   return {
     ...(o && (ORIGENS.has(o) || LOCAL.test(o)) ? { "Access-Control-Allow-Origin": o } : {}),
     "Vary": "Origin",
-    "Access-Control-Allow-Headers": "content-type, x-iara-session, x-request-id",
+    "Access-Control-Allow-Headers": "content-type, x-iara-session, x-request-id, authorization, mcp-protocol-version",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Max-Age": "86400",
   };
@@ -53,6 +59,10 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
   if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
   if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
+  // o Oráculo chama o Claude (custo por pergunta): poucas por minuto
+  if (path === "/oraculo") l.push([`oraculo:${ip}`, 20, 60]);
+  if (path === "/mcp") l.push([`mcp:${ip}`, 120, 60]);
+  if (path.startsWith("/ponto/")) l.push([`ponto:${ip}`, 60, 60]);
   // verificação pública de declaração: poucas tentativas por IP (o código tem 60 bits; isto barra varredura)
   if (path === "/rpc/declaracao_verificar") l.push([`verificar:${ip}`, 30, 600]);
   if (path.startsWith("/rotas") || path === "/geo/localizar") l.push([`rotas:${ip}`, 120, 60]);
@@ -125,8 +135,10 @@ function rotasPendentes(meta: RequestMeta) {
   (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(job);
 }
 
-async function resolveUser(req: Request): Promise<{ userId: string | null; expired: boolean }> {
-  const token = req.headers.get("x-iara-session");
+// bearer: o servidor MCP aceita a chave da sessão também em Authorization: Bearer (é como os clientes MCP a enviam)
+async function resolveUser(req: Request, bearer = false): Promise<{ userId: string | null; expired: boolean }> {
+  const token = req.headers.get("x-iara-session") ??
+    (bearer ? (req.headers.get("authorization") ?? "").match(/^Bearer\s+(\S+)$/i)?.[1] ?? null : null);
   if (!token) return { userId: null, expired: false };
   const hash = await sha256(token);
   const rows = await sql`select iara.session_resolve(${hash}) as uid`;
@@ -146,7 +158,8 @@ Deno.serve(async (req: Request) => {
   };
 
   // tamanho do corpo (SEC-AT-02): 1 MB; a entrada do WhatsApp aceita áudio (até 16 MB)
-  const limiteCorpo = path === "/whatsapp/entrada" ? 16_000_000 : path === "/arquivo" ? ARQUIVO_MAX_BYTES + 4096 : 1_000_000;
+  const limiteCorpo = path === "/whatsapp/entrada" ? 16_000_000 : path === "/arquivo" ? ARQUIVO_MAX_BYTES + 4096
+    : path === "/oraculo" ? 6_000_000 : 1_000_000;
   if (Number(req.headers.get("content-length") ?? "0") > limiteCorpo) {
     // o proxy da plataforma só devolve a resposta depois que o corpo é lido: descarta sem guardar
     try { for await (const _ of req.body ?? []) { /* descarta */ } } catch { /* conexão encerrada */ }
@@ -164,7 +177,7 @@ Deno.serve(async (req: Request) => {
 
     if (path === "/health") {
       const rows = await sql`select now() as now, iara.rule_version() as rules`;
-      return json({ ok: true, ...rows[0], audio: audioDisponivel() });
+      return json({ ok: true, ...rows[0], audio: audioDisponivel(), oraculo_claude: claudeDisponivel() });
     }
 
     const hk = housekeeping(meta);
@@ -281,6 +294,39 @@ Deno.serve(async (req: Request) => {
         statusRotas = { em: Date.now(), valor: { provedor: PROVEDOR, a_pe: await teste("A_PE"), carro: await teste("CARRO") } };
       }
       return json(statusRotas.valor);
+    }
+
+    // Oráculo do Prefeito: texto ou áudio → números consolidados (Claude Opus 5.5 quando há chave; regras do banco sem ela)
+    if (path === "/oraculo" && (req.method === "POST" || req.method === "GET")) {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      const api = (fn: string, a: unknown) => callApi(userId, meta, fn, a);
+      if (req.method === "GET") return json(await statusOraculo(api));
+      const r = await perguntarOraculo(api, (await req.json().catch(() => ({}))) ?? {});
+      return r.error ? json({ error: r.error }, Number(r.status ?? 422)) : json(r);
+    }
+
+    // servidor MCP do Oráculo: as mesmas ferramentas, para um cliente MCP do Prefeito (a permissão é conferida a cada chamada)
+    if (path === "/mcp") {
+      if (req.method !== "POST") return json({ error: "Use POST com JSON-RPC 2.0." }, 405, { allow: "POST, OPTIONS" });
+      const { userId, expired } = await resolveUser(req, true);
+      if (!userId || expired) {
+        return json({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Sessão do Prefeito necessária (Authorization: Bearer <chave da sessão>)." } }, 401);
+      }
+      const corpo = await req.json().catch(() => undefined);
+      if (corpo === undefined) return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "JSON inválido." } }, 400);
+      const r = await mcp((fn: string, a: unknown) => callApi(userId, meta, fn, a), corpo);
+      return r == null ? new Response(null, { status: 202, headers: { ...cors(req), ...SEGURANCA } }) : json(r);
+    }
+
+    // ponto com a biometria do aparelho: a credencial fica presa ao domínio do portal que chamou (só os da lista de CORS)
+    const ponto = path.match(/^\/ponto\/(?:biometria\/)?(opcoes|cadastrar|marcar)$/);
+    if (ponto && req.method === "POST") {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      const origem = req.headers.get("origin") ?? "";
+      if (!(ORIGENS.has(origem) || LOCAL.test(origem))) return json({ error: "Abra o ponto pelo portal do IARA Educa." }, 403);
+      return json(await pontoBiometria(ponto[1], userId, meta, origem, (await req.json().catch(() => ({}))) ?? {}));
     }
 
     const wa = await handleWhatsApp(path, req, meta, json);
