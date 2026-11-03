@@ -1,10 +1,11 @@
 import clsx from 'clsx';
-import { ArrowRight, ChevronRight, EyeOff, RefreshCw, X } from 'lucide-react';
+import { ArrowRight, ChevronRight, EyeOff, ListTree, RefreshCw, X } from 'lucide-react';
 import { Link } from 'react-router';
 import { fmtDateTime, fmtInt } from '@/lib/format';
 import { Card, ErrorState, SkeletonList, SourceChip } from '@/components/ui';
 import { RECORTE_ROTULO, type Quesito, type Recorte, type Tema } from './catalogo';
 import { SEMAFORO, corDe, type Classe } from '@/components/map/semaforo';
+import { COM_DETALHE, DetalheQuesito, type NivelDetalhe } from './DetalheQuesito';
 
 const num = (v: unknown, sufixo = '') =>
   v == null ? '—' : `${typeof v === 'number' && !Number.isInteger(v) ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : fmtInt(Number(v))}${sufixo}`;
@@ -16,8 +17,9 @@ export type DadosRecorte = {
 };
 
 /** Painel do quesito no mapa unificado: a pergunta, o resumo e o ranking — de pontos (api.mapa_calor) ou de áreas/setores
- * (api.mapa_recorte). No ranking, tocar numa área desce para os setores dela; tocar num setor aproxima o mapa. */
-export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor, rec, nomes, classes, onArea, onSetor, onVoltar }: {
+ * (api.mapa_recorte). No ranking, tocar numa área desce para os setores dela; tocar num setor aproxima o mapa e abre o detalhe dele.
+ * Nos pontos, a lista das unidades vem do detalhamento (api.mapa_detalhe): tocar numa unidade desce para ela e dela para as turmas. */
+export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor, rec, nomes, classes, onArea, onSetor, onVoltar, can, onDetalhe }: {
   tema: Tema; quesito: Quesito; recorte: Recorte; areaNome: string | null; areaId: number | null;
   calor: { data?: any; isLoading: boolean; isFetching: boolean; error: any; refetch: () => void };
   rec: { data?: DadosRecorte; isLoading: boolean; isFetching: boolean; error: any; refetch: () => void };
@@ -28,6 +30,9 @@ export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor,
   onArea: (chave: string) => void;
   onSetor: (chave: string) => void;
   onVoltar: () => void;
+  can: (perm: string) => boolean;
+  /** Abre o detalhamento num nível (unidade, turma, região ou microrregião). */
+  onDetalhe: (nivel: NivelDetalhe, id: string | null) => void;
 }) {
   const pergunta = recorte !== 'pontos' && quesito.perguntaRecorte ? quesito.perguntaRecorte : quesito.pergunta;
   const q = recorte === 'pontos' ? calor : rec;
@@ -42,21 +47,28 @@ export function PainelQuesito({ tema, quesito, recorte, areaNome, areaId, calor,
       {areaNome && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl bg-purple-50 px-3 py-2 text-[13px] text-purple-900">
           <span className="min-w-0 flex-1">Microrregiões da <b>{areaNome}</b></span>
+          {areaId != null && COM_DETALHE.has(quesito.value) && (
+            <button type="button" onClick={() => onDetalhe('area', String(areaId))} className="inline-flex items-center gap-0.5 font-semibold underline"><ListTree className="size-3.5" />Detalhar a região</button>
+          )}
           {areaId != null && <Link to={`/territorios/${areaId}`} className="inline-flex items-center gap-0.5 font-semibold underline">Ficha da área<ArrowRight className="size-3.5" /></Link>}
           <button type="button" onClick={onVoltar} className="inline-flex items-center gap-1 font-semibold" aria-label="Voltar para a cidade"><X className="size-4" />Cidade</button>
         </div>
       )}
       <div className="mt-3">
         {q.isLoading ? <SkeletonList rows={4} /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : recorte === 'pontos'
-          ? <PontosCalor d={calor.data} />
+          ? <PontosCalor d={calor.data} quesito={quesito} can={can} onDetalhe={onDetalhe} />
           : rec.data ? <Recortes d={rec.data} recorte={recorte} areaNome={areaNome} nomes={nomes} classes={classes} onArea={onArea} onSetor={onSetor} /> : null}
       </div>
     </div>
   );
 }
 
-function PontosCalor({ d }: { d: any }) {
+function PontosCalor({ d, quesito, can, onDetalhe }: {
+  d: any; quesito: Quesito; can: (perm: string) => boolean; onDetalhe: (nivel: NivelDetalhe, id: string | null) => void;
+}) {
   if (!d) return null;
+  // com detalhamento: as quebras da cidade e todas as unidades (tocar desce para a unidade e dela para as turmas)
+  const detalhe = COM_DETALHE.has(quesito.value);
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -67,12 +79,13 @@ function PontosCalor({ d }: { d: any }) {
           </Card>
         ))}
       </div>
-      {(d.ranking?.itens ?? []).length > 0 && (
+      {!detalhe && (d.ranking?.itens ?? []).length > 0 && (
         <Lista titulo={d.ranking.titulo} itens={(d.ranking.itens as any[]).map((x) => ({ nome: x.nome, detalhe: x.detalhe, valor: num(x.valor, x.sufixo ?? '') }))} />
       )}
       {d.faixas && <Card className="p-3 text-[12.5px]"><div className="mb-1 font-semibold">Esperado para a idade</div><ul className="list-disc space-y-0.5 pl-4">{(d.faixas as string[]).map((f) => <li key={f}>{f}</li>)}</ul></Card>}
-      {d.niveis && <Card className="divide-y divide-line text-[13px]">{(d.niveis as any[]).map((n) => <div key={n.rotulo} className="flex justify-between px-3 py-1.5"><span>{n.rotulo}</span><b>{fmtInt(n.n)}</b></div>)}</Card>}
-      {d.pendencias && <Card className="divide-y divide-line text-[13px]">{(d.pendencias as any[]).map((n) => <div key={n.item} className="flex justify-between px-3 py-1.5"><span>{n.item}</span><b>{fmtInt(n.n)}</b></div>)}</Card>}
+      {detalhe && <DetalheQuesito quesito={quesito} nivel="cidade" id={null} can={can} onIr={onDetalhe} embutido />}
+      {!detalhe && d.niveis && <Card className="divide-y divide-line text-[13px]">{(d.niveis as any[]).map((n) => <div key={n.rotulo} className="flex justify-between px-3 py-1.5"><span>{n.rotulo}</span><b>{fmtInt(n.n)}</b></div>)}</Card>}
+      {!detalhe && d.pendencias && <Card className="divide-y divide-line text-[13px]">{(d.pendencias as any[]).map((n) => <div key={n.item} className="flex justify-between px-3 py-1.5"><span>{n.item}</span><b>{fmtInt(n.n)}</b></div>)}</Card>}
       <p className="text-[12px] leading-relaxed text-muted">{d.nota} Atualizado em {fmtDateTime(d.atualizado_em)}.</p>
     </div>
   );

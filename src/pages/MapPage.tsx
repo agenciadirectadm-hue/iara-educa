@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  ArrowRight, ChevronDown, ChevronUp, Layers, List, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Phone, School, Search, X,
+  ArrowRight, ChevronDown, ChevronUp, Layers, List, ListTree, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Phone, School, Search, X,
 } from 'lucide-react';
 import { useGeoLayers, useGeoSetores, useUnitsMap } from '@/lib/data';
 import { useDebounced, useIsDesktop, useRpc } from '@/lib/hooks';
@@ -17,6 +17,7 @@ import type { DistanciaUnidade, MedidaDistancia } from '@/lib/api';
 import { LinkMetodologia, MEDIDA, SeletorMedida, TresDistancias, metros, modoTracado, trajetosDe, useDistancias } from '@/components/distancias';
 import { CAMADA_ANTIGA, RECORTE_AJUDA, RECORTE_ROTULO, acharQuesito, temasVisiveis, type Recorte } from '@/components/mapas/catalogo';
 import { PainelQuesito, type DadosRecorte } from '@/components/mapas/PainelQuesito';
+import { COM_DETALHE, DetalheQuesito, type NivelDetalhe } from '@/components/mapas/DetalheQuesito';
 import { caixaDe, type Caixa } from '@/components/map/geometria';
 import type { Faixas } from '@/components/map/MapLegend';
 import { SEMAFORO, classe, corDe, cortes, legenda, type Classe } from '@/components/map/semaforo';
@@ -40,7 +41,8 @@ function distance(a: { lat: number; lng: number }, b: { lat: number; lng: number
 
 
 /** Mapa unificado (Mapa + Mapas de calor): tema e quesito no topo, recorte em pontos, áreas de ponderação ou setores
- * censitários; tocar numa área desce para os setores dela. Endereço: ?q=quesito&recorte=area|setor|pontos&area=id. */
+ * censitários; tocar numa área desce para os setores dela. Todo quesito se detalha (?det=nivel:id): cidade → unidade → turma
+ * e região → microrregião. Endereço: ?q=quesito&recorte=area|setor|pontos&area=id&det=unidade:12. */
 export default function MapPage() {
   const [sp, setSp] = useSearchParams();
   const navigate = useNavigate();
@@ -63,6 +65,11 @@ export default function MapPage() {
   const pontosRede = recorte === 'pontos' && quesito.pontos === 'rede';
 
   const selectedId = sp.get('unidade') ? Number(sp.get('unidade')) : null;
+  // detalhamento aberto: nível e id (só com sessão; o visitante fica no mapa)
+  const det = useMemo(() => {
+    const m = /^(unidade|turma|area|setor):(.+)$/.exec(sp.get('det') ?? '');
+    return m && me && COM_DETALHE.has(quesito.value) ? { nivel: m[1] as NivelDetalhe, id: m[2] } : null;
+  }, [sp, me, quesito.value]);
   const view = sp.get('visao') === 'lista' && pontosRede ? 'lista' : 'mapa';
   const [filter, setFilter] = useState<Filter>((sp.get('filtro') as Filter) ?? 'todas');
   const [snap, setSnap] = useState<Snap>('peek');
@@ -84,7 +91,11 @@ export default function MapPage() {
     setSp(n, { replace: true });
   };
   const setParam = (k: string, v: string | null) => setParams({ [k]: v });
-  const irQuesito = (valor: string, rec?: Recorte) => { setFoco(null); setParams({ q: valor, recorte: rec ?? null, area: null, unidade: null }); };
+  const irQuesito = (valor: string, rec?: Recorte) => { setFoco(null); setParams({ q: valor, recorte: rec ?? null, area: null, unidade: null, det: null }); };
+  const abrirDetalhe = (nivel: NivelDetalhe, id: string | null) => {
+    setParam('det', nivel === 'cidade' || !id ? null : `${nivel}:${id}`);
+    if (nivel !== 'cidade') setSnap('half');
+  };
 
   // cidadão: "unidades perto de casa"
   useEffect(() => {
@@ -241,7 +252,9 @@ export default function MapPage() {
     const f = setoresGeo.data?.features.find((x) => String(x.properties?.code) === chave);
     const caixa = caixaDe(f?.geometry);
     if (caixa) setFoco({ chave: `setor-${chave}-${Date.now()}`, caixa });
+    if (me && COM_DETALHE.has(quesito.value)) abrirDetalhe('setor', chave);
   };
+  const detUnidade = det?.nivel === 'unidade' ? all.find((u) => String(u.id) === det.id) ?? null : null;
   const voltarCidade = () => { setFoco(null); setParams({ recorte: quesito.recortes.includes('area') ? 'area' : null, area: null }); };
 
   const sheetH = { peek: 132, half: desktop ? 0 : 0.5, full: 0.86 }[snap];
@@ -270,7 +283,7 @@ export default function MapPage() {
           {quesito.recortes.length > 1 && (
             <div>
               <span className="mb-1 block text-[12px] font-bold uppercase tracking-wide text-subtle">Ver por</span>
-              <Segmented className="whitespace-nowrap" value={recorte} onChange={(v) => { setFoco(null); setParams({ recorte: v, area: null }); }}
+              <Segmented className="whitespace-nowrap" value={recorte} onChange={(v) => { setFoco(null); setParams({ recorte: v, area: null, det: null }); }}
                 items={quesito.recortes.map((r) => ({ value: r, label: RECORTE_ROTULO[r] }))} />
             </div>
           )}
@@ -293,7 +306,7 @@ export default function MapPage() {
             faixas={[...faixasCalor, ...faixasUnidades]}
             calor={calor}
             coropleta={coropleta}
-            onSelectCoropleta={recorte === 'area' ? descerArea : undefined}
+            onSelectCoropleta={recorte === 'area' ? descerArea : recorte === 'setor' ? focarSetor : undefined}
             enquadrar={enquadrar}
             showAreas={showAreas}
             home={point && pontosRede ? { lat: point.lat, lng: point.lng, radius_m: medida === 'LINHA_RETA' ? 2000 : undefined } : null}
@@ -308,7 +321,8 @@ export default function MapPage() {
             chave={desktop ? 'right-3 top-[68px]' : 'bottom-[142px] right-3'}
             legend="overlay"
             legendClassName={desktop ? 'bottom-3 left-[424px]' : 'left-3 top-[66px]'}
-            focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : point && pontosRede ? { lat: point.lat, lng: point.lng, zoom: 13.6 } : null}
+            focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : detUnidade ? { lat: detUnidade.lat, lng: detUnidade.lng, zoom: 15 }
+              : point && pontosRede ? { lat: point.lat, lng: point.lng, zoom: 13.6 } : null}
             fitKey={`${filter}-${verRotas ? (tr.data?.length ?? 0) : ''}`}
             fitLinhas={verRotas && !point && !selected}
             padding={{ top: point ? 120 : 70, bottom: desktop ? 40 : 170, left: desktop ? 420 : 30, right: 70 }}
@@ -414,14 +428,18 @@ export default function MapPage() {
               </div>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-1">
-              {selected ? (
-                <UnitSummary u={selected} point={point} dist={porUnidade.get(selected.id) ?? null} medida={medida} onClose={() => select(null)} />
+              {det ? (
+                <DetalheQuesito key={`${quesito.value}-${det.nivel}-${det.id}`} quesito={quesito} nivel={det.nivel} id={det.id} can={can} onIr={abrirDetalhe} />
+              ) : selected ? (
+                <UnitSummary u={selected} point={point} dist={porUnidade.get(selected.id) ?? null} medida={medida} onClose={() => select(null)}
+                  detalhar={me && COM_DETALHE.has(quesito.value) ? { rotulo: quesito.label, abrir: () => abrirDetalhe('unidade', String(selected.id)) } : null} />
               ) : pontosRede ? (
                 <Overview list={list} point={point} quesito={quesito.value} onClearPoint={() => setPoint(null)} onPick={select} total={all.length}
                   perto={ordenadas} porUnidade={porUnidade} medida={medida} calculando={dist.calculando} />
               ) : (
                 <PainelQuesito tema={tema} quesito={quesito} recorte={recorte} areaNome={areaNome} areaId={areaDrill}
-                  calor={calorRes} rec={recRes} nomes={nomes} classes={coropleta?.classes ?? null} onArea={descerArea} onSetor={focarSetor} onVoltar={voltarCidade} />
+                  calor={calorRes} rec={recRes} nomes={nomes} classes={coropleta?.classes ?? null} onArea={descerArea} onSetor={focarSetor} onVoltar={voltarCidade}
+                  can={(perm) => !!me && can(perm)} onDetalhe={abrirDetalhe} />
               )}
             </div>
           </motion.div>
@@ -508,7 +526,11 @@ function Overview({ list, point, quesito, onClearPoint, onPick, total, perto, po
   );
 }
 
-function UnitSummary({ u, point, dist, medida, onClose }: { u: UnitMapItem; point: any; dist: DistanciaUnidade | null; medida: MedidaDistancia; onClose: () => void }) {
+function UnitSummary({ u, point, dist, medida, onClose, detalhar }: {
+  u: UnitMapItem; point: any; dist: DistanciaUnidade | null; medida: MedidaDistancia; onClose: () => void;
+  /** Detalhar o quesito aberto nesta unidade (séries, turnos, turmas…). */
+  detalhar: { rotulo: string; abrir: () => void } | null;
+}) {
   return (
     <div>
       <div className="flex items-start gap-3">
@@ -547,6 +569,11 @@ function UnitSummary({ u, point, dist, medida, onClose }: { u: UnitMapItem; poin
       </div>
       {u.capacity > 0 && <div className="mt-3"><OccupancyBar capacity={u.capacity} enrolled={u.enrolled} reserved={u.reserved} blocked={u.blocked} offerable={u.offerable} showLegend /></div>}
       <p className="mt-3 text-[13px] text-muted">Etapas: {u.stages ?? 'pendente SEDUC'}</p>
+      {detalhar && (
+        <button type="button" onClick={detalhar.abrir} className="mt-3 flex w-full items-center gap-2 rounded-2xl bg-purple-50 px-3 py-2.5 text-left text-[14px] font-semibold text-purple-900 ring-1 ring-purple-100 hover:bg-purple-100">
+          <ListTree className="size-5 shrink-0" /><span className="flex-1">Detalhar: {detalhar.rotulo.toLowerCase()} por série, turno e turma</span><ArrowRight className="size-4" />
+        </button>
+      )}
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <ButtonLink to={`/unidades/${u.id}`} variant="primary" size="lg" className="flex-1">Ver detalhes da unidade <ArrowRight className="size-4" /></ButtonLink>
         <a href={`https://www.openstreetmap.org/directions?to=${u.lat}%2C${u.lng}`} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-white px-4 font-semibold ring-1 ring-line hover:bg-slate-50">
