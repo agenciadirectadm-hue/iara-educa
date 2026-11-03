@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Mic, PlugZap, Send, Sparkles, Square, Volume2 } from 'lucide-react';
-import { API_URL, apiToken, oraculoPerguntar, oraculoStatus, type OraculoNumero, type OraculoResposta } from '@/lib/api';
+import { Copy, KeyRound, Mic, PlugZap, Send, Sparkles, Square, Trash2, Volume2 } from 'lucide-react';
+import { API_URL, oraculoPerguntar, oraculoStatus, type OraculoNumero, type OraculoResposta } from '@/lib/api';
 import { fmt1, fmtDateTime, fmtInt } from '@/lib/format';
-import { Badge, Button, Card, ErrorState, PageHeader, Section, SkeletonList, inputCls } from '@/components/ui';
+import { useRpc, useRpcMutation } from '@/lib/hooks';
+import { Badge, Button, Card, ErrorState, Field, PageHeader, Section, SkeletonList, inputCls } from '@/components/ui';
 
 const SUGESTOES = [
   'Como está a rede municipal hoje?',
@@ -229,24 +230,70 @@ function Conversa({ t }: { t: Troca }) {
   );
 }
 
-/** Como ligar um assistente compatível com MCP (Claude e outros) às mesmas consultas, com a sessão do Prefeito. */
+type Conexao = { id: string; rotulo: string; prefixo: string; criada_em: string; criada_por: string | null; ultimo_uso_em: string | null; usos: number; revogada_em: string | null };
+
+/** Conexão permanente: o Prefeito liga o assistente dele (Claude no celular, no computador ou no navegador) às mesmas consultas
+ * do Oráculo, por MCP, com uma chave que vale até ser revogada. A chave aparece uma vez só. */
 function Mcp() {
+  const lista = useRpc<Conexao[]>('oraculo_conexoes', {});
+  const criar = useRpcMutation<{ rotulo: string }, { id: string; rotulo: string; chave: string }>('oraculo_conexao_criar', ['oraculo_conexoes']);
+  const revogar = useRpcMutation('oraculo_conexao_revogar', ['oraculo_conexoes']);
+  const [rotulo, setRotulo] = useState('Claude do Prefeito');
+  const [nova, setNova] = useState<{ rotulo: string; chave: string } | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
   const copiar = async (o: string, v: string) => {
     try { await navigator.clipboard.writeText(v); setCopiado(o); setTimeout(() => setCopiado(null), 2000); } catch { /* sem permissão */ }
   };
-  const url = `${API_URL}/mcp`;
+  const ativas = (lista.data ?? []).filter((c) => !c.revogada_em);
   return (
-    <Section title="Conectar a um assistente (MCP)">
-      <Card className="space-y-2 p-3 text-[13px] text-ink-2">
+    <Section title="Conexão permanente (MCP)">
+      <Card className="space-y-3 p-3 text-[13px] text-ink-2">
         <p className="flex items-start gap-1.5"><PlugZap className="mt-0.5 size-4 shrink-0 text-purple-700" />
-          As mesmas consultas do Oráculo ficam disponíveis como servidor MCP, para usar num assistente compatível.</p>
-        <code className="block break-all rounded-lg bg-slate-50 px-2 py-1.5 text-[12px] ring-1 ring-line">{url}</code>
-        <p>Autenticação: <code className="text-[12px]">Authorization: Bearer</code> com a chave desta sessão. Ela deixa de valer quando você sair.</p>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" icon={Copy} onClick={() => copiar('url', url)}>{copiado === 'url' ? 'Copiado' : 'Copiar endereço'}</Button>
-          <Button size="sm" variant="secondary" icon={Copy} onClick={() => copiar('chave', apiToken() ?? '')}>{copiado === 'chave' ? 'Copiada' : 'Copiar chave da sessão'}</Button>
-        </div>
+          Ligue o seu assistente (Claude no celular, no computador ou no navegador) às consultas do Oráculo. A conexão não cai com a sessão: vale até você revogar.</p>
+
+        {nova ? (
+          <div className="space-y-2 rounded-xl bg-purple-50 p-3 ring-1 ring-purple-200">
+            <p className="font-semibold text-purple-900">Conexão “{nova.rotulo}” criada. Copie agora: o endereço não aparece de novo.</p>
+            <code className="block break-all rounded-lg bg-white px-2 py-1.5 text-[12px] ring-1 ring-line">{`${API_URL}/mcp/${nova.chave}`}</code>
+            <Button size="sm" icon={Copy} onClick={() => copiar('url', `${API_URL}/mcp/${nova.chave}`)}>{copiado === 'url' ? 'Copiado' : 'Copiar endereço'}</Button>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>No Claude (claude.ai), abra <b>Personalizar › Conectores</b> e toque em <b>Adicionar conector personalizado</b>.</li>
+              <li>Cole o endereço, escolha <b>Sem login</b> e confirme. O conector passa a aparecer também no aplicativo do celular e no desktop.</li>
+              <li>Na conversa, peça: “Quantas crianças esperam vaga na creche na região do Jardim Alvorada?”</li>
+            </ol>
+            <p className="text-[12px]">O endereço leva a chave: guarde como uma senha. Se o seu Claude tiver <b>Cabeçalhos da requisição</b>, use o endereço sem a chave
+              (<code>{`${API_URL}/mcp`}</code>) e o cabeçalho <code>Authorization: Bearer {nova.chave.slice(0, 13)}…</code>
+              <button type="button" className="ml-1 font-semibold text-purple-700" onClick={() => copiar('chave', `Bearer ${nova.chave}`)}>{copiado === 'chave' ? 'copiado' : 'copiar valor'}</button>.</p>
+            <Button size="sm" variant="secondary" onClick={() => setNova(null)}>Pronto, já copiei</Button>
+          </div>
+        ) : (
+          <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); criar.mutate({ rotulo }, { onSuccess: (r) => setNova({ rotulo: r.rotulo, chave: r.chave }) }); }}>
+            <div className="flex-1"><Field label="Nome da conexão"><input value={rotulo} onChange={(e) => setRotulo(e.target.value)} maxLength={60} className={inputCls} /></Field></div>
+            <Button type="submit" size="sm" icon={KeyRound} loading={criar.isPending} disabled={rotulo.trim().length < 3}>Criar conexão</Button>
+          </form>
+        )}
+        {criar.error && <p role="alert" className="font-semibold text-red-700">{criar.error.message}</p>}
+
+        {ativas.length > 0 && (
+          <ul className="divide-y divide-line rounded-xl ring-1 ring-line">
+            {ativas.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 px-3 py-2">
+                <KeyRound className="size-4 shrink-0 text-purple-700" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-ink">{c.rotulo} <span className="font-normal text-muted">· {c.prefixo}…</span></div>
+                  <div className="text-[12px] text-muted">
+                    Criada em {fmtDateTime(c.criada_em)} · {c.ultimo_uso_em ? `último uso ${fmtDateTime(c.ultimo_uso_em)} (${fmtInt(c.usos)} consultas)` : 'ainda não usada'}
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" icon={Trash2} loading={revogar.isPending} aria-label={`Revogar ${c.rotulo}`}
+                  onClick={() => { if (confirm(`Revogar a conexão “${c.rotulo}”? O assistente deixa de acessar o Oráculo na hora.`)) revogar.mutate({ id: c.id }); }}>
+                  <span className="sr-only">Revogar</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-[12px] text-muted">A conexão só lê números agregados (nenhum dado de pessoa) e cada consulta fica registrada.</p>
       </Card>
     </Section>
   );

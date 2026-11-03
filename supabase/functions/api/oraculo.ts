@@ -140,7 +140,7 @@ export async function statusOraculo(api: Api): Promise<Record<string, unknown>> 
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // Servidor MCP (Model Context Protocol) — transporte HTTP só com respostas JSON, sem estado entre chamadas
-const VERSOES = ["2025-06-18", "2025-03-26", "2024-11-05"];
+const VERSOES = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 
 async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {

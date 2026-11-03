@@ -20,6 +20,7 @@ do $$
 declare
   v_out jsonb := '[]';
   r jsonb; r2 jsonb; r3 jsonb; r4 jsonb;
+  v_todos integer; v_n integer; v_g record;
   v_unit integer := (select e.unit_id from iara.enrollments e where e.status = 'ACTIVE' group by 1 order by count(*) desc limit 1);
   v_nome text;
 begin
@@ -78,6 +79,46 @@ begin
   r2 := pg_temp.as_call('pp-com', 'publicos_opcoes', '{}');
   v_out := v_out || jsonb_build_object('passo', 'U7. Secretaria e Comercial não acessam', 'ok', r ->> 'codigo' = '42501' and r2 ->> 'codigo' = '42501',
     'secretaria', r ->> 'erro', 'comercial', r2 ->> 'erro');
+
+  -- novos filtros dos responsáveis: cada um reduz o público e combina com os outros
+  v_todos := (pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "RESPONSAVEIS", "filtros": {}}') ->> 'total')::int;
+  r := pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "RESPONSAVEIS", "filtros": {"relacoes": ["AVO"]}}');
+  r2 := pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "RESPONSAVEIS", "filtros": {"faixas_etarias": ["45-59", "60+"], "sexos": ["F"]}}');
+  r3 := pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "RESPONSAVEIS", "filtros": {"idiomas": ["Espanhol"], "mae_solo": true}}');
+  r4 := pg_temp.as_call('pp-pref', 'publicos_contar', jsonb_build_object('publico', 'RESPONSAVEIS', 'filtros', jsonb_build_object(
+          'nasc_de', '1980-01-01', 'nasc_ate', '1989-12-31', 'escolaridades', jsonb_build_array('Superior completo'), 'idades_filho', jsonb_build_array('0-3'),
+          'num_filhos', jsonb_build_array('1'), 'principal', true)));
+  v_out := v_out || jsonb_build_object('passo', 'U8. Filtros do responsável e dos filhos (vínculo, idade, sexo, idioma, mãe solo, nascimento, escolaridade…)', 'ok',
+    (r ->> 'total')::int between 3 and v_todos - 1 and (r2 ->> 'total')::int between 3 and v_todos - 1
+    and coalesce((r3 ->> 'total')::int, 0) < (r2 ->> 'total')::int and coalesce((r4 ->> 'total')::int, 0) < v_todos
+    and r ->> 'erro' is null and r4 ->> 'erro' is null,
+    'avos', r ->> 'total', 'mulheres_45_mais', r2 ->> 'total', 'espanhol_mae_solo', coalesce(r3 ->> 'total', 'sigilo'), 'combinado', coalesce(r4 ->> 'total', 'sigilo'),
+    'erro', coalesce(r ->> 'erro', r4 ->> 'erro'));
+
+  -- sigilo: um público de 1 ou 2 pessoas não mostra números; comunicado só com 10 ou mais
+  select g.birth_date, sg.relationship, e.unit_id into v_g from iara.guardians g
+    join iara.student_guardians sg on sg.guardian_id = g.id and sg.end_date is null
+    join iara.enrollments e on e.student_id = sg.student_id and e.status = 'ACTIVE'
+    where g.birth_date is not null order by g.id limit 1;
+  r := jsonb_build_object('nasc_de', v_g.birth_date, 'nasc_ate', v_g.birth_date, 'relacoes', jsonb_build_array(v_g.relationship), 'unidades', jsonb_build_array(v_g.unit_id));
+  v_n := (select count(*) from iara.publicos_alvo('RESPONSAVEIS', r));
+  r2 := pg_temp.as_call('pp-pref', 'publicos_contar', jsonb_build_object('publico', 'RESPONSAVEIS', 'filtros', r));
+  r3 := pg_temp.as_call('pp-pref', 'publicos_enviar', jsonb_build_object('publico', 'RESPONSAVEIS', 'filtros', r, 'modelo', 'COMUNICADO', 'texto', 'Mensagem de teste com mais de dez letras.'));
+  v_out := v_out || jsonb_build_object('passo', 'U9. Público pequeno: menos de 3 fica em sigilo; menos de 10 não recebe comunicado', 'ok',
+    v_n between 1 and 9
+    and (case when v_n < 3 then (r2 ->> 'sigilo')::boolean and r2 ->> 'total' is null else (r2 ->> 'total')::int = v_n end)
+    and r3 ->> 'codigo' = '22023',
+    'pessoas', v_n, 'contagem', r2 ->> 'total', 'envio', r3 ->> 'erro');
+
+  -- profissionais: cargo, área, tempo de rede, admissão
+  r := pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "PROFISSIONAIS", "filtros": {"cargos": ["Educador(a) Infantil"]}}');
+  r2 := pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "PROFISSIONAIS", "filtros": {"tempos_rede": ["20+"]}}');
+  r3 := pg_temp.as_call('pp-pref', 'publicos_contar', '{"publico": "PROFISSIONAIS", "filtros": {"areas_atuacao": ["Arte"], "admissao_de": "2010-01-01", "admissao_ate": "2025-12-31"}}');
+  r4 := pg_temp.as_call('pp-pref', 'publicos_opcoes', '{}');
+  v_out := v_out || jsonb_build_object('passo', 'U10. Profissionais: cargo, área de atuação, tempo de rede e admissão; opções com os valores do cadastro', 'ok',
+    (r ->> 'total')::int > 100 and (r2 ->> 'total')::int > 0 and coalesce((r3 ->> 'total')::int, 0) < 184
+    and jsonb_array_length(r4 -> 'relacoes') >= 3 and jsonb_array_length(r4 -> 'escolaridades') >= 5 and jsonb_array_length(r4 -> 'cargos') >= 3,
+    'educadores', r ->> 'total', 'vinte_anos_mais', r2 ->> 'total', 'arte_desde_2010', coalesce(r3 ->> 'total', 'sigilo'));
 
   raise exception 'RESULTADO: %', v_out;
 end $$;

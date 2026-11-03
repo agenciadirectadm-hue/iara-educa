@@ -26,6 +26,7 @@ declare
   v_topico text;
   v_falhas text[] := '{}';
   v_nome text;
+  v_uid uuid;
 begin
   perform iara.session_create('PREFEITO', null, 'or-pref', 'teste');
   perform iara.session_create('SECRETARIO', null, 'or-sec', 'teste');
@@ -81,6 +82,22 @@ begin
   r := pg_temp.as_call('or-sec', 'oraculo_dados', '{"topico": "fila"}');
   r2 := pg_temp.as_call('or-sec', 'oraculo_perguntar', '{"pergunta": "Quantos alunos?"}');
   v_out := v_out || jsonb_build_object('passo', 'O6. Secretaria não acessa', 'ok', r ->> 'codigo' = '42501' and r2 ->> 'codigo' = '42501');
+
+  -- conexão permanente: a chave aparece uma vez, o banco guarda só o hash, o resolver conta o uso e a revogação corta na hora
+  r := pg_temp.as_call('or-pref', 'oraculo_conexao_criar', '{"rotulo": "Claude do teste"}');
+  v_uid := iara.oraculo_chave_resolver(encode(extensions.digest(r ->> 'chave', 'sha256'), 'hex'));
+  r2 := pg_temp.as_call('or-pref', 'oraculo_conexoes', '{}');
+  r3 := pg_temp.as_call('or-sec', 'oraculo_conexao_criar', '{"rotulo": "Tentativa"}');
+  v_out := v_out || jsonb_build_object('passo', 'O7. Conexão permanente: chave única (só o hash no banco), uso contado, revogável; só o Prefeito cria', 'ok',
+    r ->> 'chave' like 'iara_mcp_%' and length(r ->> 'chave') >= 40
+    and not exists (select 1 from iara.oraculo_chaves k where k.chave_hash = r ->> 'chave' or k.prefixo = r ->> 'chave')
+    and v_uid is not null and (select role_code from iara.app_users where id = v_uid) = 'PREFEITO'
+    and (select usos from iara.oraculo_chaves where id = (r ->> 'id')::uuid) = 1
+    and r2 -> 0 ->> 'rotulo' = 'Claude do teste' and not (r2 -> 0 ? 'chave')
+    and (pg_temp.as_call('or-pref', 'oraculo_conexao_revogar', jsonb_build_object('id', r ->> 'id')) ->> 'ok')::boolean
+    and iara.oraculo_chave_resolver(encode(extensions.digest(r ->> 'chave', 'sha256'), 'hex')) is null
+    and r3 ->> 'codigo' = '42501',
+    'erro', coalesce(r ->> 'erro', r2 ->> 'erro'));
 
   raise exception 'RESULTADO: %', v_out;
 end $$;

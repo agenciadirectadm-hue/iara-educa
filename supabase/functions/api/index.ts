@@ -12,7 +12,8 @@
 //   GET    /rotas/status                               → situação do motor de rotas
 //   GET    /oraculo                                    → Oráculo do Prefeito: modo (Claude ou regras), áudio e histórico
 //   POST   /oraculo          { pergunta } | { audio_base64, audio_tipo } → números consolidados do município (ver oraculo.ts)
-//   POST   /mcp              JSON-RPC 2.0                → servidor MCP do Oráculo (sessão do Prefeito em Authorization: Bearer)
+//   POST   /mcp[/<chave>]    JSON-RPC 2.0                → servidor MCP do Oráculo: chave de conexão permanente (no endereço ou em
+//                                                         Authorization: Bearer) ou a sessão do Prefeito
 //   POST   /ponto/biometria/opcoes · /ponto/biometria/cadastrar · /ponto/marcar → ponto com a biometria do aparelho (ver ponto.ts)
 //   *      /whatsapp/...                               → ponte do WhatsApp real (ver whatsapp.ts)
 import { asSystem, callApi, gravarRotas, mapDbError, modoDemo, sql, type RequestMeta } from "./db.ts";
@@ -61,7 +62,7 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
   // o Oráculo chama o Claude (custo por pergunta): poucas por minuto
   if (path === "/oraculo") l.push([`oraculo:${ip}`, 20, 60]);
-  if (path === "/mcp") l.push([`mcp:${ip}`, 120, 60]);
+  if (path.startsWith("/mcp")) l.push([`mcp:${ip}`, 120, 60]);
   if (path.startsWith("/ponto/")) l.push([`ponto:${ip}`, 60, 60]);
   // verificação pública de declaração: poucas tentativas por IP (o código tem 60 bits; isto barra varredura)
   if (path === "/rpc/declaracao_verificar") l.push([`verificar:${ip}`, 30, 600]);
@@ -306,12 +307,18 @@ Deno.serve(async (req: Request) => {
       return r.error ? json({ error: r.error }, Number(r.status ?? 422)) : json(r);
     }
 
-    // servidor MCP do Oráculo: as mesmas ferramentas, para um cliente MCP do Prefeito (a permissão é conferida a cada chamada)
-    if (path === "/mcp") {
+    // servidor MCP do Oráculo: as mesmas ferramentas, para o assistente do Prefeito (a permissão é conferida a cada chamada).
+    // Conexão permanente: chave iara_mcp_… no endereço (conector "sem login") ou em Authorization: Bearer; também aceita a sessão.
+    const rotaMcp = path.match(/^\/mcp(?:\/(iara_mcp_[A-Za-z0-9_-]{20,80}))?$/);
+    if (rotaMcp) {
       if (req.method !== "POST") return json({ error: "Use POST com JSON-RPC 2.0." }, 405, { allow: "POST, OPTIONS" });
-      const { userId, expired } = await resolveUser(req, true);
+      const bearer = (req.headers.get("authorization") ?? "").match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;
+      const chave = rotaMcp[1] ?? (bearer?.startsWith("iara_mcp_") ? bearer : null);
+      const { userId, expired } = chave
+        ? { userId: ((await sql`select iara.oraculo_chave_resolver(${await sha256(chave)}) as uid`)[0]?.uid as string | null) ?? null, expired: false }
+        : await resolveUser(req, true);
       if (!userId || expired) {
-        return json({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Sessão do Prefeito necessária (Authorization: Bearer <chave da sessão>)." } }, 401);
+        return json({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Conexão do Oráculo inválida ou revogada. Crie uma nova na página do Oráculo." } }, 401);
       }
       const corpo = await req.json().catch(() => undefined);
       if (corpo === undefined) return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "JSON inválido." } }, 400);

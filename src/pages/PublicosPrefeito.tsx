@@ -12,16 +12,18 @@ type Publico = 'RESPONSAVEIS' | 'PROFISSIONAIS';
 type Opcoes = {
   unidades: { id: number; nome: string; tipo: string; area: number | null }[];
   areas: { id: number; nome: string }[];
-  funcoes: string[]; vinculos: string[]; situacoes: string[]; cargas: number[];
+  funcoes: string[]; vinculos: string[]; situacoes: string[]; cargas: number[]; cargos: string[]; areas_atuacao: string[];
   series: { id: number; nome: string }[]; situacoes_aluno: string[];
+  relacoes: string[]; escolaridades: string[]; trabalhos: string[]; rendas: string[]; estados_civis: string[]; idiomas: string[];
+  nacionalidades: string[]; zonas: string[];
   modelos: { codigo: string; nome: string; publico: string; categoria: string; corpo: string }[];
   periodo_eleitoral: { eleicao: string; inicio_restricao: string; restrito: boolean };
 };
 type Contagem = {
-  total: number; com_contato: number; sem_contato: number; nao_querem: number;
+  total: number | null; com_contato: number | null; sem_contato: number | null; nao_querem: number | null; sigilo?: boolean; minimo_envio: number;
   por_unidade: { nome: string; n: number }[]; por_regiao: { nome: string; n: number }[]; nota: string;
 };
-type Filtros = Record<string, (string | number)[] | boolean>;
+type Filtros = Record<string, (string | number)[] | boolean | string>;
 
 const SITUACAO_SERVIDOR: Record<string, string> = { ATIVO: 'Em exercício', LICENCA: 'Licença', AFASTADO: 'Afastado', DESLIGADO: 'Desligado' };
 const SITUACAO_ALUNO: Record<string, string> = {
@@ -31,6 +33,22 @@ const FORMACAO = [
   { id: '1', nome: 'Nível médio / magistério' }, { id: '2', nome: 'Superior incompleto' }, { id: '3', nome: 'Superior completo' },
   { id: '4', nome: 'Especialização' }, { id: '5', nome: 'Mestrado' }, { id: '6', nome: 'Doutorado' }, { id: '0', nome: 'Sem informação' },
 ];
+const RELACAO: Record<string, string> = {
+  MAE: 'Mãe', PAI: 'Pai', AVO: 'Avó / avô', AVOA: 'Avó', TIA: 'Tia / tio', TIO: 'Tio', IRMAO: 'Irmão / irmã', MADRASTA: 'Madrasta', PADRASTO: 'Padrasto',
+  RESPONSAVEL: 'Responsável legal', TUTOR: 'Tutor(a)', OUTRO: 'Outro vínculo',
+};
+const ESTADO_CIVIL: Record<string, string> = {
+  SOLTEIRO: 'Solteiro(a)', CASADO: 'Casado(a)', UNIAO_ESTAVEL: 'União estável', DIVORCIADO: 'Divorciado(a)', SEPARADO: 'Separado(a)', VIUVO: 'Viúvo(a)',
+};
+const ROTULO: Record<string, string> = { BRASILEIRA: 'Brasileira', ESTRANGEIRA: 'Estrangeira', URBANA: 'Urbana', RURAL: 'Rural' };
+const FAIXA_ETARIA = ['18-24', '25-34', '35-44', '45-59', '60+'].map((id) => ({ id, nome: id === '60+' ? '60 anos ou mais' : `${id.replace('-', ' a ')} anos` }));
+const IDADE_FILHO = [{ id: '0-3', nome: '0 a 3 anos (creche)' }, { id: '4-5', nome: '4 e 5 anos (pré-escola)' }, { id: '6-10', nome: '6 a 10 anos' }, { id: '11+', nome: '11 anos ou mais' }];
+const TEMPO_REDE = [{ id: '<1', nome: 'Menos de 1 ano' }, { id: '1-5', nome: '1 a 5 anos' }, { id: '5-10', nome: '5 a 10 anos' }, { id: '10-20', nome: '10 a 20 anos' }, { id: '20+', nome: '20 anos ou mais' }];
+const SEXO = [{ id: 'F', nome: 'Feminino' }, { id: 'M', nome: 'Masculino' }];
+const CASA = [{ id: '2', nome: '2 pessoas' }, { id: '3', nome: '3 pessoas' }, { id: '4', nome: '4 pessoas' }, { id: '5+', nome: '5 ou mais' }];
+const NUM_FILHOS = [{ id: '1', nome: '1 filho(a) na rede' }, { id: '2', nome: '2 filhos(as)' }, { id: '3+', nome: '3 ou mais' }];
+const itensDe = (xs: string[], rot: Record<string, string> = {}) => xs.map((x) => ({ id: x, nome: rot[x] ?? x }));
+
 const ENVIO: Record<string, { rotulo: string; tom: 'green' | 'amber' | 'red' }> = {
   SIMULADO: { rotulo: 'Simulado (demonstração)', tom: 'amber' }, ENFILEIRADO: { rotulo: 'Enviado', tom: 'green' },
   BLOQUEADO_ELEITORAL: { rotulo: 'Bloqueado: período eleitoral', tom: 'red' },
@@ -53,6 +71,8 @@ export default function PublicosPrefeito() {
   const lista = (k: string) => (Array.isArray(filtros[k]) ? (filtros[k] as (string | number)[]) : []);
   const marca = (k: string, v: (string | number)[]) => setFiltros((f) => ({ ...f, [k]: v }));
   const liga = (k: string) => setFiltros((f) => ({ ...f, [k]: !f[k] }));
+  const data = (k: string) => (typeof filtros[k] === 'string' ? (filtros[k] as string) : '');
+  const muda = (k: string, v: string) => setFiltros((f) => ({ ...f, [k]: v }));
   const trocar = (p: Publico) => { setPublico(p); setFiltros({}); };
   const c = cont.data;
 
@@ -88,19 +108,46 @@ export default function PublicosPrefeito() {
                 <Multi rotulo="Situação" itens={o.situacoes.map((x) => ({ id: x, nome: SITUACAO_SERVIDOR[x] ?? x }))} valor={lista('situacoes')} onChange={(v) => marca('situacoes', v)} />
                 <Multi rotulo="Formação" itens={FORMACAO} valor={lista('formacao')} onChange={(v) => marca('formacao', v)} />
                 <Multi rotulo="Carga horária semanal" itens={o.cargas.map((x) => ({ id: String(x), nome: `${x} horas` }))} valor={lista('carga')} onChange={(v) => marca('carga', v)} />
+                <Multi rotulo="Cargo" itens={itensDe(o.cargos)} valor={lista('cargos')} onChange={(v) => marca('cargos', v)} />
+                <Multi rotulo="Área de atuação" itens={itensDe(o.areas_atuacao)} valor={lista('areas_atuacao')} onChange={(v) => marca('areas_atuacao', v)} />
+                <Multi rotulo="Tempo de rede" itens={TEMPO_REDE} valor={lista('tempos_rede')} onChange={(v) => marca('tempos_rede', v)} />
+                <Periodo rotulo="Admitidos entre" de={data('admissao_de')} ate={data('admissao_ate')} onDe={(v) => muda('admissao_de', v)} onAte={(v) => muda('admissao_ate', v)} />
               </>
             ) : (
               <>
                 <Multi rotulo="Série dos filhos" itens={o.series.map((s) => ({ id: String(s.id), nome: s.nome }))} valor={lista('series')} onChange={(v) => marca('series', v)} />
                 <Multi rotulo="Turno dos filhos" itens={Object.entries(SHIFT).map(([id, nome]) => ({ id, nome }))} valor={lista('turnos')} onChange={(v) => marca('turnos', v)} />
                 <Multi rotulo="Situação dos filhos" itens={o.situacoes_aluno.map((x) => ({ id: x, nome: SITUACAO_ALUNO[x] ?? x }))} valor={lista('situacoes_aluno')} onChange={(v) => marca('situacoes_aluno', v)} />
+                <Multi rotulo="Idade dos filhos" itens={IDADE_FILHO} valor={lista('idades_filho')} onChange={(v) => marca('idades_filho', v)} />
+                <Periodo rotulo="Filhos nascidos entre" de={data('filho_nasc_de')} ate={data('filho_nasc_ate')} onDe={(v) => muda('filho_nasc_de', v)} onAte={(v) => muda('filho_nasc_ate', v)} />
               </>
             )}
           </div>
           {publico === 'RESPONSAVEIS' && (
+            <>
+              <h3 className="mb-2 mt-4 text-[12px] font-bold uppercase tracking-wide text-subtle">O responsável</h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Multi rotulo="Vínculo com o aluno" itens={itensDe(o.relacoes, RELACAO)} valor={lista('relacoes')} onChange={(v) => marca('relacoes', v)} />
+                <Multi rotulo="Faixa etária" itens={FAIXA_ETARIA} valor={lista('faixas_etarias')} onChange={(v) => marca('faixas_etarias', v)} />
+                <Periodo rotulo="Nascidos entre" de={data('nasc_de')} ate={data('nasc_ate')} onDe={(v) => muda('nasc_de', v)} onAte={(v) => muda('nasc_ate', v)} />
+                <Multi rotulo="Sexo" itens={SEXO} valor={lista('sexos')} onChange={(v) => marca('sexos', v)} />
+                <Multi rotulo="Escolaridade" itens={itensDe(o.escolaridades)} valor={lista('escolaridades')} onChange={(v) => marca('escolaridades', v)} />
+                <Multi rotulo="Situação de trabalho" itens={itensDe(o.trabalhos)} valor={lista('trabalhos')} onChange={(v) => marca('trabalhos', v)} />
+                <Multi rotulo="Renda da família" itens={itensDe(o.rendas)} valor={lista('rendas')} onChange={(v) => marca('rendas', v)} />
+                <Multi rotulo="Estado civil" itens={itensDe(o.estados_civis, ESTADO_CIVIL)} valor={lista('estados_civis')} onChange={(v) => marca('estados_civis', v)} />
+                <Multi rotulo="Idioma preferido" itens={itensDe(o.idiomas)} valor={lista('idiomas')} onChange={(v) => marca('idiomas', v)} />
+                <Multi rotulo="Nacionalidade" itens={itensDe(o.nacionalidades, ROTULO)} valor={lista('nacionalidades')} onChange={(v) => marca('nacionalidades', v)} />
+                <Multi rotulo="Pessoas na casa" itens={CASA} valor={lista('pessoas_casa')} onChange={(v) => marca('pessoas_casa', v)} />
+                <Multi rotulo="Filhos na rede" itens={NUM_FILHOS} valor={lista('num_filhos')} onChange={(v) => marca('num_filhos', v)} />
+                {o.zonas.length > 1 && <Multi rotulo="Zona de moradia" itens={itensDe(o.zonas, ROTULO)} valor={lista('zonas')} onChange={(v) => marca('zonas', v)} />}
+              </div>
+            </>
+          )}
+          {publico === 'RESPONSAVEIS' && (
             <div className="mt-3 flex flex-wrap gap-2">
               {([['fila', 'Filho na fila de espera'], ['transporte', 'Usa transporte escolar'], ['aee', 'Filho no AEE'],
-                ['alerta_frequencia', 'Alerta de frequência'], ['cadunico', 'CadÚnico']] as [string, string][]).map(([k, rot]) => (
+                ['alerta_frequencia', 'Alerta de frequência'], ['cadunico', 'CadÚnico'], ['bolsa_familia', 'Bolsa Família'], ['mae_solo', 'Mãe solo'],
+                ['principal', 'Só o responsável principal']] as [string, string][]).map(([k, rot]) => (
                 <button key={k} type="button" onClick={() => liga(k)} aria-pressed={!!filtros[k]}
                   className={clsx('rounded-full px-3 py-1.5 text-[13px] font-semibold ring-1', filtros[k] ? 'bg-purple-700 text-white ring-purple-700' : 'bg-white text-ink-2 ring-line hover:bg-slate-50')}>
                   {rot}
@@ -114,11 +161,11 @@ export default function PublicosPrefeito() {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <Card className="col-span-2 bg-purple-50 p-4 ring-purple-200">
-              <div className="font-display text-[34px] font-black leading-none text-purple-900 tabular">{c ? fmtInt(c.total) : '…'}</div>
+              <div className="font-display text-[34px] font-black leading-none text-purple-900 tabular">{!c ? '…' : c.sigilo ? 'menos de 3' : fmtInt(c.total)}</div>
               <div className="mt-1 text-[13px] font-semibold text-ink-2">{publico === 'RESPONSAVEIS' ? 'responsáveis' : 'profissionais'} neste público</div>
             </Card>
             <Card className="p-3"><div className="text-[20px] font-extrabold tabular text-green-700">{c ? fmtInt(c.com_contato) : '…'}</div><div className="text-[12px] text-muted">recebem pelo WhatsApp</div></Card>
-            <Card className="p-3"><div className="text-[20px] font-extrabold tabular">{c ? fmtInt(c.sem_contato + c.nao_querem) : '…'}</div><div className="text-[12px] text-muted">sem contato ({c ? fmtInt(c.sem_contato) : '…'}) ou pediram para não receber ({c ? fmtInt(c.nao_querem) : '…'})</div></Card>
+            <Card className="p-3"><div className="text-[20px] font-extrabold tabular">{c ? fmtInt(c.sem_contato == null ? null : c.sem_contato + (c.nao_querem ?? 0)) : '…'}</div><div className="text-[12px] text-muted">sem contato ({c ? fmtInt(c.sem_contato) : '…'}) ou pediram para não receber ({c ? fmtInt(c.nao_querem) : '…'})</div></Card>
           </div>
           {c && (c.por_unidade.length > 0 || c.por_regiao.length > 0) && (
             <Card className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
@@ -127,7 +174,10 @@ export default function PublicosPrefeito() {
             </Card>
           )}
           <p className="flex items-start gap-1.5 text-[12px] text-muted"><EyeOff className="mt-0.5 size-3.5 shrink-0" />{c?.nota ?? 'Só contagens: nomes e contatos nunca aparecem.'}</p>
-          <Button block icon={Megaphone} disabled={!c?.total} onClick={() => setEnvio(true)}>Enviar comunicado a este público</Button>
+          <Button block icon={Megaphone} disabled={!c?.total || c.total < c.minimo_envio} onClick={() => setEnvio(true)}>Enviar comunicado a este público</Button>
+          {c && (c.sigilo || (c.total != null && c.total > 0 && c.total < c.minimo_envio)) && (
+            <p className="text-[12px] text-amber-800">Comunicado só para públicos de {c.minimo_envio} pessoas ou mais: amplie os filtros.</p>
+          )}
         </div>
       </div>
 
@@ -154,6 +204,21 @@ export default function PublicosPrefeito() {
           </Card>
         )}
       </Section>
+    </div>
+  );
+}
+
+/** Intervalo de datas (de / até), no mesmo formato visual das seleções. */
+function Periodo({ rotulo, de, ate, onDe, onAte }: { rotulo: string; de: string; ate: string; onDe: (v: string) => void; onAte: (v: string) => void }) {
+  const campo = 'h-8 min-w-0 flex-1 rounded-lg bg-slate-50 px-2 text-[13px] outline-none ring-1 ring-line focus:ring-purple-400';
+  return (
+    <div className="rounded-2xl bg-white px-3 py-2 ring-1 ring-line">
+      <span className="block text-[11.5px] font-bold uppercase tracking-wide text-subtle">{rotulo}</span>
+      <div className="mt-1 flex items-center gap-1.5">
+        <input type="date" value={de} onChange={(e) => onDe(e.target.value)} aria-label={`${rotulo}: de`} className={campo} />
+        <span className="text-[12px] text-muted">a</span>
+        <input type="date" value={ate} onChange={(e) => onAte(e.target.value)} aria-label={`${rotulo}: até`} className={campo} />
+      </div>
     </div>
   );
 }
