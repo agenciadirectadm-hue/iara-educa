@@ -39,6 +39,8 @@ declare
   v_mun integer;
   i integer;
 begin
+  -- senhas conhecidas só dentro desta transação (revertida no fim): as senhas reais do simulador não mudam
+  update iara.sim_acesso set senha_hash = extensions.crypt('123456', extensions.gen_salt('bf'));
   perform iara.session_create('COMERCIAL', null, 'sp-com', 'teste');
   perform iara.session_create('COMERCIAL', null, 'sp-tit', 'teste');
   perform iara.session_create('COMERCIAL', null, 'sp-bloq', 'teste');

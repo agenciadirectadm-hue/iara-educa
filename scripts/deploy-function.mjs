@@ -4,7 +4,10 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const token = process.env.SUPABASE_ACCESS_TOKEN;
+// do ambiente ou da variável do usuário no Windows (criada pela própria pessoa); o valor nunca é impresso
+const token = process.env.SUPABASE_ACCESS_TOKEN || (process.platform === 'win32'
+  ? ((await import('node:child_process')).spawnSync('powershell', ['-NoProfile', '-Command', "[Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN','User')"], { encoding: 'utf8' }).stdout ?? '').trim()
+  : '');
 const ref = process.env.SUPABASE_PROJECT_REF || 'fqpjbyhewzngutbyydig';
 const slug = process.argv[2] || 'api';
 const verifyJwt = process.argv.includes('--verify-jwt');

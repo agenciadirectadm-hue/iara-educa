@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Aplica arquivos SQL no Supabase publicado, em ordem, sem o token passar por chat ou arquivo:
-// lê SUPABASE_ACCESS_TOKEN do ambiente ou, se não houver, da área de transferência (a pessoa copia e tecla Enter; a área é
+// lê SUPABASE_ACCESS_TOKEN do ambiente (ou a variável do usuário no Windows) ou, se não houver, da área de transferência (a pessoa copia e tecla Enter; a área é
 // limpa em seguida). O token é testado antes de qualquer passo. Migrations param na primeira falha (cada uma é uma transação);
 // testes de supabase/tests/ seguem (eles devolvem o resultado como erro: RESULTADO: ...).
 // Uso: node scripts/aplicar.mjs supabase/migrations/<arquivo>.sql [supabase/tests/<teste>.sql ...]
@@ -29,7 +29,12 @@ const clipboard = () => spawnSync('powershell', ['-NoProfile', '-Command', 'Get-
 const limparClipboard = () => spawnSync('powershell', ['-NoProfile', '-Command', "Set-Clipboard -Value ' '"]);
 const aceito = async (t) => (await fetch(`https://api.supabase.com/v1/projects/${REF}`, { headers: { Authorization: `Bearer ${t}` } }).catch(() => ({ ok: false }))).ok;
 
-let token = process.env.SUPABASE_ACCESS_TOKEN ?? '';
+// variável do Windows criada pela própria pessoa (nível do usuário): vale mesmo para programas abertos antes de ela existir
+const variavelDoUsuario = () => (process.platform === 'win32'
+  ? (spawnSync('powershell', ['-NoProfile', '-Command', "[Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN','User')"], { encoding: 'utf8' }).stdout ?? '').trim()
+  : '');
+
+let token = process.env.SUPABASE_ACCESS_TOKEN || variavelDoUsuario();
 if (token && !(await aceito(token))) {
   console.log('O token da variável SUPABASE_ACCESS_TOKEN foi recusado pelo Supabase.');
   token = '';

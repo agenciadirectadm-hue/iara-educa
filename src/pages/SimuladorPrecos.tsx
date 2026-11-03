@@ -41,10 +41,10 @@ const PUBLICOS = 'Públicos do Prefeito';
 
 // última prefeitura aberta neste navegador (só a conveniência de reabrir a mesma)
 const MUN_SALVA = 'iara.simulador.prefeitura';
-const brl0 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const brl2 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const brl4 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4, maximumFractionDigits: 4 });
-const r0 = (n: number) => (n ? brl0.format(n) : '—');
+// valores sempre no formato R$ x.xxx,xx
+const r0 = (n: number) => (n ? brl2.format(n) : '—');
 const pct = (n: number) => `${(n * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 // ROUND do Excel: arredonda a metade para longe do zero (as quantidades aqui são sempre positivas)
 const arred = (n: number) => Math.round(n);
