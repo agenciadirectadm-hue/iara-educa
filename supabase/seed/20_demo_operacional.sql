@@ -43,6 +43,12 @@ $$;
 create or replace function iara.pick(p_arr text[]) returns text
 language sql volatile as $$ select p_arr[1 + floor(random() * array_length(p_arr, 1))::int] $$;
 
+-- sobrenome diferente de outro (nunca "Silva Silva") e dois sobrenomes distintos
+create or replace function iara.pick_exceto(p_arr text[], p_exceto text) returns text
+language sql volatile as $$ select iara.pick(array_remove(p_arr, p_exceto)) $$;
+create or replace function iara.dois_sobrenomes(p_arr text[]) returns text
+language plpgsql volatile as $$ declare a text := iara.pick(p_arr); begin return a || ' ' || iara.pick_exceto(p_arr, a); end $$;
+
 create or replace function iara.demo_generate(p_seed double precision default 0.2026)
 returns jsonb
 language plpgsql security definer set search_path = iara, extensions, public
@@ -69,7 +75,7 @@ declare
     'Everton','Cristiano','Adriano','Juliano','Leonardo','Mateus','Douglas','Rogério','Edson','Valdir','Vagner','Cláudio'];
   surnames text[] := array['Silva','Santos','Oliveira','Souza','Rodrigues','Ferreira','Alves','Pereira','Lima','Gomes','Costa','Ribeiro',
     'Martins','Carvalho','Almeida','Lopes','Soares','Fernandes','Vieira','Barbosa','Rocha','Dias','Nascimento','Andrade','Moreira',
-    'Nunes','Marques','Machado','Mendes','Freitas','Cardoso','Ramos','Gonçalves','Santana','Teixeira','Araújo','Moraes','Pinto',
+    'Nunes','Marques','Machado','Mendes','Freitas','Cardoso','Ramos','Gonçalves','Santana','Teixeira','Araújo','Moraes','Alencar','Silvino',
     'Correia','Batista','Campos','Monteiro','Cavalcanti','Miranda','Castro','Reis','Rezende','Toledo','Mazzaro','Tanaka','Yamamoto',
     'Kobayashi','Nakamura','Watanabe','Zanetti','Bertoli','Rossi','Ferrari','Romano','Colombo','Ricci','Bianchi','Marchetti',
     'Pagliari','Kowalski','Nowak','Schmidt','Becker','Hoffmann','Wagner','Prado','Siqueira','Brandão','Bueno','Camargo','Fonseca',
@@ -215,7 +221,7 @@ begin
   insert into iara.guardians (id, tenant_id, full_name, cpf, nis, birth_date, gender, email, primary_phone, whatsapp_phone,
                               preferred_contact_channel, address_id, occupation, employment_status, family_income, income_bracket,
                               cadunico_status, benefits, education_level, household_size, consent_flags, is_demo)
-  select h.guardian_id, 1, x.first || ' ' || iara.pick(surnames) || ' ' || h.surname, iara.fake_cpf(),
+  select h.guardian_id, 1, x.first || ' ' || iara.pick_exceto(surnames, h.surname) || ' ' || h.surname, iara.fake_cpf(),
          case when x.cad then '2' || lpad(floor(random() * 1e10)::bigint::text, 10, '0') end,
          case when h.rel = 'AVO' then date '1956-01-01' + floor(random() * 5800)::int else date '1976-01-01' + floor(random() * 10200)::int end,
          case when h.rel in ('MAE', 'AVO', 'TIA') then 'F' else 'M' end,
@@ -244,7 +250,7 @@ begin
   insert into iara.guardians (id, tenant_id, full_name, cpf, birth_date, gender, email, primary_phone, whatsapp_phone, address_id,
                               occupation, employment_status, cadunico_status, consent_flags, is_demo)
   select h.guardian2_id, 1,
-         case when h.rel = 'PAI' then iara.pick(adults_f) else iara.pick(adults_m) end || ' ' || iara.pick(surnames) || ' ' || h.surname,
+         case when h.rel = 'PAI' then iara.pick(adults_f) else iara.pick(adults_m) end || ' ' || iara.pick_exceto(surnames, h.surname) || ' ' || h.surname,
          iara.fake_cpf(), date '1974-01-01' + floor(random() * 10500)::int, case when h.rel = 'PAI' then 'F' else 'M' end,
          null, '(44) 90000-' || lpad(floor(random() * 10000)::int::text, 4, '0'), null, h.address_id, iara.pick(occupations),
          case when random() < 0.6 then 'CLT' else 'Autônomo' end, false, '{"lgpd_ciencia": true}'::jsonb, true
@@ -252,7 +258,7 @@ begin
 
   insert into iara.students (id, tenant_id, full_name, birth_date, gender, status, address_id, transport_need, avatar_seed, is_demo)
   select s.student_id, 1,
-         case when s.gender = 'F' then iara.pick(kids_f) else iara.pick(kids_m) end || ' ' || iara.pick(surnames) || ' ' || h.surname,
+         case when s.gender = 'F' then iara.pick(kids_f) else iara.pick(kids_m) end || ' ' || iara.pick_exceto(surnames, h.surname) || ' ' || h.surname,
          iara.demo_birthdate(s.gcode, s.older), s.gender, 'MATRICULADO', h.address_id,
          random() < (case when s.macro in (6, 7) then 0.22 else 0.04 end), floor(random() * 1000)::int, true
   from tmp_seat s join tmp_hh h on h.hh = s.hh;
@@ -302,7 +308,7 @@ begin
   -- 3. PROFISSIONAIS (pool dimensionado pelo nº real de docentes do Censo 2025; nomes fictícios)
   -- =========================================================================
   insert into iara.staff (tenant_id, unit_id, full_name, role, bond, is_demo)
-  select 1, u.id, case when random() < 0.86 then iara.pick(adults_f) else iara.pick(adults_m) end || ' ' || iara.pick(surnames) || ' ' || iara.pick(surnames),
+  select 1, u.id, case when random() < 0.86 then iara.pick(adults_f) else iara.pick(adults_m) end || ' ' || iara.dois_sobrenomes(surnames),
          case when u.unit_type = 'CMEI' then 'EDUCADOR' else 'PROFESSOR' end,
          case when random() < 0.82 then 'Efetivo' else 'PSS / temporário' end, true
   from iara.education_units u
@@ -318,7 +324,7 @@ begin
 
   with aux as (
     insert into iara.staff (tenant_id, unit_id, full_name, role, bond, is_demo)
-    select 1, c.unit_id, iara.pick(adults_f) || ' ' || iara.pick(surnames) || ' ' || iara.pick(surnames), 'AUXILIAR', 'Efetivo', true
+    select 1, c.unit_id, iara.pick(adults_f) || ' ' || iara.dois_sobrenomes(surnames), 'AUXILIAR', 'Efetivo', true
     from iara.classes c where c.grade_level_id = 1
     returning id, unit_id
   ), aux_n as (select id, unit_id, row_number() over (partition by unit_id order by id) as rn from aux),
@@ -327,7 +333,7 @@ begin
   select c.id, a.id, 'AUXILIAR', false, 40 from cls_n c join aux_n a on a.unit_id = c.unit_id and a.rn = c.rn;
 
   insert into iara.staff (tenant_id, unit_id, full_name, role, bond, is_demo)
-  select 1, u.id, iara.pick(adults_f) || ' ' || iara.pick(surnames) || ' ' || iara.pick(surnames), 'AEE', 'Efetivo', true
+  select 1, u.id, iara.pick(adults_f) || ' ' || iara.dois_sobrenomes(surnames), 'AEE', 'Efetivo', true
   from iara.education_units u where coalesce(u.census_special_ed_enrollments, 0) >= 8 and exists (select 1 from iara.classes c where c.unit_id = u.id);
 
   -- =========================================================================
@@ -471,7 +477,7 @@ begin
   from tmp_newhh;
   insert into iara.guardians (id, tenant_id, full_name, cpf, birth_date, gender, email, primary_phone, whatsapp_phone, address_id, occupation,
                               employment_status, family_income, income_bracket, cadunico_status, benefits, household_size, consent_flags, is_demo)
-  select h.guardian_id, 1, x.first || ' ' || iara.pick(surnames) || ' ' || h.surname, iara.fake_cpf(),
+  select h.guardian_id, 1, x.first || ' ' || iara.pick_exceto(surnames, h.surname) || ' ' || h.surname, iara.fake_cpf(),
          date '1980-01-01' + floor(random() * 9000)::int, case when h.rel = 'PAI' then 'M' else 'F' end,
          lower(iara.f_unaccent(split_part(x.first, ' ', 1) || '.' || h.surname)) || (10 + floor(random() * 89))::int || '@email.test',
          '(44) 90000-' || lpad(floor(random() * 10000)::int::text, 4, '0'), '(44) 90000-' || lpad(floor(random() * 10000)::int::text, 4, '0'),
@@ -489,8 +495,9 @@ begin
 
   insert into iara.students (id, tenant_id, full_name, birth_date, gender, status, address_id, aee_status, avatar_seed, is_demo)
   select q.student_id, 1,
-         case when q.gender = 'F' then iara.pick(kids_f) else iara.pick(kids_m) end || ' ' || iara.pick(surnames) || ' ' ||
-           coalesce((select split_part(g.full_name, ' ', array_length(string_to_array(g.full_name, ' '), 1)) from iara.guardians g where g.id = q.hh_guardian), iara.pick(surnames)),
+         case when q.gender = 'F' then iara.pick(kids_f) else iara.pick(kids_m) end || ' ' || (select iara.pick_exceto(surnames, x.sob) || ' ' || x.sob
+            from (select coalesce((select split_part(g.full_name, ' ', array_length(string_to_array(g.full_name, ' '), 1)) from iara.guardians g where g.id = q.hh_guardian),
+                                  iara.pick(surnames)) sob) x),
          iara.demo_birthdate(case when q.category = 'DEMANDA_FUTURA' then 'FUTURA' else q.gcode end),
          q.gender, 'AGUARDANDO_VAGA', q.hh_address, q.aee, floor(random() * 1000)::int, true
   from tmp_q q where not q.existing_student;
@@ -753,13 +760,13 @@ begin
   from tmp_casehh;
   insert into iara.guardians (id, tenant_id, full_name, cpf, birth_date, gender, email, primary_phone, whatsapp_phone, address_id, occupation,
                               employment_status, cadunico_status, consent_flags, is_demo)
-  select guardian_id, 1, iara.pick(adults_f) || ' ' || iara.pick(surnames) || ' ' || surname, iara.fake_cpf(),
+  select guardian_id, 1, iara.pick(adults_f) || ' ' || iara.pick_exceto(surnames, surname) || ' ' || surname, iara.fake_cpf(),
          date '1982-01-01' + floor(random() * 8000)::int, 'F', null, '(44) 90000-' || lpad(floor(random() * 10000)::int::text, 4, '0'),
          '(44) 90000-' || lpad(floor(random() * 10000)::int::text, 4, '0'), address_id, iara.pick(occupations),
          case when random() < 0.5 then 'CLT' else 'Informal' end, random() < 0.3, '{"lgpd_ciencia": true}'::jsonb, true
   from tmp_casehh;
   insert into iara.students (id, tenant_id, full_name, birth_date, gender, status, address_id, avatar_seed, is_demo)
-  select student_id, 1, case when gender = 'F' then iara.pick(kids_f) else iara.pick(kids_m) end || ' ' || iara.pick(surnames) || ' ' || surname,
+  select student_id, 1, case when gender = 'F' then iara.pick(kids_f) else iara.pick(kids_m) end || ' ' || iara.pick_exceto(surnames, surname) || ' ' || surname,
          iara.demo_birthdate(gcode), gender, 'SEM_VINCULO', address_id, floor(random() * 1000)::int, true
   from tmp_casehh;
   insert into iara.student_guardians (student_id, guardian_id, relationship, is_primary)
