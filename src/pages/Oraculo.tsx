@@ -236,7 +236,7 @@ type Conexao = { id: string; rotulo: string; prefixo: string; criada_em: string;
 /** Conexão permanente: o Prefeito liga o assistente dele (Claude no celular, no computador ou no navegador) às mesmas consultas
  * do Oráculo, por MCP, com uma chave que vale até ser revogada. A chave aparece uma vez só. */
 function Mcp() {
-  const lista = useRpc<Conexao[]>('oraculo_conexoes', {});
+  const lista = useRpc<Conexao[]>('oraculo_conexoes', {}, { refetchInterval: 20_000, refetchOnWindowFocus: true });
   const criar = useRpcMutation<{ rotulo: string }, { id: string; rotulo: string; chave: string }>('oraculo_conexao_criar', ['oraculo_conexoes']);
   const revogar = useRpcMutation('oraculo_conexao_revogar', ['oraculo_conexoes']);
   const [rotulo, setRotulo] = useState('Claude do Prefeito');

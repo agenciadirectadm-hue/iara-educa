@@ -99,5 +99,13 @@ begin
     and r3 ->> 'codigo' = '42501',
     'erro', coalesce(r ->> 'erro', r2 ->> 'erro'));
 
+  -- perguntas fora do Oráculo (096): nome de pessoa recebe a explicação, sem número; sem assunto recebe o aviso
+  r := pg_temp.as_call('or-pref', 'oraculo_perguntar', '{"pergunta": "quantos alunos no municipio se chamam silvio?"}');
+  r2 := pg_temp.as_call('or-pref', 'oraculo_perguntar', '{"pergunta": "qual o time de futebol da cidade?"}');
+  r3 := pg_temp.as_call('or-pref', 'oraculo_perguntar', '{"pergunta": "Quantos alunos estão matriculados?"}');
+  v_out := v_out || jsonb_build_object('passo', 'O8. Pergunta por nome: explicação sem número; sem assunto: aviso e resumo; assunto conhecido: como antes', 'ok',
+    (r ->> 'fora')::boolean and jsonb_array_length(r -> 'numeros') = 0 and r ->> 'resposta' like 'O Oráculo não conta%'
+    and (r2 ->> 'fora')::boolean and r2 ->> 'resposta' like 'Não achei%' and r3 ->> 'topico' = 'matriculas' and not (r3 ->> 'fora')::boolean,
+    'nome', r ->> 'resposta', 'sem_assunto', left(r2 ->> 'resposta', 90));
   raise exception 'RESULTADO: %', v_out;
 end $$;

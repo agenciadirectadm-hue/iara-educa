@@ -145,7 +145,12 @@ export async function statusOraculo(api: Api): Promise<Record<string, unknown>> 
 const VERSOES = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 
+// títulos e dicas das ferramentas para o assistente: só leitura, dados do próprio IARA
+const TITULO: Record<string, string> = { numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões" };
+
 async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
+  // diagnóstico: só o método e a ferramenta (nunca a chave nem os argumentos)
+  console.log("mcp", m?.method ?? "?", m?.method === "tools/call" ? String(m.params?.name ?? "") : "");
   if (m?.id === undefined || m?.id === null) return null; // notificação (ex.: notifications/initialized): não tem resposta
   const ok = (result: unknown) => ({ jsonrpc: "2.0", id: m.id, result });
   const falha = (code: number, message: string) => ({ jsonrpc: "2.0", id: m.id, error: { code, message } });
@@ -154,15 +159,30 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
       const pedida = String(m.params?.protocolVersion ?? "");
       return ok({
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "iara-educa-oraculo", version: "1.0.0" },
-        instructions: "Números consolidados da rede municipal de educação de Maringá (perfil Prefeito). Só dados agregados.",
+        capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
+        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.1.0" },
+        instructions: "Oráculo do Prefeito de Maringá (IARA Educa): números consolidados da rede municipal de educação — matrículas, " +
+          "fila, vagas, creche, frequência, ocorrências, profissionais, transporte, alfabetização, busca ativa, cadastros e Bolsa Família — " +
+          "na cidade, numa unidade ou numa região. Para qualquer pergunta sobre esses assuntos, consulte numeros_do_municipio " +
+          "(e unidades_do_municipio para achar o nome de uma unidade ou região). Só dados agregados: não há nomes nem contatos.",
       });
     }
     case "ping":
       return ok({});
+    // o Oráculo não tem recursos nem prompts, mas responde às listas (alguns clientes pedem ao conectar)
+    case "resources/list":
+      return ok({ resources: [] });
+    case "resources/templates/list":
+      return ok({ resourceTemplates: [] });
+    case "prompts/list":
+      return ok({ prompts: [] });
     case "tools/list":
-      return ok({ tools: FERRAMENTAS.map((f) => ({ name: f.name, description: f.description, inputSchema: f.input_schema })) });
+      return ok({
+        tools: FERRAMENTAS.map((f) => ({
+          name: f.name, title: TITULO[f.name], description: f.description, inputSchema: f.input_schema,
+          annotations: { title: TITULO[f.name], readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+        })),
+      });
     case "tools/call": {
       const nome = String(m.params?.name ?? "");
       if (!FUNCAO[nome]) return falha(-32602, `Ferramenta desconhecida: ${nome}`);
