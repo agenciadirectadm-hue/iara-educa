@@ -114,7 +114,7 @@ export function rotasStatus() {
 }
 
 /** Oráculo do Prefeito: números consolidados do município (Claude Opus 5.5 quando há chave; regras do IARA sem ela). */
-export type OraculoNumero = { rotulo: string; valor: number | null; sufixo?: string; casas?: number };
+export type OraculoNumero = { rotulo: string; valor: number | null; sufixo?: string; casas?: number; sigilo?: boolean };
 export type OraculoConsulta = { topico?: string; recorte?: string; numeros?: OraculoNumero[] };
 export type OraculoResposta = {
   pergunta: string; canal: 'TEXTO' | 'AUDIO'; transcricao: string | null; modo: 'CLAUDE' | 'REGRAS'; modelo?: string;

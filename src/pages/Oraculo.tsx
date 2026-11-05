@@ -9,18 +9,21 @@ import { Badge, Button, Card, ErrorState, Field, PageHeader, Section, SkeletonLi
 
 const SUGESTOES = [
   'Como está a rede municipal hoje?',
+  'O que está acontecendo na rede?',
   'Quantas crianças esperam vaga na creche?',
-  'Qual a presença dos alunos nos últimos 30 dias?',
-  'Quantas ocorrências graves tivemos nos últimos 90 dias?',
-  'Como está a alfabetização das crianças?',
-  'Quantas vagas temos na AP 002?',
+  'Qual escola tem mais ocorrências?',
+  'Quantos chamados de manutenção estão abertos?',
+  'Como está a merenda?',
+  'Qual a média das notas?',
+  'Quantos professores estão de licença?',
   'Quantos alunos do Bolsa Família ficaram abaixo da frequência mínima?',
+  'Quantas crianças se chamam Silvio?',
 ];
 const MAX_AUDIO_S = 60;
 
 type Troca = { id: number; pergunta: string; audio?: boolean; carregando?: boolean; r?: OraculoResposta; erro?: string };
 
-const valor = (n: OraculoNumero) => (n.valor == null ? '—' : (n.casas ? fmt1(n.valor) : fmtInt(n.valor)) + (n.sufixo ?? ''));
+const valor = (n: OraculoNumero) => (n.sigilo ? 'menos de 3' : n.valor == null ? '—' : (n.casas ? fmt1(n.valor) : fmtInt(n.valor)) + (n.sufixo ?? ''));
 
 function falar(texto: string) {
   try {
@@ -116,7 +119,7 @@ export default function Oraculo() {
     <div>
       <PageHeader eyebrow="Gabinete do Prefeito"
         title={<span className="inline-flex items-center gap-2"><Sparkles className="size-6 text-purple-700" />Oráculo do Prefeito</span>}
-        subtitle="Pergunte, por texto ou por áudio, qualquer número da rede municipal: na cidade, numa unidade ou numa região. As respostas trazem só números consolidados." />
+        subtitle="Pergunte, por texto ou por áudio, sobre toda a rede municipal: vagas, frequência, ocorrências, merenda, transporte, manutenção, professores e o que está acontecendo agora. Na cidade, numa unidade ou numa região, sem expor pessoas." />
 
       <div className="mb-3 flex flex-wrap gap-2">
         {s.claude

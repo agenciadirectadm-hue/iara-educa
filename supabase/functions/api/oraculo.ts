@@ -15,7 +15,10 @@ type Bloco = { type: string; id?: string; name?: string; input?: unknown; text?:
 type Consulta = { topico?: string; recorte?: string; numeros?: unknown[] };
 
 const TOPICOS = ["visao_geral", "matriculas", "fila", "vagas", "creche", "frequencia", "ocorrencias", "profissionais", "transporte",
-  "alfabetizacao", "busca_ativa", "unidades", "cadastros", "bolsa_familia"];
+  "alfabetizacao", "busca_ativa", "unidades", "cadastros", "bolsa_familia",
+  // temas do catálogo (ver indicadores_disponiveis)
+  "rede", "atendimento", "ofertas", "rematricula", "ausencias", "ocorrencias_tipo", "protecao", "desempenho", "aee", "ponto", "transporte_det",
+  "nutricao", "almoxarifado", "manutencao", "biblioteca", "comunicacao", "qualidade", "territorio", "base"];
 
 export const FERRAMENTAS = [
   {
@@ -31,10 +34,10 @@ export const FERRAMENTAS = [
       type: "object",
       properties: {
         topico: { type: "string", enum: TOPICOS, description: "Assunto da consulta." },
+        indicadores: { type: "array", items: { type: "string" }, description: "Em vez do tópico: as chaves de indicadores específicos (ver indicadores_disponiveis)." },
         unidade: { type: "string", description: "Nome ou id de uma unidade. Omita para a cidade toda." },
         regiao: { type: "string", description: "Região: 'AP 017', o id ou o nome de um bairro dela. Omita para a cidade toda." },
       },
-      required: ["topico"],
     },
   },
   {
@@ -43,19 +46,74 @@ export const FERRAMENTAS = [
       "parte do nome. Use para achar a unidade ou a região citada antes de pedir os números.",
     input_schema: { type: "object", properties: { busca: { type: "string", description: "Parte do nome (opcional)." } } },
   },
+  {
+    name: "indicadores_disponiveis",
+    description: "Tudo o que o Oráculo sabe: os temas (atendimento, ofertas de vaga, rematrícula, ausências, ocorrências por tipo, proteção, desempenho, " +
+      "AEE, ponto, frota, merenda e nutrição, almoxarifado, manutenção, biblioteca, comunicação, qualidade, Censo) e a chave de cada indicador.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "situacoes_pontuais",
+    description: "O que pede atenção agora na rede: chamados de manutenção que afetam a segurança, ocorrências graves recentes, protocolos vencidos, " +
+      "ofertas de vaga vencendo, transporte que não passou, turmas sem chamada, estoque e agenda da semana. Sem nome de pessoa.",
+    input_schema: {
+      type: "object",
+      properties: {
+        unidade: { type: "string", description: "Nome ou id de uma unidade. Omita para a cidade toda." },
+        regiao: { type: "string", description: "Região: 'AP 017', o id ou o nome de um bairro dela. Omita para a cidade toda." },
+        dias: { type: "integer", description: "Quantos dias olhar para trás (padrão: 7)." },
+      },
+    },
+  },
+  {
+    name: "comparar_unidades",
+    description: "Compara unidades ou regiões num indicador: \"qual escola tem mais ocorrências\", \"quais regiões têm menos vagas\". " +
+      "Use a chave de indicadores_disponiveis; os principais são base.matriculas, base.fila, base.fila_creche, base.vagas, base.ocorrencias, " +
+      "base.presenca, base.alertas, base.busca, base.profissionais, base.transportados.",
+    input_schema: {
+      type: "object",
+      properties: {
+        indicador: { type: "string", description: "Chave do indicador." },
+        por: { type: "string", enum: ["unidade", "regiao"], description: "Comparar unidades (padrão) ou regiões." },
+        ordem: { type: "string", enum: ["maior", "menor"], description: "Maiores ou menores valores primeiro." },
+        limite: { type: "integer", description: "Quantos mostrar (padrão: 5; máximo: 30)." },
+        tipo: { type: "string", enum: ["CMEI", "ESCOLA"], description: "Só CMEIs ou só escolas (opcional)." },
+      },
+      required: ["indicador"],
+    },
+  },
+  {
+    name: "contar_por_nome",
+    description: "Quantas pessoas têm um nome no cadastro (primeiro nome ou sobrenome). Só a contagem, uma palavra por vez; menos de 3 fica em sigilo. " +
+      "Serve para estatística de nomes, não para achar uma pessoa.",
+    input_schema: {
+      type: "object",
+      properties: {
+        nome: { type: "string", description: "Uma palavra, por exemplo Silvio." },
+        quem: { type: "string", enum: ["ALUNOS", "PROFISSIONAIS", "RESPONSAVEIS"], description: "Padrão: ALUNOS." },
+        unidade: { type: "string", description: "Nome ou id de uma unidade (opcional)." },
+        regiao: { type: "string", description: "Região (opcional)." },
+      },
+      required: ["nome"],
+    },
+  },
 ];
-const FUNCAO: Record<string, string> = { numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades" };
+const FUNCAO: Record<string, string> = {
+  numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades", indicadores_disponiveis: "oraculo_indicadores",
+  situacoes_pontuais: "oraculo_situacoes", comparar_unidades: "oraculo_ranking", contar_por_nome: "oraculo_nomes",
+};
 
 const SISTEMA = `Você é o Oráculo do Prefeito no IARA Educa, a plataforma da Secretaria Municipal de Educação de Maringá (PR).
 O Prefeito pergunta, por texto ou por áudio, sobre a rede municipal de educação; responda com os números das ferramentas.
 
 - Use apenas números que as ferramentas devolverem. Se faltar o dado, diga o que existe e o que não existe.
 - Quando a pergunta citar uma unidade ou região e você não tiver certeza do nome, consulte unidades_do_municipio antes.
-- Para comparar unidades ou regiões, consulte cada uma.
+- Para comparar unidades ou regiões, use comparar_unidades. Para "o que está acontecendo", use situacoes_pontuais.
+- Se o assunto não estiver nos tópicos de numeros_do_municipio, veja indicadores_disponiveis: o Oráculo cobre quase toda a operação.
 - Responda em português do Brasil, em até 5 frases curtas, como para ser lido no celular ou ouvido em voz alta: o número principal
   primeiro, depois o contexto (recorte e período). Números no padrão brasileiro (1.234; 93,4%). Sem tabelas nem markdown.
-- O Oráculo só trata de números consolidados. Se pedirem nome, telefone ou dado de uma pessoa, explique que isso não está no
-  Oráculo e que o detalhe fica com a Secretaria, na unidade, com os registros de acesso.
+- O Oráculo só traz números e situações sem identificar pessoas. Contar quantos têm um nome é permitido (contar_por_nome); dizer
+  quem são, ou dar telefone e endereço, não: explique que o detalhe fica com a Secretaria, na unidade, com os registros de acesso.
 - Este é o ambiente de demonstração: os dados são fictícios (as matrículas oficiais são do Censo Escolar 2025).`;
 
 async function executar(api: Api, nome: string, entrada: unknown): Promise<unknown> {
@@ -146,7 +204,10 @@ const VERSOES = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 
 // títulos e dicas das ferramentas para o assistente: só leitura, dados do próprio IARA
-const TITULO: Record<string, string> = { numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões" };
+const TITULO: Record<string, string> = {
+  numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões", indicadores_disponiveis: "O que o Oráculo sabe",
+  situacoes_pontuais: "Situações que pedem atenção", comparar_unidades: "Comparar unidades e regiões", contar_por_nome: "Contar pessoas por nome",
+};
 
 async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
   // diagnóstico: só o método e a ferramenta (nunca a chave nem os argumentos)
@@ -160,11 +221,13 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
       return ok({
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.1.0" },
-        instructions: "Oráculo do Prefeito de Maringá (IARA Educa): números consolidados da rede municipal de educação — matrículas, " +
-          "fila, vagas, creche, frequência, ocorrências, profissionais, transporte, alfabetização, busca ativa, cadastros e Bolsa Família — " +
-          "na cidade, numa unidade ou numa região. Para qualquer pergunta sobre esses assuntos, consulte numeros_do_municipio " +
-          "(e unidades_do_municipio para achar o nome de uma unidade ou região). Só dados agregados: não há nomes nem contatos.",
+        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.2.0" },
+        instructions: "Oráculo do Prefeito de Maringá (IARA Educa): toda a operação da rede municipal de educação em números — matrículas, " +
+          "fila, vagas, frequência, ocorrências, profissionais e ponto, transporte, merenda, almoxarifado, manutenção, biblioteca, desempenho, AEE, " +
+          "proteção, atendimento, Bolsa Família e mais — na cidade, numa unidade ou numa região. Para qualquer pergunta sobre a educação no " +
+          "município, consulte estas ferramentas: numeros_do_municipio (assuntos), indicadores_disponiveis (tudo o que há), situacoes_pontuais " +
+          "(o que está acontecendo), comparar_unidades (qual tem mais ou menos) e contar_por_nome (estatística de nomes). Só dados agregados: " +
+          "não há quem são as pessoas nem contatos.",
       });
     }
     case "ping":
