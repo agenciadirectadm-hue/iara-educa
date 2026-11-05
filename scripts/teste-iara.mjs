@@ -1,5 +1,6 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa]
+// "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
 
@@ -50,7 +51,33 @@ async function tap(match) {
   return send(q.label, q.action ?? null);
 }
 
-if (roteiro === 'nova') {
+const falhas = [];
+/** Envia e confere a última resposta da IARA. */
+async function espera(text, padrao) {
+  await send(text);
+  const ultimas = (conv.messages ?? []).slice(-6).filter((m) => m.sender_type === 'IARA').map((m) => m.body).join(' ');
+  if (!padrao.test(ultimas) || /não entendi|Não consegui entender/i.test(ultimas)) falhas.push(`${text} → ${ultimas.slice(0, 160)}`);
+}
+
+if (roteiro === 'conversa') {
+  await espera('minha filha nao esta muito bem hoje. Dá pra falar com a professora?', /Sinto muito.*agenda da turma/s);
+  await espera('na verdade, tive mais uma criança e quero creche para ela', /nome completo/);
+  await espera('Joaquim', /sobrenome de Joaquim/);
+  await espera('Documentos', /confirmar sua identidade/);
+  await espera('sim', /Documentos das crianças/);
+  await espera('e o davi, faltadocumento/', /Documentos de Davi/);
+  await espera('quero ver o que falta para o davi', /Documentos de Davi/);
+  await espera('qual o cardápio de hoje?', /Cardápio/);
+  await espera('qual a turma da ana?', /Ana estuda/);
+  await espera('quero creche', /Para qual criança/);
+  await espera('a vaga é para joaquim', /Joaquim é uma criança nova/);
+  await espera('não entendi', /vou repetir/);
+  await espera('deixa pra lá', /recomeçamos/);
+  if (falhas.length) {
+    console.error('\nFALHAS:\n' + falhas.join('\n'));
+    process.exit(1);
+  }
+} else if (roteiro === 'nova') {
   await tap('Acabamos de chegar');
   await send('Londrina');
   await send('Joana Ribeiro Duarte');
@@ -108,7 +135,6 @@ if (roteiro === 'nova') {
   await tap('Confirmar código');
   await send('Gostaria do turno da manhã por causa do trabalho');
   await send('nasceu mais um filho');
-  await tap('Uma criança');
   await send('Lucas Santos Oliveira');
   await send('02/08/2026');
   await tap('Sou a mãe');

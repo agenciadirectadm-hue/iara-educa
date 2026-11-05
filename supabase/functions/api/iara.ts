@@ -10,7 +10,8 @@ export type Card = { title: string; subtitle?: string; lines?: string[]; unit_id
 export type Reply = { body: string; payload?: { quick_replies?: QuickReply[]; cards?: Card[]; notice?: string } };
 export type ToolLog = { tool: string; input: unknown; output: unknown; status: "OK" | "ERRO" | "NEGADO"; error?: string; ms: number; correlation_id: string; idempotency_key?: string };
 
-type Ctx = { flow?: string | null; step?: string | null; data?: Record<string, any>; pending?: string | null };
+type Memoria = { erros?: number; ultimo?: string; kb_docs?: boolean; ultima?: string };
+type Ctx = { flow?: string | null; step?: string | null; data?: Record<string, any>; pending?: string | null; opcoes?: QuickReply[]; mem?: Memoria };
 export type ConvSnapshot = {
   conversation_id: string;
   state: string;
@@ -93,7 +94,7 @@ const SITUACAO_OCORRENCIA_LABEL: Record<string, string> = { ABERTA: "aberta", EM
 function motivoAusencia(t: string): string | null {
   if (/(estava na escola|esteve na escola|foi (a|na|pra) escola|ela foi|ele foi|nao faltou)/.test(t)) return "ESTA_NA_ESCOLA";
   if (/(consulta|medic|dentista|exame|posto de saude|\bubs\b|hospital|vacina|terapia|fono|psicolog)/.test(t)) return "CONSULTA";
-  if (/(doente|febre|gripe|gripad|vomit|dor de|passou mal|resfriad|tosse|diarr|virose|machucad|atestado|saude|indisposi)/.test(t)) return "SAUDE";
+  if (/(doente|febre|gripe|gripad|vomit|dor de|passou mal|passando mal|resfriad|tosse|diarr|virose|machucad|atestado|saude|indisposi|nao (esta|ta) (muito |mt |mto |tao |se sentindo )?bem)/.test(t)) return "SAUDE";
   if (/(onibus|\bvan\b|transporte|perdeu o|nao passou|carro quebr|sem conducao)/.test(t)) return "TRANSPORTE";
   if (/(nao quis|nao quer ir|recusou|medo da escola|nao gosta da escola)/.test(t)) return "RECUSA";
   if (/(viagem|viaj|funeral|velorio|falec|mudanca|problema em casa|problema de familia|imprevisto)/.test(t)) return "DIFICULDADE_FAMILIAR";
@@ -105,7 +106,7 @@ function tipoOcorrencia(t: string): string | null {
   if (/machuc|mordid|mordeu|caiu|arranh|ralou|hematoma|roxo/.test(t)) return "ACIDENTE";
   if (/bateram|bateu|empurr|briga|brigou|agrediu/.test(t)) return "CONFLITO";
   if (/febre|dor de|passou mal|vomit|enjo|alergia/.test(t)) return "SAUDE";
-  if (/perdeu|sumiu|sumiram|pegaram (a|o|as|os) /.test(t)) return "PERTENCES";
+  if (/perdeu|esqueceu|sumiu|sumiram|pegaram (a|o|as|os) /.test(t)) return "PERTENCES";
   return null;
 }
 const REFEICAO_LABEL: Record<string, string> = { DESJEJUM: "Café da manhã", ALMOCO: "Almoço", LANCHE: "Lanche", JANTAR: "Jantar" };
@@ -185,12 +186,24 @@ const naUnidade = (name?: string | null) => (!name ? "na unidade" : /^CMEI\s/i.t
 const daUnidade = (name?: string | null) => (!name ? "da unidade" : /^CMEI\s/i.test(name) ? `do ${name}` : `da ${name}`);
 
 function detectIntent(t: string): string {
-  if (/(cancelar|menu|recomecar|inicio|ajuda)\b/.test(t)) return "menu";
-  if (/(atendente|humano|uma pessoa|falar com alguem|servidor)/.test(t)) return "atendente";
-  if (/(reclama|ouvidoria|denunci|sugest)/.test(t)) return "servico:RECLAMACAO";
+  // segurança primeiro: valem em qualquer ponto da conversa
+  if (/(quero morrer|me matar|tirar (a )?minha vida|suicid)/.test(t)) return "crise";
+  if (/(abus(o|ou|aram|ando|ada|ado)\b|assedi|violencia (em casa|sexual|domestica)|maltrat|estupr|molest|tocou (nela|nele|nas partes)|me bate\b|bate (nela|nele|nos meus|na minha|no meu)|ameaca de morte)/.test(t)) return "protecao";
+  if (/(desmaiou|convuls|nao (esta |ta )?respira|parou de respirar|engasg|sangrando|inconsciente|ambulancia|\bsamu\b|emergencia)/.test(t)) return "emergencia";
+  if (/(cancelar|menu|recomecar|inicio|ajuda|deixa (pra|para) la|esquece\b|mudei de ideia|nao quero mais isso|outra coisa)\b/.test(t)) return "menu";
+  if (/(atendente|humano|uma pessoa|falar com alguem|servidor|alguem de verdade|tem alguem ai)/.test(t)) return "atendente";
+  if (/^(nao entendi|nao entendi nada|como assim|pode repetir|repete|repetir|hein|ahn|e agora|o que eu faco|e dai|como e isso)[?.! ]*$/.test(t)) return "repetir";
+  if (/(nao (esta |ta )?(me )?entend|voce nao entend|nao foi isso|nao e isso|nao era isso|nada a ver|ja falei|ja disse|nao responde|nao ajuda|nao resolve|burra|pessimo|pessima|horrivel|que droga|inutil)/.test(t)) return "frustracao";
+  if (/(quem e voce|voce e (um |uma )?(robo|pessoa|ia\b|inteligencia)|e (um )?robo|com quem (eu )?(falo|estou falando)|o que voce (faz|sabe|pode|consegue)|como voce funciona|o que da (pra|para) fazer)/.test(t)) return "sobre_iara";
+  // perguntas gerais: respondem pela base oficial, sem pedir identidade
+  if (/(como funciona|quais? (sao )?(os |as )?(criterios?|regras?)|quanto tempo demora|demora quanto|quanto demora|como e a (fila|pontuacao)|como (eu )?(peco|solicito|consigo|faco para (pedir|conseguir)) (uma )?vaga|quem resolve|que etapas|quais etapas|uniforme|material escolar|lista de material|professora? de apoio|mediador|auxiliar de sala)/.test(t)) return "conhecimento";
+  if (/quando (comeca|comecam|acaba|acabam|termina|terminam|volta|voltam) (as |a |o )?(aula|ferias|ano letivo)/.test(t)) return "calendario";
+  if (/(que horas|horario|hora de (entrada|saida)|qual (e )?a turma|qual turma|em (que|qual) (escola|cmei|creche)|qual (e )?a (escola|creche)|onde .{1,20} estuda|quem e a professora|qual (e )?a professora|nome da professora)/.test(t)) return "minha_escola";
+  if (/(reclama|ouvidoria|denunci|sugest|ninguem (me )?(atende|responde)|nao (me )?(atendem|respondem))/.test(t)) return "servico:RECLAMACAO";
   if (/(vou me mudar para|mudar de cidade|morar em outra cidade|sair de maringa|vamos embora de maringa|mudando de cidade)/.test(t)) return "saida";
   if (/(outra cidade|outro municipio|outro estado|viemos de|vim de|chegamos|cheguei|acabamos de chegar|mudamos para maringa|mudei para maringa|de fora de maringa|transferencia de fora|transferencia de outr)/.test(t)) return "outra_cidade";
   if (/(fazer (o |meu )?cadastro|me cadastrar|cadastrar (a |minha )?familia|nao tenho cadastro|criar (o |meu )?cadastro)/.test(t)) return "cadastro";
+  if (/(\btive\b.{0,16}(crianca|filh|bebe|nenem|gemeos)|ganhei (um |uma |o |a )?(bebe|filh|nenem)|tenho (mais |outr[oa] |um novo |uma nova )(um |uma )?(filh|crianca|bebe)|mais uma crianca|crianca nova|nova crianca)/.test(t)) return "novo_membro";
   if (/(nasceu|recem.?nascid|novo membro|novo filho|nova filha|outro filho|outra filha|mais um filho|incluir (meu|minha|um|uma|o|a) |adotei|adocao|tenho a guarda|ganhei a guarda)/.test(t)) return "novo_membro";
   if (/(mudei|me mudei|mudamos|mudanca de endereco|mudar de endereco|mudar de casa|novo endereco|endereco novo|alterar (o )?endereco|trocar (o )?endereco)/.test(t)) return "mudanca";
   if (/(desist|tirar d[ao] fila|sair da fila|cancelar (a )?inscricao|nao quero mais a vaga)/.test(t)) return "desistencia";
@@ -205,16 +218,24 @@ function detectIntent(t: string): string {
   if (/(\bpeso\b|altura|\bimc\b|quanto (ela|ele) (pesa|mede)|esta (magr|acima do peso|gordinh))/.test(t)) return "medidas";
   if (/((declaracao|atestado|comprovante) (escolar|de (matricula|frequencia|escolaridade|inscricao)|da (matricula|frequencia|fila)|para o bolsa|do bolsa|que (ele|ela) estuda)|declaracao (para|pro|pra) (o |a )?(bolsa|trabalho|empresa|beneficio|inss|cras))/.test(t)) return "declaracao";
   if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(telefone|numero|celular|whatsapp|e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
+  if (/(troquei|mudei|novo|nova|outro) (de |o |meu |minha )?(telefone|numero|celular|whatsapp|e-?mail)/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
   // vida escolar (Sprint 1)
   if (/(vida escolar|coisas da escola)/.test(t)) return "vida_escolar";
   if (/(plano (do |de )?aee|sala de recursos|atendimento (educacional )?especializado|professora? do aee|dias do aee)/.test(t)) return "aee_plano";
   if (/(boletim|\bnotas?\b|\bmedias?\b|parecer descritivo|desempenho escolar|como (ele|ela) (esta|vai) (na escola|nos estudos)|recuperacao|alfabetiza|ja (sabe )?ler\b|plano de apoio)/.test(t)) return "boletim";
+  if (!/falt/.test(t) && /(nao (esta|ta) (muito |mt |mto |tao |se sentindo )?bem|passando mal|passou mal|(esta|ta) (doente|com febre|gripad|com dor|com virose|vomitando)|acordou (mal|doente|com febre))/.test(t)) return "crianca_doente";
+  if (/(vai faltar|nao vai (hoje|amanha|poder ir|conseguir ir)|nao vai (para|a|na|ter) (a )?(escola|aula|creche|como ir)|\b(hoje|amanha)\b.{0,15}\bnao vai\b)/.test(t)) return "vai_faltar";
+  if (/(triste|com medo|nao quer (mais )?ir|nao gosta da escola|chorando|chora todo dia|ansios|nao (esta |ta )?se adapt)/.test(t)) return "bem_estar";
+  if (/justific/.test(t)) return "justificar";
   if (/(justificar|justificativa|falta justificada|atestado medico|faltou porque|estava doente|ficou doente)/.test(t)) return "justificar";
+  if (/(professora? .{0,25}(gritou|brigou|bateu|xingou|humilhou|maltratou|ofendeu)|(gritou|xingou|humilhou|ofendeu) (com|a|o) |(esqueceu|perdeu) .{0,20}(mochila|casaco|blusa|lancheira|agasalho))/.test(t)) return "relatar_ocorrencia";
+  if (/(\b(alguma|tem|teve) falta\b|(?<!que )\bfalta d[aeo] )/.test(t)) return "frequencia";
   if (/(\bfaltas\b|faltou|quantas faltas|frequencia|presenca|foi (a|na|para a) (aula|escola)|chamada)/.test(t)) return "frequencia";
   if (/(alergi|intoleran|celiac|dieta|restricao alimentar|nao pode comer|vegetarian|vegan|carne de porco|\baplv\b|lactose|gluten|diabet|alimentacao especial)/.test(t)) return "restricao";
   if (/(cardapio|merenda|lanche|almoco|janta|o que (tem|vai ter) (de|para|pra) comer|comida da escola|refeic)/.test(t)) return "cardapio";
-  if (/((mandar|enviar|escrever|deixar) (um )?(bilhete|recado) (para|pra) (a |o )?(professor|escola|direcao))/.test(t)) return "bilhete";
+  if (/((mandar|enviar|escrever|deixar|dar) (um )?(bilhete|recado|aviso) (para|pra) (a |o )?(professor|escola|direcao|diretor)|(recado|bilhete|aviso) (para|pra|a|ao) (a |o )?(professor|escola|direcao|diretor)|avisar (a |o )?(professor|escola|direcao|diretor))/.test(t)) return "bilhete";
+  if (/(falar|falo|conversar|contato|contatar|ligar|telefone|whatsapp|numero)\b.{0,25}\b(professor|diretor|diretora|direcao|coordenador|coordenadora|pedagog|secretaria da escola|secretaria do cmei|escola|cmei|creche)/.test(t)) return "falar_escola";
   if (/(\bagenda\b|tarefa de casa|licao de casa|dever de casa|recado da professora|recado da escola|bilhete)/.test(t)) return "agenda";
   if (/(se machucou|machucad|foi mordid|mordeu|bullying|apanhou|bateram|empurraram|quero relatar|relatar (um|uma|o|a)|aconteceu (algo|uma coisa) na escola|reclamar da professora|registrar (uma )?ocorrencia)/.test(t)) return "relatar_ocorrencia";
   if (/ocorrencia/.test(t)) return "ocorrencias";
@@ -234,15 +255,92 @@ function detectIntent(t: string): string {
   if (/(oferta|aceitar|aceito|recusar|recuso)/.test(t)) return "oferta";
   if (/(posicao|fila|colocacao|lugar na)/.test(t)) return "fila";
   if (/(protocolo|acompanhar|andamento|solicitacao|status do pedido|meu pedido)/.test(t)) return "acompanhar";
+  if (/(o que falta|que falta|esta faltando|falta (algum|algo|alguma|mais|entregar|enviar|mandar)|pendenc)/.test(t)) return "documentos";
   if (/(document|certidao|comprovante|vacina|cpf|cartao sus|\brg\b)/.test(t)) return "documentos";
+  if (/(trocar|mudar) .{0,20}(de|para outra|para outro) (escola|cmei|creche|unidade)/.test(t)) return "transferencia";
   if (/(transfer|mudar de escola|trocar de escola|mudar de cmei|trocar de cmei)/.test(t)) return "transferencia";
   if (/(vaga|creche|matricul|pre.?escola|1.?\s?ano|primeiro ano|cmei para|estudar|inscrever|inscricao)/.test(t)) return "procurar_vaga";
   if (/(unidade|onde fica|perto de mim|mais proxim|encontrar escola|encontrar cmei|endereco da)/.test(t)) return "unidade";
   if (/(prazo|quando|rematricula|eja|etapa)/.test(t)) return "conhecimento";
   if (/^(oi|ola|bom dia|boa tarde|boa noite|e ai|hello|opa)\b/.test(t)) return "saudacao";
   if (/(obrigad|valeu|tchau|ate mais)/.test(t)) return "obrigado";
+  if (/^(ok|okay|entendi|beleza|ta bom|esta bom|ta certo|esta certo|certo|perfeito|combinado|show|legal|otimo|tudo bem)[.! ]*$/.test(t)) return "confirmacao";
   return "desconhecido";
 }
+
+/** Abreviações comuns no WhatsApp: só para reconhecer o assunto; o texto da pessoa não muda. */
+const ABREVIACOES: Record<string, string> = {
+  hj: "hoje", qdo: "quando", qnd: "quando", qto: "quanto", qnt: "quanto", qts: "quantos", qtas: "quantas", vc: "voce", vcs: "voces", pq: "porque", tb: "tambem", tbm: "tambem",
+  mt: "muito", mto: "muito", obg: "obrigado", vlw: "valeu", blz: "beleza", prof: "professora", profe: "professora", profa: "professora", doc: "documento", docs: "documentos",
+  td: "tudo", msg: "mensagem", ngm: "ninguem", dnv: "de novo", pra: "para", pro: "para o", ta: "esta", to: "estou", n: "nao", q: "que", tava: "estava", tao: "tao",
+};
+const expandir = (t: string) => t.replace(/\b[a-z]+\b/g, (w) => ABREVIACOES[w] ?? w);
+
+/** Palavras do atendimento: um erro de digitação nelas não pode virar "não entendi". */
+const PALAVRAS_CHAVE = ["documento", "documentos", "matricula", "rematricula", "transferencia", "frequencia", "cardapio", "merenda", "professora", "professor", "transporte",
+  "declaracao", "certidao", "comprovante", "vacinacao", "creche", "escola", "boletim", "ocorrencia", "atendente", "protocolo", "onibus", "bilhete", "agenda", "calendario", "biblioteca",
+  "historico", "restricao", "alergia", "justificar", "justificativa", "inscricao", "endereco", "responsavel", "cadastro", "familia", "oferta", "integral", "reclamacao", "reclamar",
+  "feriado", "recado", "doente", "febre", "diretora", "secretaria", "unidade", "faltou"];
+const PALAVRAS_COMUNS = new Set(["falar", "falei", "falou", "turma", "quero", "preciso", "minha", "minhas", "meu", "meus", "nossa", "nosso", "sobre", "para", "como", "quando", "onde", "qual", "quais", "quanto", "quantas", "quantos", "ainda", "agora", "hoje", "amanha", "ontem",
+  "filha", "filho", "filhos", "filhas", "crianca", "criancas", "bebe", "tenho", "temos", "esta", "estao", "estava", "pode", "posso", "ver", "saber", "fazer", "tudo", "nada", "ninguem", "alguem", "voce", "voces", "porque", "muito", "pouco", "bem", "mal"]);
+function distancia(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  let ant = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const lin = [i];
+    for (let j = 1; j <= b.length; j++) lin[j] = Math.min(ant[j] + 1, lin[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    ant = lin;
+  }
+  return ant[b.length];
+}
+function corrigirDigitacao(t: string): string {
+  return t.replace(/\b[a-z]{5,}\b/g, (w) => {
+    if (PALAVRAS_COMUNS.has(w) || PALAVRAS_CHAVE.includes(w)) return w;
+    const limite = w.length >= 8 ? 2 : 1;
+    let melhor: string | null = null;
+    let menor = 99;
+    for (const p of PALAVRAS_CHAVE) {
+      if (p[0] !== w[0]) continue;
+      const d = distancia(w, p);
+      if (d <= limite && d < menor) { melhor = p; menor = d; }
+    }
+    return melhor ?? w;
+  });
+}
+/** O assunto da mensagem: como a pessoa escreveu, depois sem abreviações e, se ainda não entendeu, corrigindo a digitação. */
+function detectar(t: string): string {
+  const e = expandir(t);
+  const i = detectIntent(e);
+  if (i !== "desconhecido") return i;
+  const c = corrigirDigitacao(e);
+  return c === e ? i : detectIntent(c);
+}
+const temNome = (t: string, nome: string) => !!nome && new RegExp(`\\b${norm(nome).replace(/[^a-z0-9 ]/g, "")}\\b`).test(t);
+
+/** "a vaga é para joaquim" → "Joaquim". Nulo quando o texto não parece um nome. */
+function nomeProvavel(text: string): string | null {
+  const limpo = text.trim().replace(/[.,!?;:]+$/g, "")
+    .replace(/^(a |o )?(vaga |creche |inscri[cç][aã]o |matr[ií]cula )?(é |e |ser[aá] )?(para |pra |pro |do |da |de )?(a |o )?(meu filho |minha filha |meu beb[eê] |minha beb[eê] |meu neto |minha neta )?/i, "").trim();
+  const palavras = limpo.split(/\s+/);
+  if (!limpo || palavras.length > 6 || palavras[0].length < 3 || !palavras.every((p) => /^[\p{L}'’-]+$/u.test(p))) return null;
+  if (/^(sim|nao|ok|quero|preciso|nenhum|nenhuma|outra|outro|crianca|filho|filha|bebe|menino|menina|ele|ela|essa|esse|aquela|aquele|todos|todas|tanto|qualquer|depois|agora|hoje|amanha|ontem|bom|boa|oi|ola)\b/.test(norm(limpo))) return null;
+  return palavras.map((p) => (/^(de|da|do|dos|das|e)$/i.test(p) ? p.toLowerCase() : p[0].toUpperCase() + p.slice(1).toLowerCase())).join(" ");
+}
+const listaNomes = (nomes: string[]) => (nomes.length < 2 ? nomes.join("") : nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1]);
+/** Sim ou não sem mais nada: só nesse caso a resposta digitada vale como toque num botão. */
+const SIM_PURO = /^(sim|s|ss|claro|claro que sim|pode|pode sim|pode ser|quero|quero sim|confirmo|confirmar|com certeza|por favor|sim por favor|bora|vamos|manda|mostra)[.! ]*$/;
+/** "Ok" e parecidos só valem como sim se a última mensagem foi uma pergunta (senão é só "entendi"). */
+const SIM_SE_PERGUNTOU = /^(ok|okay|isso|isso mesmo|uhum|aham|exato|correto|ta bom|esta bom|certo)[.! ]*$/;
+const NAO_PURO = /^(nao|n|agora nao|nao obrigad[oa]|obrigad[oa] nao|depois|deixa|melhor nao|ainda nao|hoje nao|nao quero|negativo)[.! ]*$/;
+const BOTAO_NEGATIVO = /^(nao|agora nao|nao,|depois)/;
+/** Sem assunto próprio: dentro de um passo da conversa, são a resposta do passo. */
+const SEM_ASSUNTO = new Set(["desconhecido", "saudacao", "confirmacao"]);
+/** Passos de resposta curta: se a pessoa muda de assunto aqui, a conversa acompanha (nos narrativos, o texto é a própria resposta). */
+const PASSOS_CURTOS = new Set(["name", "bairro", "child_name", "adult_name", "city", "phone", "email"]);
+/** Assuntos que a pessoa pode repetir só citando outra criança ("e o Davi?"). */
+const TEMAS_CONTINUAVEIS = new Set(["documentos", "frequencia", "boletim", "fila", "acompanhar", "oferta", "cardapio", "agenda", "ocorrencias", "transporte", "biblioteca", "medidas", "aulas", "aee_plano", "rematricula", "avisos"]);
+const SIGLAS_DA_BASE = new Set(["aee", "cid", "eja", "tea", "tgd", "sus", "pcd"]);
+const PALAVRAS_VAZIAS = new Set(["quanto", "quantos", "quantas", "tempo", "quais", "para", "pela", "pelo", "como", "qual", "quais", "quando", "onde", "quero", "preciso", "gostaria", "saber", "minha", "minhas", "meus", "voce", "voces", "esta", "estao", "isso", "essa", "esse", "tenho", "temos", "pode", "posso", "fazer", "aqui", "hoje", "muito", "mais", "ainda", "sobre", "porque", "tambem", "tudo", "crianca", "filho", "filha", "escola"]);
 
 function parseDate(text: string): string | null {
   const m = text.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
@@ -324,10 +422,51 @@ export class Agent {
               private opts: { demo: boolean } = { demo: false }) {
     this.ctx = { flow: null, step: null, data: {}, pending: null, ...(conv.context ?? {}) };
     this.ctx.data = this.ctx.data ?? {};
+    this.mem = { ...(conv.context?.mem ?? {}) };
+    this.opcoesAnteriores = conv.context?.opcoes ?? [];
   }
+
+  /** O que a conversa lembra além do passo atual (sobrevive à troca de assunto). */
+  private mem: Memoria;
+  /** Os botões da última resposta: digitar o que está neles vale como tocar. */
+  private opcoesAnteriores: QuickReply[];
 
   private say(body: string, payload?: Reply["payload"]) {
     this.messages.push({ body, payload });
+  }
+
+  /** Não entendi a escolha: repete os botões em vez de só pedir para tocar. */
+  private repetirOpcoes(body: string) {
+    this.say(body, this.opcoesAnteriores.length ? { quick_replies: this.opcoesAnteriores } : undefined);
+  }
+
+  private trocarAssunto() {
+    if (this.ctx.flow || this.ctx.pending) this.ctx = { flow: null, step: null, data: {}, pending: null };
+  }
+
+  /** Resposta digitada que corresponde a um botão da última mensagem. */
+  private opcaoDigitada(t: string): QuickReply | null {
+    const ops = this.opcoesAnteriores.filter((o) => o.action);
+    const igual = ops.find((o) => norm(o.label) === t);
+    if (igual) return igual;
+    const perguntou = /\?\s*$/.test(this.mem.ultima ?? "");
+    const sim = SIM_PURO.test(t) || (perguntou && SIM_SE_PERGUNTOU.test(t));
+    if (ops.length === 1 && sim) return ops[0];
+    const negativo = ops.find((o) => BOTAO_NEGATIVO.test(norm(o.label)) || o.action === "nothing");
+    if (!negativo) return null; // sem botão de "não", a pergunta não era de sim ou não (ex.: nomes das crianças)
+    if (NAO_PURO.test(t)) return negativo;
+    if (sim) return ops.find((o) => o !== negativo) ?? null;
+    return null;
+  }
+
+  private async criancaCitada(t: string): Promise<any | null> {
+    if (!this.conv.guardian_id) return null;
+    try {
+      const fam = await this.family();
+      return ((fam?.children ?? []) as any[]).find((k) => temNome(t, k.first_name)) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Linha reta, a pé e de carro de um ponto às unidades — se o motor de rotas falhar, a conversa segue com a linha reta. */
@@ -419,21 +558,57 @@ export class Agent {
   }
 
   async handle(text: string, action?: string | null): Promise<void> {
+    await this.atender(text, action);
+    // os botões desta resposta valem na próxima mensagem, tocados ou digitados
+    const ultima = [...this.messages].reverse().find((m) => m.payload?.quick_replies?.length);
+    this.ctx.opcoes = (ultima?.payload?.quick_replies ?? []).slice(0, 25).map((q) => ({ label: q.label, action: q.action }));
+    if (!this.repetiu) this.mem.ultima = this.messages.map((m) => m.body).join("\n").slice(0, 600);
+    this.ctx.mem = this.mem;
+  }
+
+  private repetiu = false;
+  private repetir() {
+    this.repetiu = true;
+    if (this.mem.ultima) return this.say(`Sem problema, vou repetir: ${this.mem.ultima}`, this.opcoesAnteriores.length ? { quick_replies: this.opcoesAnteriores } : undefined);
+    this.say("Pode me contar com as suas palavras o que você precisa? Se preferir, escolha aqui:", { quick_replies: this.conv.guardian_id ? MENU : this.newcomerMenu() });
+  }
+
+  private async atender(text: string, action?: string | null): Promise<void> {
     const t = norm(text);
     try {
-      if (action) return await this.onAction(action, text);
+      if (action) {
+        this.mem.erros = 0;
+        return await this.onAction(action, text);
+      }
       if (this.opts.demo && /^\d{6}$/.test(t.replace(/\s/g, "")) && this.ctx.pending) return await this.onAction("verify:" + t.replace(/\s/g, ""), text);
-      const intent = detectIntent(t);
+      const intent = detectar(t);
+      // emergência e proteção não esperam o fim do passo em que a conversa está
+      if (["crise", "protecao", "emergencia"].includes(intent)) return await this.route(intent, text);
+      if (intent === "repetir") return this.repetir();
       if (intent === "menu") {
         this.done();
         this.say("Tudo bem, recomeçamos. Como posso ajudar?", { quick_replies: this.conv.guardian_id ? MENU : this.newcomerMenu() });
         return;
       }
-      if (this.ctx.flow && this.ctx.step && FREE_TEXT_STEPS.has(this.ctx.step) && intent !== "atendente") return await this.continueFlow(text);
-      if (this.ctx.flow && this.ctx.step && ["desconhecido", "saudacao"].includes(intent)) return await this.continueFlow(text);
-      if (this.ctx.flow && this.ctx.step && intent === "procurar_vaga" && this.ctx.flow === "procurar_vaga") return await this.continueFlow(text);
-      if (!this.ctx.flow && this.conv.guardian_id && intent !== "atendente" && (intent === "desconhecido" || motivoAusencia(t))
+      const botao = this.opcaoDigitada(expandir(t));
+      if (botao?.action) {
+        this.mem.erros = 0;
+        return await this.onAction(botao.action, text);
+      }
+      if (this.ctx.flow && this.ctx.step && intent !== "atendente" && intent !== "frustracao") {
+        const step = this.ctx.step;
+        if (FREE_TEXT_STEPS.has(step)) {
+          // resposta curta com pergunta de outro assunto: a conversa acompanha a pessoa
+          const pergunta = /\?\s*$/.test(text) || /^(qual|quais|quando|onde|como|quanto|quantos|quantas|quero|preciso|posso)\b/.test(expandir(t));
+          const passoDeNome = ["name", "child_name", "adult_name"].includes(step);
+          if (!(PASSOS_CURTOS.has(step) && (pergunta || passoDeNome) && !SEM_ASSUNTO.has(intent) && intent !== this.ctx.flow)) return await this.continueFlow(text);
+        } else if (SEM_ASSUNTO.has(intent) || intent === this.ctx.flow || (yesNo(t) !== null && this.opcoesAnteriores.some((o) => o.action === "ans:sim"))) {
+          return await this.continueFlow(text);
+        }
+      }
+      if (!this.ctx.flow && this.conv.guardian_id && !["atendente", "frustracao", "crianca_doente", "vai_faltar"].includes(intent) && (intent === "desconhecido" || motivoAusencia(t))
           && await this.ausenciaTextoLivre(text, t)) return;
+      this.trocarAssunto();
       return await this.route(intent, text);
     } catch (e) {
       const msg = (e as Error).message ?? "erro";
@@ -454,8 +629,57 @@ export class Agent {
 
   private async route(intent: string, text: string): Promise<void> {
     this.patch.intent = intent;
+    if (intent !== "desconhecido") this.mem.erros = 0;
+    if (TEMAS_CONTINUAVEIS.has(intent)) this.mem.ultimo = intent;
+    if (!this.verified() && this.conv.guardian_id) {
+      if (intent === "relatar_ocorrencia") this.say("Sinto muito que isso tenha acontecido. Vou registrar para a escola acompanhar; antes, só preciso confirmar que é você.");
+      if (intent === "servico:RECLAMACAO") this.say("Sinto muito pela dificuldade. Vou registrar sua manifestação e levar ao setor responsável; antes, só preciso confirmar que é você.");
+    }
     if (intent.startsWith("servico:")) return await this.startService(intent.slice(8));
     switch (intent) {
+      case "crise":
+        this.say("Sinto muito que você esteja passando por isso, e fico feliz que tenha falado. Você não precisa enfrentar isso sozinho(a). O **CVV atende 24 horas pelo 188**, ligação gratuita. Se houver risco agora, ligue **192 (SAMU)**.");
+        return await this.handoff("Prioridade: pessoa em sofrimento");
+      case "protecao":
+        this.say("Obrigada por confiar isso a mim. Se alguém estiver em risco agora, ligue **190**. O **Disque 100** recebe denúncias 24 horas, sem precisar se identificar, e o Conselho Tutelar também atende esses casos. Não precisa me contar detalhes por aqui.");
+        return await this.handoff("Prioridade: possível situação de proteção à criança");
+      case "emergencia":
+        this.say("Se for uma emergência, ligue agora para o **SAMU (192)** ou os **Bombeiros (193)**. Depois que a criança estiver atendida, eu aviso a escola por aqui.", {
+          quick_replies: [{ label: "Avisar a escola", action: "recado:doente|" }, { label: "Falar com atendente", action: "handoff:Emergência informada pela família" }],
+        });
+        return;
+      case "frustracao":
+        this.say("Desculpe, não quero fazer você repetir. Prefere que eu chame uma pessoa da equipe? Ela vê toda a nossa conversa. Se quiser tentar comigo, me diga em uma frase o que você precisa.", {
+          quick_replies: [{ label: "Chamar uma pessoa", action: "handoff:A família pediu atendimento depois de não ser entendida" }, { label: "Ver o que a IARA faz", action: "intent:menu" }, { label: "Agora não", action: "nothing" }],
+        });
+        return;
+      case "sobre_iara":
+        this.say("Sou a IARA, a assistente virtual da Secretaria Municipal de Educação de Maringá. Não sou uma pessoa, mas resolvo por aqui vaga, fila, documentos e o dia a dia da escola, e chamo alguém da equipe quando precisa de uma decisão. Pode me escrever do seu jeito. 💜", {
+          quick_replies: this.conv.guardian_id ? [...MENU.slice(0, 2), MENU[9], MENU[6]] : this.newcomerMenu(),
+        });
+        return;
+      case "menu":
+        this.done();
+        this.say("É isto que resolvo por aqui. Pode tocar ou me escrever do seu jeito:", { quick_replies: this.conv.guardian_id ? MENU : this.newcomerMenu() });
+        return;
+      case "confirmacao":
+        this.say("Combinado! 💜 Se precisar de mais alguma coisa, é só me chamar.");
+        return;
+      case "crianca_doente":
+        return await this.avisoDaFamilia(text, "doente");
+      case "vai_faltar":
+        return await this.avisoDaFamilia(text, "falta");
+      case "falar_escola":
+        return await this.falarComEscola(text);
+      case "bem_estar": {
+        const kid = await this.criancaCitada(expandir(norm(text)));
+        this.say("Entendo, isso preocupa. 💜 A equipe da escola precisa saber para poder ajudar. Posso deixar um recado na agenda da turma ou chamar a secretaria da unidade para conversar com você.", {
+          quick_replies: [{ label: "Mandar um recado", action: `recado:|${kid?.first_name ?? ""}` }, { label: "Falar com a secretaria", action: "handoff:A família está preocupada com o bem-estar da criança na escola" }, { label: "Agora não", action: "nothing" }],
+        });
+        return;
+      }
+      case "minha_escola":
+        return await this.minhaEscola(text);
       case "saudacao": {
         if (!this.conv.guardian_id) {
           this.say("Oi! 💜 Eu sou a IARA, da Secretaria Municipal de Educação de Maringá. Ainda não encontrei cadastro para este número — se vocês acabaram de chegar à cidade, faço o cadastro e a inscrição na fila por aqui mesmo.",
@@ -478,8 +702,11 @@ export class Agent {
         return await this.caseStatus();
       case "oferta":
         return await this.offers();
-      case "documentos":
-        return await this.documents();
+      case "documentos": {
+        const q = expandir(norm(text));
+        const kid = await this.criancaCitada(q);
+        return await this.documents(kid?.first_name ?? null, !!kid || /falt|pendenc/.test(q));
+      }
       case "enviar_documento":
         return await this.startDocumento();
       case "foto":
@@ -500,8 +727,16 @@ export class Agent {
         return await this.startRegister(null);
       case "outra_cidade":
         return await this.startOutraCidade();
-      case "novo_membro":
+      case "novo_membro": {
+        const q = expandir(norm(text));
+        // já disse que é criança: não pergunta de novo; se pediu vaga, segue para a fila depois de incluir
+        if (/(crianca|filh|bebe|nenem|gemeos|nasceu|recem)/.test(q)) {
+          const quer = /(vaga|creche|fila|matricul|pre.?escola|inscrever)/.test(q);
+          this.say(quer ? "Parabéns pela nova criança! 💜 Vou incluir na família e já seguimos com a vaga." : "Parabéns pela nova criança! 💜 Vou incluir na família.");
+          return await this.startAddChild(quer ? "vaga:resume" : null);
+        }
         return await this.startNewMember();
+      }
       case "mudanca":
         return await this.startMove();
       case "saida":
@@ -562,8 +797,108 @@ export class Agent {
         if (!text.trim() || /^(tirar uma )?duvida( sobre a rede)?$/.test(norm(text))) return this.askQuestion();
         return await this.knowledge(text);
       default:
-        this.say("Desculpe, não entendi. Posso ajudar com estes assuntos:", { quick_replies: this.conv.guardian_id ? MENU : this.newcomerMenu() });
+        return await this.naoEntendi(text);
     }
+  }
+
+  /** Não reconheci o assunto: tenta a criança citada e a base oficial; só então pede outra forma, e na segunda vez oferece uma pessoa. */
+  private async naoEntendi(text: string): Promise<void> {
+    const t = expandir(norm(text));
+    const kid = await this.criancaCitada(t);
+    // "e o Davi?": o mesmo assunto, agora sobre outra criança
+    if (kid && this.mem.ultimo && t.replace(new RegExp(`\\b${norm(kid.first_name)}\\b`), "").replace(/\b(e|o|a|de|do|da|para|agora|tambem|sobre)\b/g, "").replace(/[^a-z0-9]/g, "").length === 0) {
+      return await this.route(this.mem.ultimo, text);
+    }
+    const termos = t.split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !PALAVRAS_VAZIAS.has(w));
+    if (termos.length >= 2) {
+      const kb = await this.tool("search_official_knowledge", "knowledge_search", { q: termos.join(" ") });
+      const art = (kb?.items ?? [])[0];
+      if (art && art.score >= Math.ceil(termos.length * 0.6)) return await this.knowledge(termos.join(" "));
+    }
+    if (kid) {
+      this.say(`Sobre ${kid.first_name}, o que você precisa saber?`, {
+        quick_replies: [ESCOLA_MENU[0], MENU[4], ESCOLA_MENU[2], ESCOLA_MENU[8], { label: "Recado para a professora", action: `recado:|${kid.first_name}` }, MENU[6]],
+      });
+      return;
+    }
+    this.mem.erros = (this.mem.erros ?? 0) + 1;
+    if (this.mem.erros >= 2) {
+      this.say("Desculpe, ainda não consegui entender. Quer que eu chame uma pessoa da equipe? Ela vê toda a nossa conversa, e você não precisa repetir nada.", {
+        quick_replies: [{ label: "Chamar uma pessoa", action: "handoff:A IARA não entendeu o pedido da família" }, { label: "Ver o que a IARA faz", action: "intent:menu" }, { label: "Agora não", action: "nothing" }],
+      });
+      return;
+    }
+    this.say("Não consegui entender direito. Pode me contar de outro jeito? Por exemplo: “quero vaga na creche”, “o que falta de documento” ou “minha filha faltou hoje”.", {
+      quick_replies: this.conv.guardian_id ? [MENU[0], MENU[4], MENU[9], MENU[6], { label: "Ver o que a IARA faz", action: "intent:menu" }] : this.newcomerMenu(),
+    });
+  }
+
+  /** A criança não está bem ou vai faltar: acolhe e oferece avisar a escola. Sem orientação de saúde. */
+  private async avisoDaFamilia(text: string, tipo: "doente" | "falta"): Promise<void> {
+    const t = expandir(norm(text));
+    const kid = await this.criancaCitada(t);
+    const quem = kid?.first_name ?? "";
+    const pediuEscola = /(falar|conversar|ligar).{0,25}(professor|escola|direcao|diretor|creche|cmei)/.test(t);
+    const abertura = tipo === "doente" ? `Sinto muito, espero que ${quem || "melhore"}${quem ? " melhore" : ""} logo. 💜 ` : "Obrigada por avisar. ";
+    const meio = pediuEscola
+      ? "Eu não consigo ligar para a professora, mas deixo seu recado na agenda da turma, e a escola vê por lá. Quer que eu avise?"
+      : "Quer que eu avise a escola agora, pela agenda da turma?";
+    this.say(abertura + meio, {
+      quick_replies: [
+        { label: tipo === "doente" ? "Avisar que não está bem" : "Avisar que vai faltar", action: `recado:${tipo}|${quem}` },
+        { label: "Escrever um recado", action: `recado:|${quem}` },
+        { label: "Falar com a secretaria", action: "handoff:A família quer falar com a escola" },
+        { label: "Agora não", action: "nothing" },
+      ],
+    });
+  }
+
+  /** Onde a criança estuda: unidade, turma e turno do cadastro. O que o sistema não sabe (horário exato, nome da professora), diz que não sabe. */
+  private async minhaEscola(text: string): Promise<void> {
+    if (!this.needGuardian("intent:minha_escola")) return;
+    const t = expandir(norm(text));
+    const kids = (((await this.family())?.children ?? []) as any[]);
+    const citada = kids.find((k) => temNome(t, k.first_name));
+    const lista = (citada ? [citada] : kids).filter((k) => k.school);
+    if (!lista.length) {
+      return this.say(citada ? `${citada.first_name} ainda não tem matrícula ativa na rede.` : "Não encontrei criança com matrícula ativa no seu cadastro.", { quick_replies: [MENU[1], MENU[0]] });
+    }
+    const TURNO: Record<string, string> = { MANHA: "manhã", TARDE: "tarde", NOITE: "noite", INTEGRAL: "integral" };
+    const linhas = lista.map((k) => `${k.first_name} estuda ${naUnidade(k.school.unit)}, turma ${k.school.class}${k.school.shift ? `, turno ${k.school.shift === "INTEGRAL" ? "integral" : `da ${TURNO[k.school.shift] ?? k.school.shift}`}` : ""}.`);
+    const falta = /(que horas|horario|hora de)/.test(t) ? " O horário exato de entrada e saída fica com a secretaria da unidade." : /professora/.test(t) ? " O nome da professora não aparece para mim por aqui; a secretaria da unidade informa." : "";
+    const fone = falta ? await this.telefoneDaEscola(citada ?? lista[0]) : "";
+    this.say(linhas.join("\n") + falta + (fone ? ` ${fone.trim()}` : ""), {
+      quick_replies: falta ? [{ label: "Falar com a secretaria", action: "handoff:A família pediu informação à unidade" }, { label: "Agora não", action: "nothing" }] : undefined,
+    });
+  }
+
+  /** Telefone público da unidade da criança; a conversa segue sem ele se a consulta falhar. */
+  private async telefoneDaEscola(kid?: any): Promise<string> {
+    try {
+      const kids = this.conv.guardian_id ? (((await this.family())?.children ?? []) as any[]) : [];
+      const alvo = kid?.school ? kid : kids.find((k) => k.school);
+      if (!alvo?.school?.unit_id) return "";
+      const u = await this.tool("get_unit", "unit_detail", { id: alvo.school.unit_id });
+      const fone = u?.phone ?? u?.unit?.phone;
+      return fone ? `O telefone ${daUnidade(alvo.school.unit)} é ${fone}. ` : "";
+    } catch {
+      return "";
+    }
+  }
+
+  private async falarComEscola(text: string): Promise<void> {
+    const kid = await this.criancaCitada(expandir(norm(text)));
+    const quem = kid?.first_name ?? "";
+    const pediuNumero = /(telefone|numero|whatsapp|ligar)/.test(expandir(norm(text)));
+    const achado = await this.telefoneDaEscola(kid);
+    const fone = achado || (pediuNumero ? "Ainda não tenho o telefone dessa unidade no cadastro. " : "");
+    this.say(`${fone}Por aqui, posso deixar seu recado na agenda da turma ou chamar a secretaria da unidade para continuar com você. Qual prefere?`, {
+      quick_replies: [
+        { label: "Mandar um recado", action: `recado:|${quem}` },
+        { label: "Falar com a secretaria", action: "handoff:A família quer falar com a escola" },
+        { label: "Agora não", action: "nothing" },
+      ],
+    });
   }
 
   private async onAction(action: string, text: string): Promise<void> {
@@ -572,7 +907,17 @@ export class Agent {
     switch (kind) {
       case "intent":
         if (value === "transferencia_reg") return await this.startTransfer();
+        // tocar em outro assunto encerra o passo anterior: a próxima resposta não pode cair nele
+        this.trocarAssunto();
         return await this.route(value, text);
+      case "docs":
+        this.trocarAssunto();
+        return await this.documents(value || null, true);
+      case "recado": {
+        const [sugestao, citado] = value.split("|");
+        this.trocarAssunto();
+        return await this.startBilhete(sugestao || null, citado || null);
+      }
       case "verify": {
         if (!this.opts.demo) {
           this.ctx.pending = null;
@@ -834,7 +1179,9 @@ export class Agent {
     if (!this.needGuardian(`fam:add_child${next ? "|" + next : ""}`)) return;
     const carry = { ...(this.ctx.data ?? {}) };
     this.ctx = { flow: "novo_membro", step: "child_name", data: { ...carry, next } };
-    this.say("Qual é o **nome completo da criança**?");
+    const nome = carry.child_first as string | undefined;
+    if (nome && nome.split(/\s+/).length >= 2) return await this.newMemberStep(nome);
+    this.say(nome ? `Qual é o **nome completo** de ${nome}?` : "Qual é o **nome completo da criança**?");
   }
 
   private async newMemberStep(text: string): Promise<void> {
@@ -844,11 +1191,21 @@ export class Agent {
       case "type":
         if (/adult|respons|pai|mae|avo/.test(t)) return this.ask("adult_name", "Qual é o **nome completo** dessa pessoa?");
         return await this.startAddChild(null);
-      case "child_name":
-        if (text.trim().split(/\s+/).length < 2) return this.say("Preciso do nome completo (nome e sobrenome).");
-        d.child_full_name = text.trim();
+      case "child_name": {
+        const limpo = nomeProvavel(text);
+        if (!limpo) return this.say("Me diga o nome completo da criança (nome e sobrenome).");
+        if (limpo.split(/\s+/).length < 2) {
+          const ja = this.conv.guardian_id ? (((await this.family())?.children ?? []) as any[]).find((k) => temNome(norm(limpo), k.first_name)) : null;
+          if (ja && d.next === "vaga:resume") return await this.vagaChild(ja.id);
+          if (!d.child_first || norm(d.child_first) === norm(limpo)) {
+            d.child_first = limpo;
+            return this.say(`Preciso também do sobrenome de ${limpo}. Qual é o nome completo?`);
+          }
+        }
+        d.child_full_name = limpo.split(/\s+/).length < 2 ? `${d.child_first} ${limpo}` : limpo;
         if (d.birth_date) return this.ask("child_rel", `Qual o seu parentesco com ${first(d.child_full_name)}?`, { quick_replies: REL_CHILD });
         return this.ask("child_birth", `Qual a data de nascimento de ${first(d.child_full_name)}? (ex.: 14/03/2024)`);
+      }
       case "child_birth": {
         const date = parseDate(text);
         if (!date) return this.say("Não entendi a data. Pode enviar no formato dia/mês/ano? (ex.: 14/03/2024)");
@@ -1447,8 +1804,8 @@ export class Agent {
     if (flow === "outra_cidade") {
       if (step === "pick_child") {
         const fam = await this.family();
-        const kid = ((fam?.children ?? []) as any[]).find((k) => k.id === text || norm(k.first_name) === t);
-        if (!kid) return this.say("Toque no nome da criança, por favor.");
+        const kid = ((fam?.children ?? []) as any[]).find((k) => k.id === text || temNome(t, k.first_name));
+        if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
         this.ctx.data = { ...this.ctx.data, child_id: kid.id, child_name: kid.first_name, birth_date: kid.birth_date };
         return this.ask("school", `${kid.first_name} estudava em qual escola ou CMEI em ${this.ctx.data?.origin?.city ?? "sua cidade"}? (ou toque em Pular)`, { quick_replies: [{ label: "Pular", action: "skip:" }] });
       }
@@ -1457,9 +1814,9 @@ export class Agent {
     if (flow === "servico") {
       if (step === "child") {
         const fam = await this.family();
-        const kid = ((fam?.children ?? []) as any[]).find((k) => norm(k.first_name) === t);
+        const kid = ((fam?.children ?? []) as any[]).find((k) => temNome(t, k.first_name));
         if (kid) return await this.serviceChild(kid.id);
-        return this.say("Toque no nome da criança, por favor.");
+        return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       }
       if (step === "doc_confirm") {
         if (/pedir|sim|quero/.test(t)) return this.ask("description", "Para que você precisa da declaração? (ex.: trabalho, benefício, transferência)", { quick_replies: [{ label: "Enviar assim mesmo", action: "skip:" }] });
@@ -1474,11 +1831,27 @@ export class Agent {
         const fam = this.conv.guardian_id ? await this.family() : null;
         const kid = ((fam?.children ?? []) as any[]).find((k) => t.includes(norm(k.first_name)));
         if (kid) return await this.vagaChild(kid.id);
-        if (/outr/.test(t)) return await this.vagaChild("new");
+        if (/(outr|\bnov[oa]\b|recem|bebe|mais uma|nao tem cadastro|ainda nao)/.test(t)) return await this.vagaChild("new");
         const date = parseDate(text);
         if (date) return await this.applyGrade(date);
-        this.say("Me diga o nome da criança ou toque em uma das opções.");
+        const nome = nomeProvavel(text);
+        const kids = ((fam?.children ?? []) as any[]);
+        if (nome && kids.length) {
+          this.ctx.data = { ...this.ctx.data, child_first: nome };
+          return this.ask("child_new", `Não encontrei ${nome} entre as crianças do seu cadastro (${listaNomes(kids.map((k) => k.first_name))}). ${nome} é uma criança nova na família?`, {
+            quick_replies: [{ label: `Sim, incluir ${nome}`, action: "child:new" }, ...kids.map((k: any) => ({ label: k.first_name, action: `child:${k.id}` }))],
+          });
+        }
+        this.repetirOpcoes("Não peguei o nome. Para qual criança é a vaga?");
         return;
+      }
+      if (step === "child_new") {
+        const fam = await this.family();
+        const kid = ((fam?.children ?? []) as any[]).find((k) => t.includes(norm(k.first_name)));
+        if (kid) return await this.vagaChild(kid.id);
+        const yn = yesNo(t);
+        if (yn === true) return await this.vagaChild("new");
+        return this.repetirOpcoes(yn === false ? "Tudo bem. Para qual criança é a vaga?" : `Me diga se ${this.ctx.data?.child_first ?? "a criança"} é nova na família ou escolha o nome:`);
       }
       if (step === "birth") {
         const date = parseDate(text);
@@ -1633,8 +2006,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "jf_child") {
-      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
-      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      const kid = (d.kids as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, kid };
       if (kid.faltas.length === 1) return await this.justificarDia(kid.faltas[0]);
       return this.ask("jf_dia", `Qual falta de ${kid.nome} você quer justificar?`, { quick_replies: (kid.faltas as string[]).map((f) => ({ label: diaBr(f), action: `ans:${f}` })) });
@@ -1664,8 +2037,7 @@ export class Agent {
   }
 
   private async cardapio(): Promise<void> {
-    if (this.conv.guardian_id) {
-      if (!this.ensureVerified("intent:cardapio")) return;
+    if (this.conv.guardian_id && this.verified()) {
       const kids = ((await this.tool("get_menu", "familia_cardapio", {})) as any[]) ?? [];
       const cards: Card[] = [];
       for (const k of kids) {
@@ -1689,8 +2061,13 @@ export class Agent {
       return { title: `${f.faixa === "CRECHE" ? "Creche" : f.faixa === "PRE" ? "Pré-escola" : "Ensino fundamental"} · ${dia ? diaBr(dia.data) : ""}`,
         lines: ((dia?.refeicoes ?? []) as any[]).map((r) => `${REFEICAO_LABEL[r.refeicao] ?? r.refeicao}: ${((r.itens ?? []) as any[]).map((i) => i.nome).join(", ")}`), tone: "green" };
     });
-    this.say("Cardápio da rede:", { cards });
     this.done("Consultou o cardápio da rede.");
+    if (this.conv.guardian_id) {
+      this.ctx.pending = "intent:cardapio";
+      this.say("Cardápio da rede:", { cards, quick_replies: [{ label: "Ver com as trocas das minhas crianças", action: "verify:482913" }, { label: "Agora não", action: "nothing" }] });
+      return;
+    }
+    this.say("Cardápio da rede:", { cards });
   }
 
   private async startRestricao(t: string): Promise<void> {
@@ -1712,8 +2089,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "rs_child") {
-      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
-      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      const kid = (d.kids as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, kid };
       if (d.codigo) return await this.restricaoConfirmar(d.codigo);
       return this.ask("rs_tipo", `Qual é a restrição de ${kid.nome}? Escreva com suas palavras (ex.: “intolerância à lactose”, “não come carne de porco por religião”).`, {
@@ -1856,27 +2233,37 @@ export class Agent {
     this.say("Ciência confirmada ✅ A professora vê a sua confirmação.", { quick_replies: [ESCOLA_MENU[6]] });
   }
 
-  private async startBilhete(): Promise<void> {
-    if (!this.needGuardian("intent:bilhete")) return;
-    if (!this.ensureVerified("intent:bilhete")) return;
+  /** sugestao: aviso pronto ("doente" ou "falta"); citado: a criança já dita na mensagem. */
+  private async startBilhete(sugestao?: string | null, citado?: string | null): Promise<void> {
+    const acao = sugestao || citado ? `recado:${sugestao ?? ""}|${citado ?? ""}` : "intent:bilhete";
+    if (!this.needGuardian(acao)) return;
+    if (!this.ensureVerified(acao)) return;
     const filhos = await this.filhosMatriculados();
     if (!filhos.length) {
       this.done();
       return this.say("O bilhete vai para a agenda da turma; preciso de uma criança com matrícula ativa.", { quick_replies: [MENU[0]] });
     }
-    this.ctx = { flow: "bilhete", step: "bl_child", data: { filhos } };
-    if (filhos.length === 1) return await this.bilheteStep(filhos[0].id);
-    this.say("O bilhete é sobre qual criança?", { quick_replies: filhos.map((f) => ({ label: f.nome, action: `ans:${f.id}` })) });
+    this.ctx = { flow: "bilhete", step: "bl_child", data: { filhos, sugestao: sugestao ?? null } };
+    const alvo = citado ? filhos.find((f) => norm(f.nome) === norm(citado)) : null;
+    if (filhos.length === 1 || alvo) return await this.bilheteStep((alvo ?? filhos[0]).id);
+    this.say(sugestao ? "O aviso é sobre qual criança?" : "O recado é sobre qual criança?", { quick_replies: filhos.map((f) => ({ label: f.nome, action: `ans:${f.id}` })) });
   }
 
   private async bilheteStep(text: string): Promise<void> {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "bl_child") {
-      const filho = (d.filhos as any[]).find((f) => f.id === text || norm(f.nome) === t);
-      if (!filho) return this.say("Toque no nome da criança, por favor.");
+      const filho = (d.filhos as any[]).find((f) => f.id === text || temNome(t, f.nome));
+      if (!filho) return this.repetirOpcoes("Não achei esse nome. O recado é sobre qual criança?");
+      if (d.sugestao) {
+        const texto = d.sugestao === "doente" ? `Aviso da família: ${filho.nome} não está se sentindo bem hoje.` : `Aviso da família: ${filho.nome} não vai à aula.`;
+        this.ctx.data = { ...d, filho, texto };
+        return this.ask("bl_ok", `Vou entregar na agenda da turma: “${texto}” Confirma?`, {
+          quick_replies: [{ label: "Sim", action: "ans:sim" }, { label: "Escrever outro recado", action: "ans:outro" }, { label: "Não", action: "ans:nao" }],
+        });
+      }
       this.ctx.data = { ...d, filho };
-      return this.ask("description", `Escreva o bilhete para a escola de ${filho.nome} (ex.: “vai sair mais cedo amanhã, às 16h, com o pai”).`);
+      return this.ask("description", `O que você quer dizer à escola de ${filho.nome}? (ex.: “vai sair mais cedo amanhã, às 16h, com o pai”)`);
     }
     if (this.ctx.step === "description") {
       if (text.trim().length < 3) return this.say("Escreva o bilhete, por favor.");
@@ -1884,10 +2271,12 @@ export class Agent {
       return this.ask("bl_ok", `Vou entregar na agenda da turma: “${text.trim().slice(0, 200)}”. Confirma?`, { quick_replies: YES_NO });
     }
     if (this.ctx.step === "bl_ok") {
+      if (/(outro|escrever|mudar|trocar)/.test(t)) return this.ask("description", "Pode escrever. O que você quer dizer à escola?");
       if (yesNo(t) === false) {
         this.done();
         return this.say("Tudo bem, não enviei.", { quick_replies: [ESCOLA_MENU[6]] });
       }
+      if (yesNo(t) === null) return this.repetirOpcoes("Confirma o envio do recado?");
       const r = await this.tool("send_note_to_school", "familia_agenda_enviar", { student_id: d.filho.id, texto: d.texto }, `bilhete:${d.filho.id}:${d.texto.length}`);
       this.done("Bilhete da família entregue na agenda da turma.");
       return this.say(`${r.mensagem ?? "Bilhete entregue."} ✅`, { quick_replies: [ESCOLA_MENU[6]] });
@@ -1963,8 +2352,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "oc_child") {
-      const filho = (d.filhos as any[]).find((f) => f.id === text || norm(f.nome) === t);
-      if (!filho) return this.say("Toque no nome da criança, por favor.");
+      const filho = (d.filhos as any[]).find((f) => f.id === text || temNome(t, f.nome));
+      if (!filho) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, filho };
       if (d.tipo) return this.ask("description", `Conte o que aconteceu com ${filho.nome}, com o dia e a hora se souber. A direção da escola recebe na hora.`);
       return this.ask("oc_tipo", "Sobre o que é?", {
@@ -2095,8 +2484,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "dc_child") {
-      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
-      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      const kid = (d.kids as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, kid };
       if (d.tipo && kid.tipos.includes(d.tipo)) return await this.declaracaoEmitir(d.tipo);
       if (d.tipo) this.say(d.tipo === "INSCRICAO_FILA" ? `${kid.nome} não está na fila de espera.` : d.tipo === "HISTORICO" ? `${kid.nome} ainda não tem ano concluído para o histórico escolar.` : `${kid.nome} não tem matrícula ativa na rede.`);
@@ -2353,8 +2742,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "ta_child") {
-      const kid = (d.kids as any[]).find((k) => k.id === text || norm(k.nome) === t);
-      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      const kid = (d.kids as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, kid };
       if (!d.quando) return this.ask("ta_dia", `${kid.nome} não vai usar o transporte quando?`, { quick_replies: [{ label: "Hoje", action: "ans:hoje" }, { label: "Amanhã", action: "ans:amanha" }] });
       this.ctx.step = "ta_dia";
@@ -2495,21 +2884,26 @@ export class Agent {
   }
 
   // ================================================================== documentos
-  private async documents(): Promise<void> {
-    const kb = await this.tool("search_official_knowledge", "knowledge_search", { q: "documentos matricula" });
-    const art = (kb?.items ?? [])[0];
-    if (art) this.say(`${art.body}`, { notice: `Fonte: ${art.source} · versão ${art.version}` });
+  /** alvo: só uma criança; soPendencias: a pessoa perguntou o que falta, sem repetir a lista geral. */
+  private async documents(alvo?: string | null, soPendencias = false): Promise<void> {
+    const mostrarLista = !this.mem.kb_docs && !(soPendencias && this.conv.guardian_id);
+    if (mostrarLista) {
+      const kb = await this.tool("search_official_knowledge", "knowledge_search", { q: "documentos matricula" });
+      const art = (kb?.items ?? [])[0];
+      if (art) this.say(`${art.body}`, { notice: `Fonte: ${art.source} · versão ${art.version}` });
+      this.mem.kb_docs = true;
+    }
     if (!this.conv.guardian_id) return;
     if (!this.verified()) {
-      this.ctx.pending = "intent:documentos";
-      this.say("Quer ver o que falta para suas crianças? Para isso preciso confirmar sua identidade.", {
+      this.ctx.pending = alvo ? `docs:${alvo}` : "docs:";
+      this.say(`Para ver o que falta ${alvo ? `de ${alvo}` : "das suas crianças"}, preciso confirmar sua identidade. Posso seguir?`, {
         quick_replies: [{ label: "Ver pendências", action: "verify:482913" }, { label: "Agora não", action: "nothing" }],
       });
       return;
     }
     const r = await this.tool("get_documents", "familia_documentos", {});
     const cards: Card[] = [];
-    for (const k of (r?.criancas ?? []) as any[]) {
+    for (const k of ((r?.criancas ?? []) as any[]).filter((x) => !alvo || norm(x.primeiro_nome) === norm(alvo))) {
       const docs = (k.documentos ?? []) as any[];
       const lines = docs.filter((d) => d.status !== "VALIDADO").map((d) => {
         const nome = DOC_LABEL[d.tipo] ?? d.tipo;
@@ -2526,7 +2920,7 @@ export class Agent {
       this.done();
       return this.say("Não encontrei crianças no seu cadastro.", { quick_replies: [MENU[7]] });
     }
-    this.say("Documentos das crianças:", {
+    this.say(alvo ? `Documentos de ${alvo}:` : "Documentos das crianças:", {
       cards, notice: "Documento só em PDF; foto (JPEG ou PNG) só como foto da criança. Pode mandar o arquivo aqui mesmo.",
       quick_replies: [{ label: "Enviar documento", action: "intent:enviar_documento" }, { label: "Atualizar foto", action: "intent:foto" },
         { label: "Corrigir dados da criança", action: "intent:alterar_dados" }],
@@ -2592,8 +2986,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "doc_child") {
-      const kid = ((d.kids ?? []) as any[]).find((k) => k.id === text || norm(k.nome) === t);
-      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      const kid = ((d.kids ?? []) as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, kid };
       if (this.ctx.flow === "foto" || (this.ctx.flow === "anexo" && d.arquivo_tipo === "foto")) {
         if (this.ctx.flow === "anexo") return await this.destinar(d.arquivo_id, kid, "FOTO", null);
@@ -2632,8 +3026,8 @@ export class Agent {
     const d = this.ctx.data ?? {};
     const t = norm(text);
     if (this.ctx.step === "ad_child") {
-      const kid = ((d.kids ?? []) as any[]).find((k) => k.id === text || norm(k.nome) === t);
-      if (!kid) return this.say("Toque no nome da criança, por favor.");
+      const kid = ((d.kids ?? []) as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("Não achei esse nome. De qual criança você está falando?");
       this.ctx.data = { ...d, kid };
       return this.ask("ad_campo", `O que precisa corrigir de ${kid.nome}?`, { quick_replies: Object.entries(CAMPOS_ALUNO).map(([k, l]) => ({ label: l, action: `ans:${k}` })) });
     }
@@ -2662,9 +3056,14 @@ export class Agent {
 
   // ================================================================== conhecimento / humano
   private async knowledge(q: string, followUp?: string, followAction?: string): Promise<void> {
-    const kb = await this.tool("search_official_knowledge", "knowledge_search", { q });
-    const art = (kb?.items ?? [])[0];
-    if (!art) {
+    const termos = expandir(norm(q)).split(/[^a-z0-9]+/).filter((w) => (w.length > 3 || SIGLAS_DA_BASE.has(w)) && !PALAVRAS_VAZIAS.has(w));
+    const kb = await this.tool("search_official_knowledge", "knowledge_search", { q: termos.length ? termos.join(" ") : q });
+    const itens = ((kb?.items ?? []) as any[]);
+    const maior = itens[0]?.score ?? 0;
+    const art = itens.filter((i) => i.score === maior)
+      .map((i) => ({ i, noTitulo: termos.filter((w) => norm(i.title).includes(w)).length }))
+      .sort((a, b) => b.noTitulo - a.noTitulo)[0]?.i;
+    if (!art || (termos.length >= 2 && art.score < Math.ceil(termos.length * 0.6))) {
       this.say("Não encontrei informação oficial vigente sobre isso. Para não arriscar uma resposta errada, posso encaminhar sua dúvida para a equipe?", {
         quick_replies: [{ label: "Sim, encaminhar", action: "handoff:Dúvida sem conhecimento oficial" }, { label: "Não, obrigado", action: "nothing" }],
       });
