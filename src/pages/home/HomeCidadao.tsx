@@ -4,13 +4,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, Upload, X, FolderOpen,
+  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, X, FolderOpen,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
 import { fmtDate, fmtKm, timeAgo, timeLeft } from '@/lib/format';
 import { CASE_STATUS, DOC, DOC_STATUS, SHIFT } from '@/lib/labels';
 import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Section, Simulado, SkeletonList } from '@/components/ui';
+import { EnviarDocumento } from '@/components/arquivos';
 import { IaraMascot } from '@/components/iara';
 import { useSession } from '@/lib/session';
 import { FamilyOnboarding } from '@/pages/Family';
@@ -197,23 +198,9 @@ function ChildCard({ c }: { c: any }) {
   const accepted = (c.offers ?? []).find((o: any) => o.status === 'ACCEPTED');
   const docs = (c.documents ?? []) as any[];
   const qc = useQueryClient();
-  const toast = useToast();
-  const [sending, setSending] = useState<string | null>(null);
   const [caminho, setCaminho] = useState(false);
   const missing = docs.filter((d) => !['VALIDADO', 'RECEBIDO'].includes(d.status));
   const showDocs = (q || accepted) && missing.length > 0;
-  const send = async (type: string) => {
-    setSending(type);
-    try {
-      await rpc('document_set', { student_id: c.id, doc_type: type, status: 'RECEBIDO' });
-      toast({ title: `${DOC[type]} enviado`, description: 'A unidade fará a validação.', tone: 'success' });
-      qc.invalidateQueries({ queryKey: ['citizen_home'] });
-    } catch (e) {
-      toast({ title: 'Envio não concluído', description: (e as Error).message, tone: 'error' });
-    } finally {
-      setSending(null);
-    }
-  };
   return (
     <Card className="p-4" id={q ? 'fila' : undefined}>
       <div className="flex items-center gap-3">
@@ -283,10 +270,12 @@ function ChildCard({ c }: { c: any }) {
               <div key={d.type} className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1 ring-line">
                 <span className="flex-1 text-[14px] font-medium">{DOC[d.type]}</span>
                 <Badge tone={DOC_STATUS[d.status]?.tone ?? 'gray'}>{DOC_STATUS[d.status]?.label}</Badge>
-                <Button size="sm" variant="soft" icon={Upload} loading={sending === d.type} onClick={() => send(d.type)}>Enviar</Button>
+                <EnviarDocumento studentId={c.id} docType={d.type} rotulo={d.status === 'REJEITADO' ? 'Reenviar PDF' : 'Enviar PDF'} variant="soft"
+                  onDone={() => qc.invalidateQueries({ queryKey: ['citizen_home'] })} />
               </div>
             ))}
           </div>
+          <p className="mt-1.5 text-[12px] text-muted">Documento só em PDF, até 10 MB. A unidade confere depois do envio.</p>
         </div>
       )}
       {!c.school && !q && !accepted && (
