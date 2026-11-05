@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -77,6 +77,30 @@ if (roteiro === 'conversa') {
     console.error('\nFALHAS:\n' + falhas.join('\n'));
     process.exit(1);
   }
+} else if (roteiro === 'avisos') {
+  // avisos: todo aviso com data e hora e ciência; a ciência leva ao histórico. Grava ciências ao vivo; saem com "Limpar depois da apresentação".
+  await send('tem algum aviso da escola?');
+  if (lastQuick(conv).some((q) => q.label.startsWith('Confirmar código'))) await tap('Confirmar código');
+  const ultimaIara = () => [...(conv.messages ?? [])].reverse().find((m) => m.sender_type === 'IARA');
+  const cartoes = ultimaIara()?.payload?.cards ?? [];
+  if (!cartoes.length || !cartoes.every((c) => /enviado em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/.test(c.subtitle ?? ''))) falhas.push(`avisos sem data e hora: ${JSON.stringify(cartoes.map((c) => c.subtitle)).slice(0, 200)}`);
+  const ciente = lastQuick(conv).find((q) => q.label.startsWith('Estou ciente'));
+  if (!ciente) falhas.push('sem o botão de ciência');
+  else {
+    const titulo = ciente.label.replace('Estou ciente: ', '');
+    await send(ciente.label, ciente.action);
+    if (!/foi para o histórico/.test(ultimaIara()?.body ?? '')) falhas.push(`ciência → ${(ultimaIara()?.body ?? '').slice(0, 120)}`);
+    await send('qual o historico de avisos?');
+    const hist = ultimaIara()?.payload?.cards ?? [];
+    if (!hist.some((c) => c.title.startsWith(titulo) && (c.lines ?? []).some((l) => /^Ciência em/.test(l)))) falhas.push(`não está no histórico: ${titulo}`);
+    await send('tem algum aviso da escola?');
+    if ((ultimaIara()?.payload?.cards ?? []).some((c) => c.title.startsWith(titulo))) falhas.push(`continua no quadro: ${titulo}`);
+  }
+  if (falhas.length) {
+    console.error(`\n✗ ${falhas.length} resposta(s) erradas:\n- ${falhas.join('\n- ')}`);
+    process.exit(1);
+  }
+  console.log('\n✓ Avisos: tudo certo.');
 } else if (roteiro === 'recado') {
   // recado à professora: criança sem turma, o que vem junto do "sim", correção do texto, e o que a professora da turma vê.
   // Grava bilhetes com a marca "teste-recado"; depois: delete from iara.agenda_escolar where texto like '%teste-recado%';

@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import clsx from 'clsx';
 import { CalendarDays, Megaphone } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
-import { fmtInt, timeAgo } from '@/lib/format';
+import { fmtDateTime, fmtInt } from '@/lib/format';
 import { DIA_CURTO, TIPO_CALENDARIO, TIPO_MURAL, diaCurto } from '@/lib/escola';
 import { Badge, Card, EmptyState, Meter, Skeleton } from '@/components/ui';
 
@@ -102,7 +102,7 @@ export function PublicacaoCard({ p, acoes }: { p: any; acoes?: React.ReactNode }
     <Card className="p-4">
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={t.tone}>{t.label}</Badge>
-        <span className="text-[12px] font-semibold text-muted">{p.unidade ?? 'Toda a rede'} · {timeAgo(p.publicado_em)}</span>
+        <span className="text-[12px] font-semibold text-muted">{p.unidade ?? 'Toda a rede'} · Enviado em {fmtDateTime(p.publicado_em)}</span>
         {p.situacao === 'ARQUIVADO' && <Badge tone="gray">Arquivado</Badge>}
         {p.fixado && <Badge tone="purple">Fixado</Badge>}
       </div>
@@ -126,7 +126,7 @@ export function PublicacaoCard({ p, acoes }: { p: any; acoes?: React.ReactNode }
         <div className="mt-3 rounded-2xl bg-slate-50 p-2.5 ring-1 ring-line">
           <div className="flex flex-wrap justify-between gap-2 text-[12.5px]">
             <span><Megaphone className="mr-1 inline size-3.5 text-purple-700" /><b>{fmtInt(p.leituras)}</b> de {fmtInt(p.destinatarios)} famílias leram</span>
-            {p.exige_confirmacao && <span className="font-semibold text-green-800">{fmtInt(p.confirmacoes)} confirmaram a ciência</span>}
+            <span className="font-semibold text-green-800">{fmtInt(p.confirmacoes)} confirmaram a ciência</span>
           </div>
           {alcance != null && <Meter value={alcance} className="mt-1.5" tone="purple" />}
         </div>

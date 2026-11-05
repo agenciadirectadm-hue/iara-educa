@@ -37,7 +37,7 @@ export default function Mural() {
     <div>
       <PageHeader eyebrow={res.data?.escopo === 'UNIDADE' ? me?.unit?.name : 'SEDUC · comunicação'}
         title={<span className="inline-flex items-center gap-2">Mural<Simulado detail="Publicações e leituras de demonstração." /></span>}
-        subtitle="O que a rede e a escola publicam chega ao portal da família e à IARA no WhatsApp. A família confirma a ciência quando o aviso pede."
+        subtitle="O que a rede e a escola publicam chega ao portal da família e à IARA no WhatsApp. A família dá a ciência em cada aviso, e você vê quantas confirmaram."
         actions={res.data?.pode_publicar ? <Button icon={Plus} onClick={() => setNovo(true)}>Publicar</Button> : undefined} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chip active={!tipo} onClick={() => setTipo('')}>Tudo</Chip>
@@ -71,17 +71,16 @@ function NovaPublicacao({ open, onClose, unidade }: { open: boolean; onClose: ()
   const [texto, setTexto] = useState('');
   const [publico, setPublico] = useState('FAMILIAS');
   const [faixas, setFaixas] = useState<string[]>([]);
-  const [conf, setConf] = useState(false);
   const [dataEv, setDataEv] = useState('');
   const [reuniao, setReuniao] = useState(false);
   const [opcoes, setOpcoes] = useState<string[]>(['', '']);
   const [busy, setBusy] = useState(false);
-  const limpar = () => { setTitulo(''); setTexto(''); setFaixas([]); setConf(false); setDataEv(''); setReuniao(false); setOpcoes(['', '']); };
+  const limpar = () => { setTitulo(''); setTexto(''); setFaixas([]); setDataEv(''); setReuniao(false); setOpcoes(['', '']); };
   const enviar = async () => {
     setBusy(true);
     try {
       const r = await rpc<any>('mural_publicar', {
-        tipo, titulo, texto, publico, faixas, exige_confirmacao: conf, data_evento: dataEv || null, reuniao_pais: reuniao,
+        tipo, titulo, texto, publico, faixas, exige_confirmacao: publico !== 'PROFISSIONAIS', data_evento: dataEv || null, reuniao_pais: reuniao,
         opcoes: tipo === 'ENQUETE' ? opcoes.filter((o) => o.trim()) : [],
       });
       toast({ title: 'Publicado', description: r.destinatarios ? `Chega a ${fmtInt(r.destinatarios)} famílias pelo portal e pela IARA.` : 'Visível no mural dos profissionais.', tone: 'success' });
@@ -134,12 +133,6 @@ function NovaPublicacao({ open, onClose, unidade }: { open: boolean; onClose: ()
         </Field>
         {dataEv && (
           <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={reuniao} onChange={(e) => setReuniao(e.target.checked)} className="size-5 accent-purple-700" />É reunião de pais e responsáveis</label>
-        )}
-        {tipo !== 'ENQUETE' && (
-          <label className="flex items-start gap-3 rounded-2xl bg-purple-50 p-3 ring-1 ring-purple-200">
-            <input type="checkbox" checked={conf} onChange={(e) => setConf(e.target.checked)} className="mt-1 size-5 accent-purple-700" />
-            <span className="text-[13.5px]"><b>Pedir confirmação de ciência</b><br /><span className="text-muted">A família toca em “Estou ciente” no portal ou responde à IARA. Você vê quantas confirmaram.</span></span>
-          </label>
         )}
         <p className="flex items-center gap-2 text-[12.5px] text-muted"><Megaphone className="size-4" />Não publique dados de alunos: o mural é coletivo.</p>
       </div>

@@ -213,7 +213,8 @@ function detectIntent(t: string): string {
   if (/(rematricula|renovar (a )?matricula|matricula (de|para|do) (2027|o ano que vem|ano que vem)|matricula do ano que vem|confirmar (a )?matricula|vaga (para|no|do) (o )?ano que vem)/.test(t)) return "rematricula";
   if (/(o que .{0,24}(estudou|aprendeu)|conteudo (da|das|de) aulas?|materia de hoje|o que teve (na|de) aula|aula de hoje)/.test(t)) return "aulas";
   if (/(certificado|feira de ciencias?|olimpiada|mostra cultural|eventos? da escola)/.test(t)) return "eventos";
-  if (/(historico escolar|\bhistorico\b(?! de (falta|frequencia|presenca)))/.test(t)) return "historico";
+  if (/(historico escolar|\bhistorico\b(?! de (falta|frequencia|presenca|aviso|comunicado)))/.test(t)) return "historico";
+  if (/(historico d[eo]s? (aviso|comunicado)|avisos? (antigo|anterior|passado|que ja)|avisos? (ja )?(lido|confirmado))/.test(t)) return "avisos_historico";
   if (/(biblioteca|\blivros?\b|emprestimo de livro|sacola literaria)/.test(t)) return "biblioteca";
   if (/(\bpeso\b|altura|\bimc\b|quanto (ela|ele) (pesa|mede)|esta (magr|acima do peso|gordinh))/.test(t)) return "medidas";
   if (/((declaracao|atestado|comprovante) (escolar|de (matricula|frequencia|escolaridade|inscricao)|da (matricula|frequencia|fila)|para o bolsa|do bolsa|que (ele|ela) estuda)|declaracao (para|pro|pra) (o |a )?(bolsa|trabalho|empresa|beneficio|inss|cras))/.test(t)) return "declaracao";
@@ -413,6 +414,9 @@ const diaBr = (iso?: string | null) => {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return `${new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
 };
+const dataHoraBr = (iso?: string | null) => (iso
+  ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " às")
+  : "");
 /** Hoje (se for dia de aula com cardápio) ou o próximo dia do cardápio publicado. */
 function proximoDiaCardapio(c: any): any | null {
   const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -782,6 +786,8 @@ export class Agent {
         return await this.startRestricao(norm(text));
       case "avisos":
         return await this.avisos();
+      case "avisos_historico":
+        return await this.avisosHistorico();
       case "calendario":
         return await this.calendario();
       case "agenda":
@@ -2163,24 +2169,40 @@ export class Agent {
   private async avisos(): Promise<void> {
     if (!this.needGuardian("intent:avisos")) return;
     if (!this.ensureVerified("intent:avisos")) return;
-    const r = await this.tool("get_school_notices", "familia_avisos", { nao_lidos: true });
+    const r = await this.tool("get_school_notices", "familia_avisos", {});
     const itens = ((r?.avisos ?? []) as any[]).slice(0, 4);
+    const verHistorico: QuickReply = { label: "Histórico de avisos", action: "intent:avisos_historico" };
     if (!itens.length) {
       this.done();
-      return this.say("Você está em dia com os avisos da escola. 🙂", { quick_replies: [ESCOLA_MENU[4], ESCOLA_MENU[0]] });
+      return this.say("Você está em dia com os avisos da escola. 🙂", { quick_replies: [...(r?.historico?.length ? [verHistorico] : []), ESCOLA_MENU[4], ESCOLA_MENU[0]] });
     }
     const quick: QuickReply[] = [];
     const cards: Card[] = itens.map((a) => {
-      if (a.exige_confirmacao && !a.confirmado) quick.push({ label: `Estou ciente: ${a.titulo.slice(0, 22)}`, action: `aviso_ok:${a.id}` });
+      quick.push({ label: `Estou ciente: ${a.titulo.slice(0, 22)}`, action: `aviso_ok:${a.id}` });
       if (a.tipo === "ENQUETE" && a.minha_resposta == null) ((a.opcoes ?? []) as string[]).forEach((o, i) => quick.push({ label: o.slice(0, 24), action: `enq:${a.id}|${i + 1}` }));
-      return { title: a.titulo, subtitle: `${a.unidade ?? "SEDUC Maringá"} · para ${a.filhos}`, lines: [a.texto.length > 320 ? a.texto.slice(0, 317) + "…" : a.texto,
-        ...(a.data_evento ? [`📅 ${diaBr(a.data_evento)}`] : []), ...(a.exige_confirmacao && !a.confirmado ? ["A escola pede que você confirme a ciência."] : [])],
+      return { title: a.titulo, subtitle: `${a.unidade ?? "SEDUC Maringá"} · enviado em ${dataHoraBr(a.publicado_em)} · para ${a.filhos}`, lines: [a.texto.length > 320 ? a.texto.slice(0, 317) + "…" : a.texto,
+        ...(a.data_evento ? [`📅 ${diaBr(a.data_evento)}`] : [])],
         tone: a.tipo === "ENQUETE" ? "amber" : "purple", badge: a.tipo === "ENQUETE" ? "Enquete" : undefined };
     });
-    this.say(`${r.nao_lidos} aviso(s) novo(s) da escola:`, { cards, quick_replies: quick.slice(0, 10) });
-    // o que só informa fica lido ao ser mostrado; ciência e enquete esperam a resposta
-    for (const a of itens) if (!a.exige_confirmacao && a.tipo !== "ENQUETE" && !a.lido) await this.tool("mark_notice_read", "familia_aviso_ler", { id: a.id });
+    const total = Number(r.pendentes_confirmacao ?? itens.length);
+    this.say(`${total} aviso(s) da escola aguardando a sua ciência${total > itens.length ? `. Estes são os ${itens.length} mais recentes` : ""}. Depois da ciência, o aviso vai para o histórico:`, { cards, quick_replies: [...quick.slice(0, 9), ...(r?.historico?.length ? [verHistorico] : [])] });
+    // mostrado é lido; só a ciência tira o aviso do quadro
+    for (const a of itens) if (!a.lido) await this.tool("mark_notice_read", "familia_aviso_ler", { id: a.id });
     this.done("Leu os avisos da escola.");
+  }
+
+  private async avisosHistorico(): Promise<void> {
+    if (!this.needGuardian("intent:avisos_historico")) return;
+    if (!this.ensureVerified("intent:avisos_historico")) return;
+    const r = await this.tool("get_school_notices", "familia_avisos", {});
+    const itens = ((r?.historico ?? []) as any[]).slice(0, 5);
+    this.done("Consultou o histórico de avisos.");
+    if (!itens.length) return this.say("Ainda não há avisos no histórico: eles vão para lá depois que você dá a ciência.", { quick_replies: [ESCOLA_MENU[3]] });
+    const cards: Card[] = itens.map((a) => ({
+      title: a.titulo, subtitle: `${a.unidade ?? "SEDUC Maringá"} · enviado em ${dataHoraBr(a.publicado_em)}`,
+      lines: [a.texto.length > 200 ? a.texto.slice(0, 197) + "…" : a.texto, `Ciência em ${dataHoraBr(a.ciente_em)}`], tone: "green",
+    }));
+    this.say(`Os ${itens.length} avisos mais recentes em que você deu ciência:`, { cards, quick_replies: [ESCOLA_MENU[3]] });
   }
 
   private async avisoCiente(id: string): Promise<void> {
@@ -2188,7 +2210,7 @@ export class Agent {
     if (!this.ensureVerified(`aviso_ok:${id}`)) return;
     await this.tool("confirm_notice", "familia_aviso_ler", { id, confirmar: true }, `ciencia:${id}`);
     this.done("Confirmou a ciência de um aviso da escola.");
-    this.say("Ciência confirmada ✅ A escola vê a sua confirmação.", { quick_replies: [ESCOLA_MENU[3]] });
+    this.say("Ciência confirmada ✅ A escola vê a sua confirmação, e o aviso foi para o histórico.", { quick_replies: [ESCOLA_MENU[3], { label: "Histórico de avisos", action: "intent:avisos_historico" }] });
   }
 
   private async enqueteResponder(id: string, opcao: number): Promise<void> {

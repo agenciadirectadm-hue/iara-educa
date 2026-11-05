@@ -6,7 +6,7 @@ import { Apple, BellRing, CalendarCheck, CalendarDays, Check, ChevronRight, Mess
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
-import { fmtInt, timeAgo } from '@/lib/format';
+import { fmtDateTime, fmtInt } from '@/lib/format';
 import { MOTIVO_RESTRICAO, SITUACAO_JUSTIFICATIVA, SITUACAO_RESTRICAO, TIPO_MURAL, diaCurto, pctTone } from '@/lib/escola';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Meter, PageHeader, Section, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
 import { Sheet, useToast } from '@/components/overlays';
@@ -35,7 +35,7 @@ export default function Escola() {
   const rem = useRpc<any[]>('familia_rematricula', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
-  const pend = (avisos.data?.nao_lidos ?? 0) + (avisos.data?.enquetes_abertas ?? 0);
+  const pend = avisos.data?.pendentes_confirmacao ?? 0;
   return (
     <div>
       <PageHeader eyebrow="Portal da família" title={<span className="inline-flex items-center gap-2">Vida escolar<Simulado detail="Frequência, cardápio e avisos de demonstração." /></span>}
@@ -109,11 +109,11 @@ export function VidaEscolarResumo() {
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Link to="/escola?aba=avisos" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
         <span className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 text-white"><BellRing className="size-5" />
-          {(a?.nao_lidos ?? 0) > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold ring-2 ring-white">{a.nao_lidos}</span>}
+          {(a?.pendentes_confirmacao ?? 0) > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold ring-2 ring-white">{a.pendentes_confirmacao}</span>}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Avisos da escola</span>
-          <span className="block truncate text-[12.5px] text-muted">{a ? `${fmtInt(a.nao_lidos)} novo(s) · ${fmtInt(a.pendentes_confirmacao)} pedem ciência · ${fmtInt(a.enquetes_abertas)} enquete(s)` : 'Carregando…'}</span>
+          <span className="block truncate text-[12.5px] text-muted">{a ? `${fmtInt(a.pendentes_confirmacao)} aguardam sua ciência${a.enquetes_abertas ? ` · ${fmtInt(a.enquetes_abertas)} enquete(s)` : ''}` : 'Carregando…'}</span>
         </span>
         <ChevronRight className="size-5 text-subtle" />
       </Link>
@@ -156,17 +156,49 @@ export function VidaEscolarResumo() {
   );
 }
 
+/** Avisos em que a família já deu ciência: um por linha, com a hora do envio e a da ciência; o toque mostra o aviso inteiro. */
+function HistoricoAvisos({ itens }: { itens: any[] }) {
+  if (!itens.length) return null;
+  return (
+    <Section title="Histórico de avisos" subtitle={`${fmtInt(itens.length)} com ciência dada`} className="mt-5">
+      <Card className="divide-y divide-line overflow-hidden p-0">
+        {itens.map((a) => {
+          const voto = a.minha_resposta && a.opcoes ? a.opcoes[a.minha_resposta - 1] : null;
+          return (
+            <details key={a.id} className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 text-[14px] hover:bg-slate-50">
+                <Check className="size-4 shrink-0 text-green-700" />
+                <span className="min-w-0 flex-1 truncate font-semibold text-ink">{a.titulo}</span>
+                <span className="hidden shrink-0 text-[12.5px] text-muted sm:inline">Enviado em {fmtDateTime(a.publicado_em)}</span>
+                <span className="shrink-0 text-[12.5px] text-muted">Ciência em {fmtDateTime(a.ciente_em)}</span>
+                <ChevronRight className="size-4 shrink-0 text-subtle transition-transform group-open:rotate-90" />
+              </summary>
+              <div className="px-4 pb-3 pl-10">
+                <p className="text-[12px] font-semibold text-muted">{a.unidade ?? 'SEDUC Maringá'} · Enviado em {fmtDateTime(a.publicado_em)}{a.filhos ? ` · para ${a.filhos}` : ''}</p>
+                <p className="mt-1 whitespace-pre-line text-[14px] text-ink-2">{a.texto}</p>
+                {a.data_evento && <p className="mt-1.5 text-[13px] font-semibold text-teal-800"><CalendarDays className="mr-1 inline size-4" />{diaCurto(a.data_evento)}</p>}
+                {voto && <p className="mt-1.5 text-[13px] font-semibold text-ink">Sua resposta: {voto}</p>}
+              </div>
+            </details>
+          );
+        })}
+      </Card>
+    </Section>
+  );
+}
+
 function Avisos({ res }: { res: any }) {
   const qc = useQueryClient();
   const toast = useToast();
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const itens = (res.data?.avisos ?? []) as any[];
+  const historico = (res.data?.historico ?? []) as any[];
   const recarregar = () => ['familia_avisos'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-  const ler = async (a: any, confirmar = false) => {
+  const dar = async (a: any) => {
     try {
-      await rpc('familia_aviso_ler', { id: a.id, confirmar });
-      if (confirmar) toast({ title: 'Ciência confirmada', description: 'A escola vê a sua confirmação.', tone: 'success' });
+      await rpc('familia_aviso_ler', { id: a.id, confirmar: true });
+      toast({ title: 'Ciência confirmada', description: 'A escola vê a sua confirmação, e o aviso foi para o histórico.', tone: 'success' });
       recarregar();
     } catch (e) {
       toast({ title: 'Não foi possível', description: (e as Error).message, tone: 'error' });
@@ -181,9 +213,9 @@ function Avisos({ res }: { res: any }) {
       toast({ title: 'Não foi possível', description: (e as Error).message, tone: 'error' });
     }
   };
-  if (!itens.length) return <Card><EmptyState compact title="Nenhum aviso" body="Quando a escola ou a SEDUC publicar algo para a sua família, aparece aqui e na IARA." /></Card>;
   return (
     <div className="space-y-3">
+      {!itens.length && <Card><EmptyState compact title={historico.length ? 'Você está em dia com os avisos' : 'Nenhum aviso'} body="Quando a escola ou a SEDUC publicar algo para a sua família, aparece aqui e na IARA." /></Card>}
       {itens.map((a) => {
         const t = TIPO_MURAL[a.tipo] ?? { label: a.tipo, tone: 'gray' as const };
         const total = a.votos ? (a.votos as any[]).reduce((s, v) => s + v.votos, 0) || 1 : 1;
@@ -192,7 +224,7 @@ function Avisos({ res }: { res: any }) {
             <div className="flex flex-wrap items-center gap-1.5">
               {!a.lido && <span className="size-2 rounded-full bg-purple-600" aria-label="Não lido" />}
               <Badge tone={t.tone}>{t.label}</Badge>
-              <span className="text-[12px] font-semibold text-muted">{a.unidade ?? 'SEDUC Maringá'} · {timeAgo(a.publicado_em)} · para {a.filhos}</span>
+              <span className="text-[12px] font-semibold text-muted">{a.unidade ?? 'SEDUC Maringá'} · Enviado em {fmtDateTime(a.publicado_em)} · para {a.filhos}</span>
             </div>
             <h3 className="mt-1.5 font-display text-[17px] font-extrabold leading-snug">{a.titulo}</h3>
             <p className="mt-1 whitespace-pre-line text-[14px] text-ink-2">{a.texto}</p>
@@ -214,13 +246,12 @@ function Avisos({ res }: { res: any }) {
               </div>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
-              {a.exige_confirmacao && !a.confirmado && <Button size="sm" variant="purple" icon={Check} onClick={() => ler(a, true)}>Estou ciente</Button>}
-              {a.exige_confirmacao && a.confirmado && <Badge tone="green" icon={Check}>Ciência confirmada</Badge>}
-              {!a.lido && !a.exige_confirmacao && a.tipo !== 'ENQUETE' && <Button size="sm" variant="secondary" onClick={() => ler(a)}>Marcar como lido</Button>}
+              <Button size="sm" variant="purple" icon={Check} onClick={() => dar(a)}>Estou ciente</Button>
             </div>
           </Card>
         );
       })}
+      <HistoricoAvisos itens={historico} />
     </div>
   );
 }
