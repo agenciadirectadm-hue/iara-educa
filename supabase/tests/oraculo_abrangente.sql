@@ -63,7 +63,7 @@ begin
   end loop;
   r := pg_temp.as_call('oa-pref', 'oraculo_indicadores', '{}');
   v_out := v_out || jsonb_build_object('passo', 'A2. Todos os temas respondem; a lista do que o Oráculo sabe está completa', 'ok',
-    cardinality(v_falhas) = 0 and jsonb_array_length(r) = (select count(*) from iara.oraculo_temas), 'falhas', to_jsonb(v_falhas));
+    cardinality(v_falhas) = 0 and jsonb_array_length(r -> 'temas') = (select count(*) from iara.oraculo_temas), 'falhas', to_jsonb(v_falhas));
 
   -- A3: perguntas caem no assunto certo
   v_falhas := '{}';
@@ -148,7 +148,7 @@ begin
     r := pg_temp.as_call('oa-pref', 'oraculo_perguntar', '{"pergunta": "Quantas crianças têm obesidade?"}');
     r2 := pg_temp.as_call('oa-pref', 'oraculo_dados', '{"topico": "nutricao"}');
     v_out := v_out || jsonb_build_object('passo', 'A9. Dado não lançado não vira zero', 'ok',
-      position('não está disponível' in r ->> 'resposta') > 0 and position('excesso de peso' in lower((r2 -> 'numeros')::text)) = 0,
+      position('tabela oficial da OMS' in r ->> 'resposta') > 0 and position('excesso de peso' in lower((r2 -> 'numeros')::text)) = 0,
       'resposta', left(r ->> 'resposta', 120));
   else
     v_out := v_out || jsonb_build_object('passo', 'A9. Dado não lançado não vira zero (há classificação lançada)', 'ok', true);

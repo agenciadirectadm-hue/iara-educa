@@ -97,10 +97,63 @@ export const FERRAMENTAS = [
       required: ["nome"],
     },
   },
+  {
+    name: "detalhar",
+    description: "Abre um assunto: por motivo, tipo, situação, etapa, tempo de espera, mês, região e o que mais houver. É a ferramenta para \"por quê\", " +
+      "\"quais os motivos\", \"me fale mais\", \"quais os principais\" e para perfil dos alunos (sexo, idade, raça ou cor) e dos profissionais (cargo, vínculo, formação). " +
+      "Sem o parâmetro detalhe, traz os números do assunto, todos os detalhes e, na cidade, as regiões onde mais pesa. Itens de 1 ou 2 pessoas vêm juntos em \"Outros\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        assunto: { type: "string", enum: ["encaminhamentos","busca_ativa","ocorrencias","faltas","fila","ofertas","vagas","rematricula","transferencias","aee","ponto","profissionais","transporte","suporte","manutencao","almoxarifado","merenda","desempenho","alfabetizacao","biblioteca","atendimento","comunicacao","documentos","matriculas"], description: "O assunto." },
+        detalhe: { type: "string", description: "Só este detalhe (chave vista em indicadores_disponiveis, como enc.motivo). Opcional." },
+        limite: { type: "integer", description: "Quantos itens por detalhe (padrão: 8; máximo: 30)." },
+        unidade: { type: "string", description: "Nome ou id de uma unidade. Omita para a cidade toda." },
+        regiao: { type: "string", description: "Região: 'AP 017', o id ou o nome de um bairro dela. Omita para a cidade toda." },
+      },
+      required: ["assunto"],
+    },
+  },
+  {
+    name: "numero_no_periodo",
+    description: "Um número num período: \"quantas crianças faltaram ontem\", \"ocorrências desta semana\", \"chamados abertos neste mês\". Se o período ainda não tem " +
+      "registro (a chamada de hoje, por exemplo), avisa com sem_registro e traz o último dia que tem: diga isso, não diga que foi zero.",
+    input_schema: {
+      type: "object",
+      properties: {
+        fatos: { type: "array", items: { type: "string", enum: ["faltas","presenca","ocorrencias","refeicoes","chamados","protocolos","viagens_perdidas","viagens_atraso","ponto","matriculas","encaminhamentos","alertas","busca_ativa","ofertas"] }, description: "O que contar." },
+        periodo: { type: "string", description: "hoje, ontem, anteontem, semana, semana_passada, mes, mes_passado, ano ou ultimos_N (por exemplo ultimos_15)." },
+        de: { type: "string", description: "Em vez do período: data inicial (AAAA-MM-DD)." },
+        ate: { type: "string", description: "Data final (AAAA-MM-DD). Padrão: hoje." },
+        unidade: { type: "string", description: "Nome ou id de uma unidade. Omita para a cidade toda." },
+        regiao: { type: "string", description: "Região: 'AP 017', o id ou o nome de um bairro dela. Omita para a cidade toda." },
+      },
+      required: ["fatos"],
+    },
+  },
+  {
+    name: "cardapio_do_dia",
+    description: "O cardápio publicado de um dia, por faixa (creche, pré-escola e ensino fundamental) e por refeição. É o mesmo em toda a rede. Em dia sem aula, avisa e traz o próximo dia com aula.",
+    input_schema: { type: "object", properties: { data: { type: "string", description: "AAAA-MM-DD. Padrão: hoje." } } },
+  },
+  {
+    name: "calendario_da_rede",
+    description: "Próximos eventos do calendário: feriados, recessos, fim de bimestre, reuniões, fim do ano letivo. Da rede e, numa unidade ou região, também os dela.",
+    input_schema: {
+      type: "object",
+      properties: {
+        dias: { type: "integer", description: "Quantos dias olhar à frente (padrão: 90)." },
+        tipo: { type: "string", description: "Só um tipo, por exemplo FERIADO. Opcional." },
+        unidade: { type: "string", description: "Nome ou id de uma unidade. Opcional." },
+        regiao: { type: "string", description: "Região. Opcional." },
+      },
+    },
+  },
 ];
 const FUNCAO: Record<string, string> = {
   numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades", indicadores_disponiveis: "oraculo_indicadores",
   situacoes_pontuais: "oraculo_situacoes", comparar_unidades: "oraculo_ranking", contar_por_nome: "oraculo_nomes",
+  detalhar: "oraculo_detalhar", numero_no_periodo: "oraculo_periodo", cardapio_do_dia: "oraculo_cardapio", calendario_da_rede: "oraculo_calendario",
 };
 
 const SISTEMA = `Você é o Oráculo do Prefeito no IARA Educa, a plataforma da Secretaria Municipal de Educação de Maringá (PR).
@@ -108,10 +161,17 @@ O Prefeito pergunta, por texto ou por áudio, sobre a rede municipal de educaç�
 
 - Use apenas números que as ferramentas devolverem. Se faltar o dado, diga o que existe e o que não existe.
 - Quando a pergunta citar uma unidade ou região e você não tiver certeza do nome, consulte unidades_do_municipio antes.
-- Para comparar unidades ou regiões, use comparar_unidades. Para "o que está acontecendo", use situacoes_pontuais.
-- Se o assunto não estiver nos tópicos de numeros_do_municipio, veja indicadores_disponiveis: o Oráculo cobre quase toda a operação.
-- Responda em português do Brasil, em até 5 frases curtas, como para ser lido no celular ou ouvido em voz alta: o número principal
-  primeiro, depois o contexto (recorte e período). Números no padrão brasileiro (1.234; 93,4%). Sem tabelas nem markdown.
+- Para comparar unidades ou regiões, use comparar_unidades, com o limite que o Prefeito pedir (três escolas = limite 3). Para "o que está
+  acontecendo", use situacoes_pontuais.
+- Quando pedirem motivo, causa, tipo, perfil, "me fale mais" ou "quais os principais", use detalhar: não repita a contagem. Quando citarem um
+  dia ou período (ontem, esta semana, mês passado), use numero_no_periodo: não responda com o número dos últimos 30 dias. Para o que tem na
+  merenda, use cardapio_do_dia. Para datas e feriados, use calendario_da_rede.
+- Se vier "faltando" ou "sem_registro", diga o motivo e o que existe; nunca transforme falta de dado em zero.
+- Se o assunto não estiver em nenhuma ferramenta, veja indicadores_disponiveis: o Oráculo cobre quase toda a operação. Salários, folha e
+  orçamento não estão no IARA Educa: diga isso.
+- Responda em português do Brasil, como para ser lido no celular ou ouvido em voz alta: o número principal primeiro, depois o que explica
+  esse número (os principais motivos, com percentual, e onde mais pesa) e o recorte e o período. Até 5 frases curtas numa pergunta simples;
+  num pedido de detalhe, pode ir um pouco além. Números no padrão brasileiro (1.234; 93,4%). Sem tabelas nem markdown.
 - O Oráculo só traz números e situações sem identificar pessoas. Contar quantos têm um nome é permitido (contar_por_nome); dizer
   quem são, ou dar telefone e endereço, não: explique que o detalhe fica com a Secretaria, na unidade, com os registros de acesso.
 - Este é o ambiente de demonstração: os dados são fictícios (as matrículas oficiais são do Censo Escolar 2025).`;
@@ -207,6 +267,7 @@ type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; par
 const TITULO: Record<string, string> = {
   numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões", indicadores_disponiveis: "O que o Oráculo sabe",
   situacoes_pontuais: "Situações que pedem atenção", comparar_unidades: "Comparar unidades e regiões", contar_por_nome: "Contar pessoas por nome",
+  detalhar: "Motivos, tipos e perfil de um assunto", numero_no_periodo: "Número em um dia ou período", cardapio_do_dia: "Cardápio do dia", calendario_da_rede: "Calendário da rede",
 };
 
 async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
@@ -221,13 +282,14 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
       return ok({
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.2.0" },
+        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.3.0" },
         instructions: "Oráculo do Prefeito de Maringá (IARA Educa): toda a operação da rede municipal de educação em números — matrículas, " +
           "fila, vagas, frequência, ocorrências, profissionais e ponto, transporte, merenda, almoxarifado, manutenção, biblioteca, desempenho, AEE, " +
           "proteção, atendimento, Bolsa Família e mais — na cidade, numa unidade ou numa região. Para qualquer pergunta sobre a educação no " +
-          "município, consulte estas ferramentas: numeros_do_municipio (assuntos), indicadores_disponiveis (tudo o que há), situacoes_pontuais " +
-          "(o que está acontecendo), comparar_unidades (qual tem mais ou menos) e contar_por_nome (estatística de nomes). Só dados agregados: " +
-          "não há quem são as pessoas nem contatos.",
+          "município, consulte estas ferramentas: numeros_do_municipio (assuntos), detalhar (motivos, tipos, perfil, \"me fale mais\": não repita a contagem " +
+          "quando pedirem o porquê), numero_no_periodo (ontem, esta semana, um mês), cardapio_do_dia, calendario_da_rede, situacoes_pontuais " +
+          "(o que está acontecendo), comparar_unidades (qual tem mais ou menos), contar_por_nome (estatística de nomes) e indicadores_disponiveis " +
+          "(tudo o que há). Se vier faltando ou sem_registro, diga o motivo: falta de dado não é zero. Só dados agregados: não há quem são as pessoas nem contatos.",
       });
     }
     case "ping":

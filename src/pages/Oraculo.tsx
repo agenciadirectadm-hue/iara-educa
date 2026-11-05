@@ -10,14 +10,14 @@ import { Badge, Button, Card, ErrorState, Field, PageHeader, Section, SkeletonLi
 const SUGESTOES = [
   'Como está a rede municipal hoje?',
   'O que está acontecendo na rede?',
-  'Quantas crianças esperam vaga na creche?',
-  'Qual escola tem mais ocorrências?',
-  'Quantos chamados de manutenção estão abertos?',
-  'Como está a merenda?',
-  'Qual a média das notas?',
-  'Quantos professores estão de licença?',
+  'Quais os motivos dos encaminhamentos ao Conselho Tutelar?',
+  'Qual o cardápio de hoje?',
+  'Quantas crianças faltaram ontem?',
+  'Por que as crianças estão faltando?',
+  'Quais as três escolas com mais ocorrências?',
+  'Me fale mais sobre a fila da creche',
+  'Quais os problemas mais comuns de manutenção?',
   'Quantos alunos do Bolsa Família ficaram abaixo da frequência mínima?',
-  'Quantas crianças se chamam Silvio?',
 ];
 const MAX_AUDIO_S = 60;
 
