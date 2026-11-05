@@ -1,8 +1,8 @@
 import { Link } from 'react-router';
-import { CalendarCheck, ChevronRight, Clock, GraduationCap, IdCard, NotebookPen } from 'lucide-react';
+import { CalendarCheck, ChevronRight, Clock, GraduationCap, IdCard, MessageCircle, NotebookPen } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
-import { firstName, fmtInt } from '@/lib/format';
+import { firstName, fmtDate, fmtInt } from '@/lib/format';
 import { SHIFT } from '@/lib/labels';
 import { hojeISO } from '@/lib/escola';
 import { Badge, Card, EmptyState, LinkCard, Section, Skeleton, Simulado } from '@/components/ui';
@@ -27,6 +27,8 @@ export default function HomeProfessor() {
         </div>
         <IaraMascot height={130} mood="wave" className="-mb-1 hidden shrink-0 sm:block" />
       </div>
+
+      <RecadosDasFamilias />
 
       <Section title="Chamada de hoje" className="mt-4" action={<Simulado detail="Servidores, alunos e faltas são fictícios; turmas e unidades seguem o Censo 2025." />}>
         {turmas.length ? (
@@ -57,6 +59,29 @@ export default function HomeProfessor() {
         </Section>
       </div>
     </div>
+  );
+}
+
+/** Bilhetes que as famílias mandaram (pelo portal ou pela IARA) para as turmas do professor: um por linha, e o toque abre a agenda da turma. */
+function RecadosDasFamilias() {
+  const res = useRpc<any[]>('agenda_recados_familia', {});
+  const itens = res.data ?? [];
+  if (!itens.length) return null;
+  const hoje = hojeISO();
+  return (
+    <Section title="Recados das famílias" subtitle={`${fmtInt(itens.length)} nos últimos dias`} className="mt-4">
+      <Card className="divide-y divide-line overflow-hidden p-0">
+        {itens.map((a) => (
+          <Link key={a.id} to={`/turmas/${a.class_id}/diario?aba=agenda`} title={a.texto}
+            className="flex items-center gap-2.5 px-4 py-2.5 text-[14px] hover:bg-purple-50">
+            <MessageCircle className="size-4 shrink-0 text-purple-700" />
+            <span className="shrink-0 font-semibold text-ink">{firstName(a.aluno)}</span>
+            <span className="min-w-0 flex-1 truncate text-ink-2">{a.texto}</span>
+            <span className="shrink-0 text-[12.5px] text-muted">{a.data === hoje ? 'Hoje' : fmtDate(a.data)}{itens.some((x) => x.class_id !== a.class_id) ? ` · ${a.turma}` : ''}</span>
+          </Link>
+        ))}
+      </Card>
+    </Section>
   );
 }
 

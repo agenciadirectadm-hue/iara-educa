@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -77,6 +77,37 @@ if (roteiro === 'conversa') {
     console.error('\nFALHAS:\n' + falhas.join('\n'));
     process.exit(1);
   }
+} else if (roteiro === 'recado') {
+  // recado à professora: criança sem turma, o que vem junto do "sim", correção do texto, e o que a professora da turma vê.
+  // Grava bilhetes com a marca "teste-recado"; depois: delete from iara.agenda_escolar where texto like '%teste-recado%';
+  await send('o davi nao passou bem hoje, pode avisar a professora');
+  if (lastQuick(conv).some((q) => q.label.startsWith('Confirmar código'))) await tap('Confirmar código');
+  const semTurma = (conv.messages ?? []).slice(-4).filter((m) => m.sender_type === 'IARA').map((m) => m.body).join(' ');
+  if (!/Davi ainda não tem turma/.test(semTurma)) falhas.push(`Davi sem turma → ${semTurma.slice(0, 160)}`);
+  await tap('É sobre Ana');
+  const ultima = () => (conv.messages ?? []).slice(-6).filter((m) => m.sender_type === 'IARA').map((m) => m.body).join(' ');
+  if (!/Ana não está se sentindo bem/.test(ultima())) falhas.push(`aviso pronto → ${ultima().slice(0, 160)}`);
+  await espera('sim, peça para a professora cuidar da febre teste-recado', /entregue[\s\S]*cuidar da febre/);
+  await espera('quero mandar um bilhete para a professora', /O que você quer dizer/);
+  await espera('a ana vai sair mais cedo teste-recado', /Confirma/);
+  await espera('acrescenta que o pai vem buscar', /sair mais cedo teste-recado\. O pai vem buscar[\s\S]*Confirma/);
+  await espera('nao, diga que a avó vem buscar teste-recado', /“a avó vem buscar teste-recado”/);
+  await espera('sim', /entregue/);
+  await espera('quero mandar um bilhete para a professora', /O que você quer dizer/);
+  await espera('vai sair cedo teste-recado-cancelado', /Confirma/);
+  await espera('nao', /não enviei/);
+  const { token: prof } = await req('/session', { persona: 'PROFESSOR', unit_id: Number(process.env.UNIDADE_MARIA || 76) });
+  const recados = await req('/rpc/agenda_recados_familia', {}, prof);
+  const textos = recados.map((r) => r.texto).join(' | ');
+  console.log(`\nA professora da turma vê ${recados.length} recado(s): ${textos.slice(0, 400)}`);
+  if (!/cuidar da febre teste-recado/.test(textos)) falhas.push('a professora não vê o recado da febre');
+  if (!/a avó vem buscar teste-recado/.test(textos)) falhas.push('a professora não vê o recado corrigido');
+  if (/teste-recado-cancelado/.test(textos)) falhas.push('o recado cancelado foi entregue');
+  if (falhas.length) {
+    console.error(`\n✗ ${falhas.length} resposta(s) erradas:\n- ${falhas.join('\n- ')}`);
+    process.exit(1);
+  }
+  console.log('\n✓ Recado à professora: tudo certo.');
 } else if (roteiro === 'nova') {
   await tap('Acabamos de chegar');
   await send('Londrina');

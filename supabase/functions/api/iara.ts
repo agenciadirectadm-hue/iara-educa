@@ -359,6 +359,22 @@ function yesNo(t: string): boolean | null {
   return null;
 }
 
+/** O que vem depois de "sim" ou "não" na resposta, com as palavras da própria pessoa; vazio quando não acrescenta nada. */
+function restoDaResposta(texto: string): string {
+  const resto = texto.trim().replace(/^(sim|s|isso|claro|pode|quero|confirmo|confirma|confirmar|confirmado|ok|okay|não|nao|n|nunca|negativo)\b[\s,.;:!–—-]*/i, "").trim();
+  const t = norm(resto).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+  return /^(|sim|pode|pode sim|pode ser|pode mandar|pode enviar|manda|mandar|envia|enviar|isso|isso mesmo|por favor|obrigado|obrigada|muito obrigada|muito obrigado|ok|certo|confirmo|precisa|nao precisa|deixa|deixa pra la|agora nao|por enquanto nao|tudo bem)$/.test(t) ? "" : resto;
+}
+/** "diga que ela está com febre" vira "ela está com febre"; "peça para a professora…" fica como está, porque é o próprio pedido. */
+function semComando(texto: string): string {
+  return texto.replace(/^(diga|diz|fala|fale|avise|avisa|escreve|escreva|coloca|coloque|acrescenta|acrescente|inclui|inclua|adiciona|adicione|complementa|complemente|e)\b( (a|para|pra) (a |o )?(professora?|escola|ela))?( que)?[\s,:]+/i, "").trim() || texto.trim();
+}
+function juntarRecado(antes: string, depois: string): string {
+  const a = antes.trim();
+  const d = depois.trim();
+  return `${a}${/[.!?…]$/.test(a) ? "" : "."} ${d.charAt(0).toUpperCase()}${d.slice(1)}`.slice(0, 1000);
+}
+
 /** "Rua das Flores, 123" → rua + número */
 function splitStreet(text: string): { street: string; number: string | null } {
   const m = text.trim().match(/^(.*?)[,\s]+(?:n[º°o.]?\s*)?(\d{1,5}[a-zA-Z]?)\s*$/);
@@ -590,6 +606,11 @@ export class Agent {
         this.say("Tudo bem, recomeçamos. Como posso ajudar?", { quick_replies: this.conv.guardian_id ? MENU : this.newcomerMenu() });
         return;
       }
+      // confirmando o recado, o que vem junto do "sim" também é recado: a resposta inteira vai para o passo
+      if (this.ctx.flow === "bilhete" && this.ctx.step === "bl_ok" && !["atendente", "frustracao"].includes(intent)
+          && (yesNo(t) !== null || SEM_ASSUNTO.has(intent) || ["crianca_doente", "vai_faltar", "bem_estar", "bilhete", "falar_escola"].includes(intent))) {
+        return await this.continueFlow(text);
+      }
       const botao = this.opcaoDigitada(expandir(t));
       if (botao?.action) {
         this.mem.erros = 0;
@@ -765,8 +786,13 @@ export class Agent {
         return await this.calendario();
       case "agenda":
         return await this.agenda();
-      case "bilhete":
-        return await this.startBilhete();
+      case "bilhete": {
+        const tb = expandir(norm(text));
+        const kid = await this.criancaCitada(tb);
+        const aviso = /(nao (passou|esta|ta|estava|acordou) (muito )?bem|passando mal|passou mal|doente|febre|vomit|dor de|gripad|resfriad)/.test(tb) ? "doente"
+          : /(vai faltar|nao vai (a|na|para|pra)\b.{0,12}(aula|escola|creche|cmei)|nao vai hoje)/.test(tb) ? "falta" : null;
+        return await this.startBilhete(aviso, kid?.first_name ?? null);
+      }
       case "ocorrencias":
         return await this.ocorrencias();
       case "relatar_ocorrencia":
@@ -2239,6 +2265,14 @@ export class Agent {
     if (!this.needGuardian(acao)) return;
     if (!this.ensureVerified(acao)) return;
     const filhos = await this.filhosMatriculados();
+    if (citado && !filhos.some((f) => norm(f.nome) === norm(citado))) {
+      this.done();
+      const abertura = sugestao === "doente" ? `Sinto muito, espero que ${citado} melhore logo. 💜 ` : "";
+      const nomes = filhos.map((f) => f.nome).join(" ou ");
+      return this.say(`${abertura}${citado} ainda não tem turma na rede, então não há professora para avisar.${nomes ? ` Se o recado é sobre ${nomes}, é só tocar abaixo.` : ""}`, {
+        quick_replies: [...filhos.map((f) => ({ label: `É sobre ${f.nome}`, action: `recado:${sugestao ?? ""}|${f.nome}` })), MENU[1], { label: "Agora não", action: "nothing" }],
+      });
+    }
     if (!filhos.length) {
       this.done();
       return this.say("O bilhete vai para a agenda da turma; preciso de uma criança com matrícula ativa.", { quick_replies: [MENU[0]] });
@@ -2271,15 +2305,29 @@ export class Agent {
       return this.ask("bl_ok", `Vou entregar na agenda da turma: “${text.trim().slice(0, 200)}”. Confirma?`, { quick_replies: YES_NO });
     }
     if (this.ctx.step === "bl_ok") {
-      if (/(outro|escrever|mudar|trocar)/.test(t)) return this.ask("description", "Pode escrever. O que você quer dizer à escola?");
-      if (yesNo(t) === false) {
+      const confirmar = (texto: string) => {
+        this.ctx.data = { ...d, texto };
+        return this.ask("bl_ok", `Vou entregar na agenda da turma: “${texto.slice(0, 400)}”. Confirma?`, { quick_replies: YES_NO });
+      };
+      // só "sim" e parecidos confirmam: "está com febre" é mais um pedaço do recado
+      const afirmou = /^(sim|s|isso|claro|pode|quero|confirm\w*|ok|okay)\b/.test(t);
+      const negou = yesNo(t) === false;
+      if (!afirmou && /(outro|escrever|mudar|trocar)/.test(t)) return this.ask("description", "Pode escrever. O que você quer dizer à escola?");
+      const resto = restoDaResposta(text);
+      if (negou) {
+        // "não, diga que ela vai faltar" corrige o recado; "não" sozinho desiste
+        if (resto.split(/\s+/).length >= 3) return confirmar(semComando(resto).slice(0, 1000));
         this.done();
         return this.say("Tudo bem, não enviei.", { quick_replies: [ESCOLA_MENU[6]] });
       }
-      if (yesNo(t) === null) return this.repetirOpcoes("Confirma o envio do recado?");
-      const r = await this.tool("send_note_to_school", "familia_agenda_enviar", { student_id: d.filho.id, texto: d.texto }, `bilhete:${d.filho.id}:${d.texto.length}`);
+      if (!afirmou) {
+        if (resto.split(/\s+/).length >= 3) return confirmar(juntarRecado(d.texto, semComando(resto)));
+        return this.repetirOpcoes("Confirma o envio do recado?");
+      }
+      const texto = resto ? juntarRecado(d.texto, semComando(resto)) : d.texto;
+      const r = await this.tool("send_note_to_school", "familia_agenda_enviar", { student_id: d.filho.id, texto }, `bilhete:${d.filho.id}:${texto.length}`);
       this.done("Bilhete da família entregue na agenda da turma.");
-      return this.say(`${r.mensagem ?? "Bilhete entregue."} ✅`, { quick_replies: [ESCOLA_MENU[6]] });
+      return this.say(`${r.mensagem ?? "Bilhete entregue."} ✅${resto ? `\nO recado ficou assim: “${texto.slice(0, 400)}”` : ""}`, { quick_replies: [ESCOLA_MENU[6]] });
     }
   }
 
