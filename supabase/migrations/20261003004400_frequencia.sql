@@ -194,7 +194,7 @@ begin
   insert into iara.calendario_eventos (titulo, tipo, inicio, fim, abrangencia, unit_id, publico, descricao, fonte, is_demo)
   select 'Reunião de pais e responsáveis — ' || b.n || 'º bimestre', 'REUNIAO_PAIS', b.d + (u.id % 4), b.d + (u.id % 4), 'UNIDADE', u.id, 'FAMILIAS',
          'Entrega de pareceres e conversa com os professores.', 'DEMO', true
-  from iara.education_units u cross join (values (1, date '2026-04-27'), (2, date '2026-08-03'), (3, date '2026-10-19')) b(n, d)
+  from iara.education_units u cross join (values (1, date '2026-04-27'), (2, date '2026-08-03'), (3, date '2026-10-19'), (4, date '2026-12-14')) b(n, d)
   where u.status = 'ATIVA';
   insert into iara.calendario_eventos (titulo, tipo, inicio, fim, abrangencia, unit_id, publico, fonte, is_demo)
   select 'Conselho de classe — ' || b.n || 'º bimestre', 'CONSELHO_CLASSE', b.d + (u.id % 3), b.d + (u.id % 3), 'UNIDADE', u.id, 'PROFISSIONAIS', 'DEMO', true
