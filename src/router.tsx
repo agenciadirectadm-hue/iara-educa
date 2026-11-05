@@ -1,9 +1,10 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createHashRouter, Navigate, useRouteError, useSearchParams } from 'react-router';
 import { AppShell } from './app/AppShell';
 import Splash, { SPLASH_KEY } from './pages/Splash';
 import Entrar from './pages/Entrar';
 import { useSession } from './lib/session';
+import { erroDeVersao, recarregarNovaVersao } from './lib/novaVersao';
 import { Button, Spinner } from './components/ui';
 import { IaraMascot } from './components/iara';
 
@@ -123,12 +124,27 @@ function RedirecionaCalor() {
 
 function RouteError() {
   const err = useRouteError() as Error | undefined;
+  const versaoNova = erroDeVersao(err);
+  useEffect(() => {
+    if (versaoNova) void recarregarNovaVersao();
+  }, [versaoNova]);
+  if (versaoNova) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center px-6 py-16 text-center">
+        <IaraMascot height={220} mood="wave" />
+        <h1 className="mt-4 font-display text-2xl font-extrabold">Atualizando o site</h1>
+        <p className="mt-2 text-muted">Saiu uma versão nova. A página recarrega sozinha; se não recarregar, toque no botão.</p>
+        <Button className="mt-5" onClick={() => window.location.reload()}>Recarregar agora</Button>
+      </div>
+    );
+  }
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-6 py-16 text-center">
       <IaraMascot height={220} mood="attention" />
       <h1 className="mt-4 font-display text-2xl font-extrabold">Algo saiu do lugar</h1>
       <p className="mt-2 text-muted">{err?.message ?? 'Erro inesperado nesta tela.'}</p>
-      <Button className="mt-5" onClick={() => (window.location.hash = '#/inicio')}>Voltar ao início</Button>
+      {/* o erro fica preso à tela: sem recarregar, "voltar" a partir do próprio início não sairia dele */}
+      <Button className="mt-5" onClick={() => { window.location.hash = '#/inicio'; window.location.reload(); }}>Voltar ao início</Button>
     </div>
   );
 }

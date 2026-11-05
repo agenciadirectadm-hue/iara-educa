@@ -272,10 +272,11 @@ export function HistoricoFamilia() {
   const toast = useToast();
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) return <EmptyState title="Nenhuma criança matriculada" />;
+  const criancas = (res.data ?? []).filter(Boolean);
+  if (!criancas.length) return <EmptyState title="Nenhuma criança matriculada" />;
   return (
     <div className="space-y-5">
-      {res.data.map((h) => (
+      {criancas.map((h) => (
         <Section key={h.student_id} title={`Histórico escolar · ${h.primeiro_nome}`}>
           <HistoricoView h={h} familia onEmitir={async () => {
             try {
