@@ -35,7 +35,7 @@ Escolha a unidade **CMEI Galdino de Andrade** (a da família da Maria) nos perfi
 
 | # | Perfil | O que mostrar | Pergunta que a tela responde |
 |---|---|---|---|
-| 10 | Professor(a) regente | Minhas turmas → **chamada do dia** (toque em quem faltou e registre), meu horário, mural | Quem está na sala hoje? |
+| 10 | Professor(a) regente (abre a Daniela, regente da Pré-escola A, a turma da Ana) | Minhas turmas → **chamada do dia** (toque em quem faltou e registre), meu horário, mural | Quem está na sala hoje? |
 | 11 | Direção | **Frequência**: alertas de faltas seguidas (busca ativa), justificativas das famílias; **Pessoal**: carga horária, aulas sem professor; **Cozinha**: quem tem restrição e o que trocar, sem laudo | Quem precisa de atenção na minha escola? |
 | 12 | Cidadão (Maria) | **Vida escolar**: avisos com “Estou ciente”, enquete, frequência da Ana com “Justificar”, cardápio já com as trocas | O que acontece na escola do meu filho? |
 | 13 | IARA (WhatsApp) | “quantas faltas a Ana tem?”, “justificar falta”, “cardápio de hoje”, “ela tem intolerância à lactose”, “avisos da escola”, “tem aula segunda?” | A família resolve pelo WhatsApp? |
