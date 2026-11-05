@@ -197,6 +197,7 @@ function detectIntent(t: string): string {
   if (/(quem e voce|voce e (um |uma )?(robo|pessoa|ia\b|inteligencia)|e (um )?robo|com quem (eu )?(falo|estou falando)|o que voce (faz|sabe|pode|consegue)|como voce funciona|o que da (pra|para) fazer)/.test(t)) return "sobre_iara";
   // perguntas gerais: respondem pela base oficial, sem pedir identidade
   if (/(como funciona|quais? (sao )?(os |as )?(criterios?|regras?)|quanto tempo demora|demora quanto|quanto demora|como e a (fila|pontuacao)|como (eu )?(peco|solicito|consigo|faco para (pedir|conseguir)) (uma )?vaga|quem resolve|que etapas|quais etapas|uniforme|material escolar|lista de material|professora? de apoio|mediador|auxiliar de sala)/.test(t)) return "conhecimento";
+  if (/\b(tem|vai ter|ha|teve|vai haver) aula\b|\b(escola|creche|cmei|unidade)\b.{0,20}\b(aberta|aberto|abre|abriu|fechada|fechado|fecha|fechou|funcionando|funciona)\b|\b(e|sera) dia (letivo|de aula)\b/.test(t)) return "tem_aula";
   if (/quando (comeca|comecam|acaba|acabam|termina|terminam|volta|voltam) (as |a |o )?(aula|ferias|ano letivo)/.test(t)) return "calendario";
   if (/(que horas|horario|hora de (entrada|saida)|qual (e )?a turma|qual turma|em (que|qual) (escola|cmei|creche)|qual (e )?a (escola|creche)|onde .{1,20} estuda|quem e a professora|qual (e )?a professora|nome da professora)/.test(t)) return "minha_escola";
   if (/(reclama|ouvidoria|denunci|sugest|ninguem (me )?(atende|responde)|nao (me )?(atendem|respondem))/.test(t)) return "servico:RECLAMACAO";
@@ -213,8 +214,8 @@ function detectIntent(t: string): string {
   if (/(rematricula|renovar (a )?matricula|matricula (de|para|do) (2027|o ano que vem|ano que vem)|matricula do ano que vem|confirmar (a )?matricula|vaga (para|no|do) (o )?ano que vem)/.test(t)) return "rematricula";
   if (/(o que .{0,24}(estudou|aprendeu)|conteudo (da|das|de) aulas?|materia de hoje|o que teve (na|de) aula|aula de hoje)/.test(t)) return "aulas";
   if (/(certificado|feira de ciencias?|olimpiada|mostra cultural|eventos? da escola)/.test(t)) return "eventos";
-  if (/(historico escolar|\bhistorico\b(?! de (falta|frequencia|presenca|aviso|comunicado)))/.test(t)) return "historico";
-  if (/(historico d[eo]s? (aviso|comunicado)|avisos? (antigo|anterior|passado|que ja)|avisos? (ja )?(lido|confirmado))/.test(t)) return "avisos_historico";
+  if (/(historico escolar|\bhistorico\b(?! de (falta|frequencia|presenca|aviso|comunicado|recado|bilhete)))/.test(t)) return "historico";
+  if (/(historico d[eo]s? (aviso|comunicado|recado|bilhete)|avisos? (antigo|anterior|passado|que ja)|avisos? (ja )?(lido|confirmado))/.test(t)) return "avisos_historico";
   if (/(biblioteca|\blivros?\b|emprestimo de livro|sacola literaria)/.test(t)) return "biblioteca";
   if (/(\bpeso\b|altura|\bimc\b|quanto (ela|ele) (pesa|mede)|esta (magr|acima do peso|gordinh))/.test(t)) return "medidas";
   if (/((declaracao|atestado|comprovante) (escolar|de (matricula|frequencia|escolaridade|inscricao)|da (matricula|frequencia|fila)|para o bolsa|do bolsa|que (ele|ela) estuda)|declaracao (para|pro|pra) (o |a )?(bolsa|trabalho|empresa|beneficio|inss|cras))/.test(t)) return "declaracao";
@@ -790,6 +791,8 @@ export class Agent {
         return await this.avisosHistorico();
       case "calendario":
         return await this.calendario();
+      case "tem_aula":
+        return await this.temAula(text);
       case "agenda":
         return await this.agenda();
       case "bilhete": {
@@ -846,6 +849,16 @@ export class Agent {
       const kb = await this.tool("search_official_knowledge", "knowledge_search", { q: termos.join(" ") });
       const art = (kb?.items ?? [])[0];
       if (art && art.score >= Math.ceil(termos.length * 0.6)) return await this.knowledge(termos.join(" "));
+    }
+    const assunto = termos.filter((w) => !kid || w !== norm(kid.first_name));
+    if (assunto.length) {
+      // a pergunta é clara, e a IARA não tem o dado: diz isso e diz quem sabe, sem pedir para reformular
+      this.mem.erros = 0;
+      const fone = await this.telefoneDaEscola(kid);
+      this.say(`Não tenho esta informação neste momento. ${fone || "A secretaria da unidade pode confirmar. "}Se preferir, chamo uma pessoa da equipe, que vê toda a nossa conversa.`, {
+        quick_replies: [{ label: "Chamar uma pessoa", action: "handoff:A família perguntou algo que a IARA não tem" }, { label: "Ver o que a IARA faz", action: "intent:menu" }, { label: "Agora não", action: "nothing" }],
+      });
+      return;
     }
     if (kid) {
       this.say(`Sobre ${kid.first_name}, o que você precisa saber?`, {
@@ -2195,14 +2208,18 @@ export class Agent {
     if (!this.needGuardian("intent:avisos_historico")) return;
     if (!this.ensureVerified("intent:avisos_historico")) return;
     const r = await this.tool("get_school_notices", "familia_avisos", {});
-    const itens = ((r?.historico ?? []) as any[]).slice(0, 5);
+    const g = await this.tool("get_school_agenda", "familia_agenda", {});
+    const itens = [
+      ...((r?.historico ?? []) as any[]).map((a) => ({ titulo: a.titulo, de: a.unidade ?? "SEDUC Maringá", enviado: a.publicado_em, texto: a.texto, ciente: a.ciente_em })),
+      ...((g?.historico ?? []) as any[]).map((a) => ({ titulo: `${TIPO_AGENDA_LABEL[a.tipo] ?? "Recado"}${a.titulo ? ": " + a.titulo : ""}`, de: a.autor ?? "Escola", enviado: a.criado_em, texto: a.texto, ciente: a.ciente_em })),
+    ].sort((x, y) => (x.ciente < y.ciente ? 1 : -1)).slice(0, 5);
     this.done("Consultou o histórico de avisos.");
-    if (!itens.length) return this.say("Ainda não há avisos no histórico: eles vão para lá depois que você dá a ciência.", { quick_replies: [ESCOLA_MENU[3]] });
+    if (!itens.length) return this.say("Ainda não há avisos no histórico: eles vão para lá depois que você dá a ciência.", { quick_replies: [ESCOLA_MENU[3], ESCOLA_MENU[6]] });
     const cards: Card[] = itens.map((a) => ({
-      title: a.titulo, subtitle: `${a.unidade ?? "SEDUC Maringá"} · enviado em ${dataHoraBr(a.publicado_em)}`,
-      lines: [a.texto.length > 200 ? a.texto.slice(0, 197) + "…" : a.texto, `Ciência em ${dataHoraBr(a.ciente_em)}`], tone: "green",
+      title: a.titulo, subtitle: `${a.de} · enviado em ${dataHoraBr(a.enviado)}`,
+      lines: [a.texto.length > 200 ? a.texto.slice(0, 197) + "…" : a.texto, `Ciência em ${dataHoraBr(a.ciente)}`], tone: "green",
     }));
-    this.say(`Os ${itens.length} avisos mais recentes em que você deu ciência:`, { cards, quick_replies: [ESCOLA_MENU[3]] });
+    this.say(`Os ${itens.length} mais recentes em que você deu ciência:`, { cards, quick_replies: [ESCOLA_MENU[3], ESCOLA_MENU[6]] });
   }
 
   private async avisoCiente(id: string): Promise<void> {
@@ -2222,6 +2239,33 @@ export class Agent {
     this.say(`Resposta registrada: “${r.opcao}” ✅`, {
       cards: [{ title: "Resultado parcial", lines: ((r.votos ?? []) as any[]).map((v) => `${v.opcao}: ${Math.round((100 * Number(v.votos)) / total)}%`), tone: "amber" }],
       quick_replies: [ESCOLA_MENU[3]],
+    });
+  }
+
+  /** Tem aula tal dia? Responde pelo calendário; o que só a escola sabe (imprevisto, horário), diz que não tem. */
+  private async temAula(text: string): Promise<void> {
+    const t = expandir(norm(text));
+    const iso = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    const agora = new Date();
+    const delta = /\bamanha\b/.test(t) ? 1 : /\bontem\b/.test(t) ? -1 : 0;
+    const dia = iso(new Date(agora.getTime() + delta * 86400000));
+    const nomeDia = delta === 1 ? "amanhã" : delta === -1 ? "ontem" : "hoje";
+    const itens = ((await this.tool("get_school_calendar", "calendario", { de: `${dia.slice(0, 4)}-01-01`, ate: dia })) as any[]) ?? [];
+    const noDia = itens.filter((e) => e.inicio <= dia && e.fim >= dia);
+    const semAula = noDia.find((e) => e.sem_aula);
+    const fimDoAno = itens.find((e) => e.tipo === "FIM_ANO" && e.fim < dia);
+    const [a, m, d] = dia.split("-").map(Number);
+    const fimDeSemana = [0, 6].includes(new Date(Date.UTC(a, m - 1, d, 12)).getUTCDay());
+    const titulo = `${nomeDia.charAt(0).toUpperCase()}${nomeDia.slice(1)} (${diaBr(dia)})`;
+    const verbo = delta === -1 ? "foi" : "é";
+    const resposta = fimDoAno ? `${titulo}: o ano letivo terminou em ${diaBr(fimDoAno.fim)}, então não há aula.`
+      : semAula ? `${titulo} não tem aula na rede: ${semAula.titulo}.`
+      : fimDeSemana ? `${titulo} é fim de semana, então não tem aula.`
+      : `Pelo calendário escolar, ${nomeDia} (${diaBr(dia)}) ${verbo} dia de aula.`;
+    const fone = await this.telefoneDaEscola();
+    this.done();
+    this.say(`${resposta} Sobre imprevistos numa unidade, como falta de água ou de luz, ou o horário exato, não tenho esta informação neste momento. ${fone || "A secretaria da unidade pode confirmar."}`.trim(), {
+      quick_replies: [ESCOLA_MENU[4], { label: "Falar com a secretaria", action: "handoff:A família quer confirmar o funcionamento da unidade" }],
     });
   }
 
@@ -2251,25 +2295,27 @@ export class Agent {
   private async agenda(): Promise<void> {
     if (!this.needGuardian("intent:agenda")) return;
     if (!this.ensureVerified("intent:agenda")) return;
-    const r = await this.tool("get_school_agenda", "familia_agenda", { dias: 7 });
-    const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-    const itens = ((r?.itens ?? []) as any[]).filter((a) => a.data >= hoje || (a.exige_ciencia && !a.ciente)).slice(0, 6);
-    const recentes = itens.length ? itens : ((r?.itens ?? []) as any[]).slice(0, 4);
-    if (!recentes.length) {
+    const r = await this.tool("get_school_agenda", "familia_agenda", {});
+    const todos = (r?.itens ?? []) as any[];
+    const pendentes = todos.filter((a) => a.origem === "ESCOLA");
+    const mostrar = (pendentes.length ? pendentes : todos).slice(0, 6);
+    const extras: QuickReply[] = [{ label: "Histórico de avisos", action: "intent:avisos_historico" }, { label: "Mandar bilhete para a escola", action: "intent:bilhete" }];
+    if (!mostrar.length) {
       this.done();
-      return this.say("A agenda está vazia nesta semana. 🙂", { quick_replies: [{ label: "Mandar bilhete para a escola", action: "intent:bilhete" }] });
+      return this.say("Você está em dia com a agenda. 🙂", { quick_replies: extras });
     }
     const quick: QuickReply[] = [];
-    const cards: Card[] = recentes.map((a) => {
-      if (a.exige_ciencia && !a.ciente) quick.push({ label: `Ciente: ${(a.titulo ?? TIPO_AGENDA_LABEL[a.tipo]).slice(0, 24)}`, action: `ag_ok:${a.id}|${a.filho_id}` });
+    const cards: Card[] = mostrar.map((a) => {
+      if (a.origem === "ESCOLA") quick.push({ label: `Ciente: ${(a.titulo ?? TIPO_AGENDA_LABEL[a.tipo] ?? "Recado").slice(0, 24)}`, action: `ag_ok:${a.id}|${a.filho_id}` });
       return {
         title: `${a.origem === "FAMILIA" ? "Seu bilhete" : TIPO_AGENDA_LABEL[a.tipo] ?? a.tipo}${a.titulo ? ": " + a.titulo : ""}`,
-        subtitle: `${a.filho} · ${diaBr(a.data)}${a.student_id && a.origem === "ESCOLA" ? " · só para vocês" : ""}`,
-        lines: [a.texto, ...(a.exige_ciencia ? [a.ciente ? "✅ Ciência confirmada" : "A escola pede a sua ciência."] : []), a.autor ?? ""].filter(Boolean),
-        tone: a.exige_ciencia && !a.ciente ? "purple" : "blue",
+        subtitle: `${a.filho} · ${diaBr(a.data)} · enviado em ${dataHoraBr(a.criado_em)}${a.student_id && a.origem === "ESCOLA" ? " · só para vocês" : ""}`,
+        lines: [a.texto, a.autor ?? ""].filter(Boolean),
+        tone: a.origem === "ESCOLA" ? "purple" : "blue",
       };
     });
-    this.say("Agenda escolar:", { cards, quick_replies: [...quick.slice(0, 8), { label: "Mandar bilhete para a escola", action: "intent:bilhete" }] });
+    const total = pendentes.length;
+    this.say(total ? `Agenda escolar: ${total} recado(s) aguardando a sua ciência${total > mostrar.length ? `. Estes são os ${mostrar.length} primeiros` : ""}. Depois da ciência, o recado vai para o histórico:` : "Agenda escolar:", { cards, quick_replies: [...quick.slice(0, 8), ...extras] });
     this.done("Consultou a agenda escolar.");
   }
 
@@ -2278,7 +2324,7 @@ export class Agent {
     if (!this.ensureVerified(`ag_ok:${id}|${aluno}`)) return;
     await this.tool("confirm_agenda", "familia_agenda_ciente", { id, student_id: aluno }, `agenda:${id}:${aluno}`);
     this.done("Deu ciência de um recado da agenda.");
-    this.say("Ciência confirmada ✅ A professora vê a sua confirmação.", { quick_replies: [ESCOLA_MENU[6]] });
+    this.say("Ciência confirmada ✅ A professora vê a sua confirmação, e o recado foi para o histórico.", { quick_replies: [ESCOLA_MENU[6], { label: "Histórico de avisos", action: "intent:avisos_historico" }] });
   }
 
   /** sugestao: aviso pronto ("doente" ou "falta"); citado: a criança já dita na mensagem. */
@@ -3134,7 +3180,7 @@ export class Agent {
       .map((i) => ({ i, noTitulo: termos.filter((w) => norm(i.title).includes(w)).length }))
       .sort((a, b) => b.noTitulo - a.noTitulo)[0]?.i;
     if (!art || (termos.length >= 2 && art.score < Math.ceil(termos.length * 0.6))) {
-      this.say("Não encontrei informação oficial vigente sobre isso. Para não arriscar uma resposta errada, posso encaminhar sua dúvida para a equipe?", {
+      this.say("Não tenho esta informação neste momento. Para não arriscar uma resposta errada, posso encaminhar sua dúvida para a equipe?", {
         quick_replies: [{ label: "Sim, encaminhar", action: "handoff:Dúvida sem conhecimento oficial" }, { label: "Não, obrigado", action: "nothing" }],
       });
       return;

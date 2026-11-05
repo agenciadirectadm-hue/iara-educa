@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -77,6 +77,22 @@ if (roteiro === 'conversa') {
     console.error('\nFALHAS:\n' + falhas.join('\n'));
     process.exit(1);
   }
+} else if (roteiro === 'sem-dado') {
+  // o que a IARA não tem: diz que não tem neste momento, em vez de pedir para reformular; e o que dá para responder, responde
+  for (const p of ['quero saber se na escola tem energia eletrica', 'a escola tem piscina?', 'o uniforme é de que cor?', 'qual o nome da cozinheira?', 'a quadra da escola é coberta?']) {
+    await send(p);
+    const resposta = [...(conv.messages ?? [])].reverse().find((m) => m.sender_type === 'IARA')?.body ?? '';
+    if (!/Não tenho esta informação neste momento/.test(resposta)) falhas.push(`${p} → ${resposta.slice(0, 160)}`);
+  }
+  await espera('quero saber se a escola esta aberta hoje', /dia de aula|não tem aula|fim de semana|ano letivo terminou/);
+  await espera('tem aula amanhã?', /dia de aula|não tem aula|fim de semana|ano letivo terminou/);
+  await espera('qual o cardápio de hoje?', /Cardápio/);
+  await espera('quantas faltas a Ana tem?', /confirmar sua identidade/);
+  if (falhas.length) {
+    console.error('\nFALHAS:\n' + falhas.join('\n'));
+    process.exit(1);
+  }
+  console.log('\n✓ O que não tem, diz que não tem.');
 } else if (roteiro === 'avisos') {
   // avisos: todo aviso com data e hora e ciência; a ciência leva ao histórico. Grava ciências ao vivo; saem com "Limpar depois da apresentação".
   await send('tem algum aviso da escola?');
@@ -95,6 +111,22 @@ if (roteiro === 'conversa') {
     if (!hist.some((c) => c.title.startsWith(titulo) && (c.lines ?? []).some((l) => /^Ciência em/.test(l)))) falhas.push(`não está no histórico: ${titulo}`);
     await send('tem algum aviso da escola?');
     if ((ultimaIara()?.payload?.cards ?? []).some((c) => c.title.startsWith(titulo))) falhas.push(`continua no quadro: ${titulo}`);
+  }
+  // agenda: o mesmo padrão
+  await send('tem recado na agenda?');
+  const cartoesAgenda = ultimaIara()?.payload?.cards ?? [];
+  if (!cartoesAgenda.length || !cartoesAgenda.every((c) => /enviado em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/.test(c.subtitle ?? ''))) falhas.push(`agenda sem data e hora: ${JSON.stringify(cartoesAgenda.map((c) => c.subtitle)).slice(0, 200)}`);
+  const cienteAgenda = lastQuick(conv).find((q) => q.label.startsWith('Ciente:'));
+  if (!cienteAgenda) falhas.push('agenda sem o botão de ciência');
+  else {
+    const recado = cienteAgenda.label.replace('Ciente: ', '');
+    await send(cienteAgenda.label, cienteAgenda.action);
+    if (!/foi para o histórico/.test(ultimaIara()?.body ?? '')) falhas.push(`ciência da agenda → ${(ultimaIara()?.body ?? '').slice(0, 120)}`);
+    await send('qual o historico de avisos?');
+    const histAgenda = ultimaIara()?.payload?.cards ?? [];
+    if (!histAgenda.some((c) => c.title.includes(recado.slice(0, 15)))) falhas.push(`recado não está no histórico: ${recado}`);
+    await send('tem recado na agenda?');
+    if (lastQuick(conv).some((q) => q.action === cienteAgenda.action)) falhas.push(`recado continua na agenda: ${recado}`);
   }
   if (falhas.length) {
     console.error(`\n✗ ${falhas.length} resposta(s) erradas:\n- ${falhas.join('\n- ')}`);

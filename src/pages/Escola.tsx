@@ -7,7 +7,7 @@ import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtDateTime, fmtInt } from '@/lib/format';
-import { MOTIVO_RESTRICAO, SITUACAO_JUSTIFICATIVA, SITUACAO_RESTRICAO, TIPO_MURAL, diaCurto, pctTone } from '@/lib/escola';
+import { MOTIVO_RESTRICAO, SITUACAO_JUSTIFICATIVA, SITUACAO_RESTRICAO, TIPO_AGENDA, TIPO_MURAL, diaCurto, pctTone } from '@/lib/escola';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Meter, PageHeader, Section, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
 import { Sheet, useToast } from '@/components/overlays';
 import { ProximosEventos } from '@/components/escola';
@@ -36,6 +36,7 @@ export default function Escola() {
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
   const pend = avisos.data?.pendentes_confirmacao ?? 0;
+  const historico = juntarHistorico(avisos.data?.historico, agenda.data?.historico);
   return (
     <div>
       <PageHeader eyebrow="Portal da família" title={<span className="inline-flex items-center gap-2">Vida escolar<Simulado detail="Frequência, cardápio e avisos de demonstração." /></span>}
@@ -60,8 +61,8 @@ export default function Escola() {
         { value: 'calendario', label: 'Calendário' },
       ]} />
       <div className="mt-3">
-        {aba === 'avisos' && <Avisos res={avisos} />}
-        {aba === 'agenda' && <AgendaFamilia res={agenda} />}
+        {aba === 'avisos' && <Avisos res={avisos} historico={historico} />}
+        {aba === 'agenda' && <AgendaFamilia res={agenda} historico={historico} />}
         {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
         {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
         {aba === 'boletim' && <BoletimFamilia />}
@@ -156,44 +157,55 @@ export function VidaEscolarResumo() {
   );
 }
 
-/** Avisos em que a família já deu ciência: um por linha, com a hora do envio e a da ciência; o toque mostra o aviso inteiro. */
-function HistoricoAvisos({ itens }: { itens: any[] }) {
+type ItemHistorico = { chave: string; origem: 'Aviso' | 'Agenda'; titulo: string; texto: string; de: string; enviado: string; ciente: string; para?: string; dia?: string | null; voto?: string | null };
+
+/** O que a família já deu ciência, dos avisos e da agenda, do mais recente para o mais antigo. */
+function juntarHistorico(avisos?: any[], agenda?: any[]): ItemHistorico[] {
+  const deAvisos = (avisos ?? []).map((a): ItemHistorico => ({
+    chave: `a${a.id}`, origem: 'Aviso', titulo: a.titulo, texto: a.texto, de: a.unidade ?? 'SEDUC Maringá', enviado: a.publicado_em, ciente: a.ciente_em,
+    para: a.filhos, dia: a.data_evento, voto: a.minha_resposta && a.opcoes ? a.opcoes[a.minha_resposta - 1] : null,
+  }));
+  const daAgenda = (agenda ?? []).map((a): ItemHistorico => ({
+    chave: `g${a.id}${a.filho_id}`, origem: 'Agenda', titulo: a.titulo ?? `${TIPO_AGENDA[a.tipo]?.label ?? 'Recado'}: ${a.texto}`, texto: a.texto, de: a.autor ?? 'Escola', enviado: a.criado_em,
+    ciente: a.ciente_em, para: a.filho, dia: a.data,
+  }));
+  return [...deAvisos, ...daAgenda].sort((x, y) => (x.ciente < y.ciente ? 1 : -1));
+}
+
+/** Um por linha, com a hora do envio e a da ciência; o toque mostra o aviso inteiro. */
+function HistoricoAvisos({ itens }: { itens: ItemHistorico[] }) {
   if (!itens.length) return null;
   return (
     <Section title="Histórico de avisos" subtitle={`${fmtInt(itens.length)} com ciência dada`} className="mt-5">
       <Card className="divide-y divide-line overflow-hidden p-0">
-        {itens.map((a) => {
-          const voto = a.minha_resposta && a.opcoes ? a.opcoes[a.minha_resposta - 1] : null;
-          return (
-            <details key={a.id} className="group">
-              <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 text-[14px] hover:bg-slate-50">
-                <Check className="size-4 shrink-0 text-green-700" />
-                <span className="min-w-0 flex-1 truncate font-semibold text-ink">{a.titulo}</span>
-                <span className="hidden shrink-0 text-[12.5px] text-muted sm:inline">Enviado em {fmtDateTime(a.publicado_em)}</span>
-                <span className="shrink-0 text-[12.5px] text-muted">Ciência em {fmtDateTime(a.ciente_em)}</span>
-                <ChevronRight className="size-4 shrink-0 text-subtle transition-transform group-open:rotate-90" />
-              </summary>
-              <div className="px-4 pb-3 pl-10">
-                <p className="text-[12px] font-semibold text-muted">{a.unidade ?? 'SEDUC Maringá'} · Enviado em {fmtDateTime(a.publicado_em)}{a.filhos ? ` · para ${a.filhos}` : ''}</p>
-                <p className="mt-1 whitespace-pre-line text-[14px] text-ink-2">{a.texto}</p>
-                {a.data_evento && <p className="mt-1.5 text-[13px] font-semibold text-teal-800"><CalendarDays className="mr-1 inline size-4" />{diaCurto(a.data_evento)}</p>}
-                {voto && <p className="mt-1.5 text-[13px] font-semibold text-ink">Sua resposta: {voto}</p>}
-              </div>
-            </details>
-          );
-        })}
+        {itens.map((a) => (
+          <details key={a.chave} className="group">
+            <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-2.5 text-[14px] hover:bg-slate-50">
+              <Check className="size-4 shrink-0 text-green-700" />
+              <span className="min-w-0 flex-1 truncate font-semibold text-ink">{a.titulo}</span>
+              <span className="hidden shrink-0 text-[12.5px] text-muted sm:inline">{a.origem} · Enviado em {fmtDateTime(a.enviado)}</span>
+              <span className="shrink-0 text-[12.5px] text-muted">Ciência em {fmtDateTime(a.ciente)}</span>
+              <ChevronRight className="size-4 shrink-0 text-subtle transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="px-4 pb-3 pl-10">
+              <p className="text-[12px] font-semibold text-muted">{a.de} · Enviado em {fmtDateTime(a.enviado)}{a.para ? ` · para ${a.para}` : ''}</p>
+              <p className="mt-1 whitespace-pre-line text-[14px] text-ink-2">{a.texto}</p>
+              {a.dia && <p className="mt-1.5 text-[13px] font-semibold text-teal-800"><CalendarDays className="mr-1 inline size-4" />{diaCurto(a.dia)}</p>}
+              {a.voto && <p className="mt-1.5 text-[13px] font-semibold text-ink">Sua resposta: {a.voto}</p>}
+            </div>
+          </details>
+        ))}
       </Card>
     </Section>
   );
 }
 
-function Avisos({ res }: { res: any }) {
+function Avisos({ res, historico }: { res: any; historico: ItemHistorico[] }) {
   const qc = useQueryClient();
   const toast = useToast();
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const itens = (res.data?.avisos ?? []) as any[];
-  const historico = (res.data?.historico ?? []) as any[];
   const recarregar = () => ['familia_avisos'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   const dar = async (a: any) => {
     try {
@@ -409,7 +421,7 @@ function useFilhos() {
   return ((f.data ?? []) as any[]).map((k) => ({ id: k.student_id as string, nome: k.primeiro_nome as string }));
 }
 
-function AgendaFamilia({ res }: { res: any }) {
+function AgendaFamilia({ res, historico }: { res: any; historico: ItemHistorico[] }) {
   const toast = useToast();
   const recarregar = useRecarregarVidaEscolar();
   const filhos = useFilhos();
@@ -419,7 +431,7 @@ function AgendaFamilia({ res }: { res: any }) {
   const ciente = async (a: any) => {
     try {
       await rpc('familia_agenda_ciente', { id: a.id, student_id: a.filho_id });
-      toast({ title: 'Ciência registrada', description: 'A professora vê a sua confirmação.', tone: 'success' });
+      toast({ title: 'Ciência registrada', description: 'A professora vê a sua confirmação, e o recado foi para o histórico.', tone: 'success' });
       recarregar();
     } catch (e) {
       toast({ title: 'Não foi possível', description: (e as Error).message, tone: 'error' });
@@ -429,6 +441,7 @@ function AgendaFamilia({ res }: { res: any }) {
     <>
       <div className="mb-3 flex justify-end"><Button variant="purple" icon={Send} onClick={() => setBilhete(true)}>Mandar bilhete para a escola</Button></div>
       <Card className="overflow-hidden"><AgendaLista itens={res.data?.itens ?? []} familia onCiente={ciente} /></Card>
+      <HistoricoAvisos itens={historico} />
       <BilheteSheet open={bilhete} onClose={() => setBilhete(false)} filhos={filhos} />
     </>
   );

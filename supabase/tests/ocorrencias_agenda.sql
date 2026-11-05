@@ -91,7 +91,7 @@ begin
     and exists (select 1 from jsonb_array_elements(r -> 'itens') x where x ->> 'tipo' = 'BILHETE'), 'erro', r ->> 'erro');
   r := pg_temp.as_call('oa-fam', 'familia_agenda_ciente', jsonb_build_object('id', v_ag, 'student_id', v_ana));
   r := pg_temp.as_call('oa-fam', 'familia_agenda', '{}');
-  v_out := v_out || jsonb_build_object('passo', 'A4. Ciência registrada', 'ok', exists (select 1 from jsonb_array_elements(r -> 'itens') x where (x ->> 'id')::uuid = v_ag and (x ->> 'ciente')::boolean));
+  v_out := v_out || jsonb_build_object('passo', 'A4. Ciência registrada: o recado vai para o histórico, com a hora', 'ok', exists (select 1 from jsonb_array_elements(r -> 'historico') x where (x ->> 'id')::uuid = v_ag and (x ->> 'ciente')::boolean and x ->> 'ciente_em' is not null));
   v_ag_outra := (select id from iara.agenda_escolar where class_id <> v_turma_ana and student_id is null limit 1);
   r := pg_temp.as_call('oa-fam', 'familia_agenda_ciente', jsonb_build_object('id', v_ag_outra, 'student_id', v_ana));
   v_out := v_out || jsonb_build_object('passo', 'A5. Família não marca recado de outra turma (deve negar)', 'ok', pg_temp.ok_erro(r, 'P0002'));

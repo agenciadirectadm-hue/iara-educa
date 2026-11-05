@@ -367,7 +367,7 @@ export function NovaOcorrenciaSheet({ open, onClose, alunos, familia }: { open: 
 
 /** Agenda: um registro por linha; a escola vê quantas famílias deram ciência, a família confirma a dela. */
 export function AgendaLista({ itens, familia, onCiente }: { itens: any[]; familia?: boolean; onCiente?: (item: any) => void }) {
-  if (!itens.length) return <EmptyState compact title="Nada na agenda neste período" />;
+  if (!itens.length) return <EmptyState compact title={familia ? 'Você está em dia com a agenda' : 'Nada na agenda neste período'} />;
   const hoje = hojeISO();
   return (
     <div className="divide-y divide-line">
@@ -388,13 +388,15 @@ export function AgendaLista({ itens, familia, onCiente }: { itens: any[]; famili
               </div>
               {a.titulo && <div className="mt-0.5 font-semibold">{a.titulo}</div>}
               <p className="text-[13.5px] text-ink-2">{a.texto}</p>
-              <div className="mt-0.5 text-[11.5px] text-muted">{a.autor}</div>
+              <div className="mt-0.5 text-[11.5px] text-muted">Enviado em {fmtDateTime(a.criado_em)}{a.autor ? ` · ${a.autor}` : ''}</div>
             </div>
             <div className="shrink-0 text-right">
-              {a.exige_ciencia && !familia && <span className="text-[12px] font-semibold text-green-800"><CheckCheck className="mr-1 inline size-3.5" />{fmtInt(a.ciencias)}/{fmtInt(a.destinatarios)}</span>}
-              {a.exige_ciencia && familia && (a.ciente
-                ? <Badge tone="green" icon={Check}>Ciente</Badge>
-                : <Button size="sm" variant="purple" onClick={() => onCiente?.(a)}>Estou ciente</Button>)}
+              {a.exige_ciencia && !familia && (a.ciente_em
+                ? <span className="text-[12px] font-semibold text-green-800"><CheckCheck className="mr-1 inline size-3.5" />Ciência em {fmtDateTime(a.ciente_em)}</span>
+                : a.student_id
+                  ? <span className="text-[12px] font-semibold text-amber-800">Aguardando ciência</span>
+                  : <span className="text-[12px] font-semibold text-green-800"><CheckCheck className="mr-1 inline size-3.5" />{fmtInt(a.ciencias)}/{fmtInt(a.destinatarios)}</span>)}
+              {a.exige_ciencia && familia && !a.ciente && <Button size="sm" variant="purple" onClick={() => onCiente?.(a)}>Estou ciente</Button>}
             </div>
           </div>
         );
@@ -414,15 +416,14 @@ export function NovoRecadoSheet({ open, onClose, classId, alunos, alunoFixo }: {
   const [titulo, setTitulo] = useState('');
   const [texto, setTexto] = useState('');
   const [data, setData] = useState(hojeISO());
-  const [ciencia, setCiencia] = useState(false);
   const [busy, setBusy] = useState(false);
   const enviar = async () => {
     setBusy(true);
     try {
-      await rpc('agenda_publicar', { class_id: classId, student_id: para || null, tipo, titulo, texto, data, exige_ciencia: ciencia });
+      await rpc('agenda_publicar', { class_id: classId, student_id: para || null, tipo, titulo, texto, data, exige_ciencia: true });
       toast({ title: 'Publicado na agenda', description: para ? 'A família do aluno vê no portal e pela IARA.' : 'As famílias da turma veem no portal e pela IARA.', tone: 'success' });
       recarregar();
-      setTitulo(''); setTexto(''); setCiencia(false);
+      setTitulo(''); setTexto('');
       onClose();
     } catch (e) {
       toast({ title: 'Não publicado', description: (e as Error).message, tone: 'error' });
@@ -452,7 +453,6 @@ export function NovoRecadoSheet({ open, onClose, classId, alunos, alunoFixo }: {
         </div>
         <Field label="Título (opcional)"><input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={120} className={inputCls} /></Field>
         <Field label="Texto"><textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={4} maxLength={2000} className={`${inputCls} h-auto py-3`} /></Field>
-        <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={ciencia} onChange={(e) => setCiencia(e.target.checked)} className="size-5 accent-purple-700" />Pedir que a família confirme a ciência</label>
       </div>
     </Sheet>
   );
