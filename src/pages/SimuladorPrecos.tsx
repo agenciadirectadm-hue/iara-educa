@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { Calculator, CheckSquare, KeyRound, Lock, LockKeyhole, Save, Square } from 'lucide-react';
+import { ArrowLeftRight, Calculator, CheckSquare, KeyRound, Lock, LockKeyhole, Save, Square } from 'lucide-react';
 import { useRpc, useRpcMutation } from '@/lib/hooks';
 import { fmtInt } from '@/lib/format';
 import { Badge, Button, Card, ErrorState, PageHeader, Section, SkeletonList } from '@/components/ui';
@@ -22,7 +22,7 @@ type Municipio = {
 };
 type Nivel = 'COMERCIAL' | 'TITULAR';
 type Param = 'meses' | 'taxa_fila' | 'resp_al' | 'util_al' | 'doc_al' | 'aud_al' | 'u_resp' | 'u_doc' | 'u_aud' | 'w_resp' | 'w_fran'
-  | 'w_isen' | 'w_util' | 'o_perg' | 'u_orac' | 'pub_resp' | 'pub_por' | 'pub_tar';
+  | 'w_isen' | 'w_util' | 'o_perg' | 'u_orac' | 'pub_resp' | 'pub_por' | 'pub_tar' | 'impl_licenca' | 'impl_treino_pct' | 'impl_treino_passo';
 type Dados = { nivel: Nivel; agentes: Agente[]; municipios: Municipio[]; parametros: Record<Param, number>; fonte: string };
 
 const TIPOS = {
@@ -65,8 +65,10 @@ function quantidade(a: Agente, v: Vol) {
 }
 
 /** Preço do município: agentes marcados, totais por tipo, redutor (explícito, para o titular) e 1º ano. O fator ajusta os
- * preços sem aparecer (comercial): entra no preço unitário de cada agente, e as linhas e os totais continuam somando certo. */
-function preco(agentes: Agente[], v: Vol, marcados: Set<number>, redutor: number, meses: number, fator = 1) {
+ * preços sem aparecer (comercial): entra no preço unitário de cada agente, e as linhas e os totais continuam somando certo.
+ * A implantação soma a licença anual de uso, de valor fixo, e o treinamento: um percentual do valor estimado final (agentes com o
+ * redutor mais a licença), arredondado para cima a cada passo. Sem nenhum agente marcado, os dois ficam zerados. */
+function preco(agentes: Agente[], v: Vol, marcados: Set<number>, redutor: number, P: Dados['parametros'], fator = 1) {
   const linhas = agentes.map((a) => {
     const q = quantidade(a, v);
     const on = marcados.has(a.num);
@@ -76,7 +78,16 @@ function preco(agentes: Agente[], v: Vol, marcados: Set<number>, redutor: number
   });
   const impl = linhas.reduce((s, l) => s + l.impl, 0);
   const mensal = linhas.reduce((s, l) => s + l.mensal, 0);
-  return { linhas, impl, mensal, implRed: impl * (1 - redutor), mensalRed: mensal * (1 - redutor), anoRed: (impl + mensal * meses) * (1 - redutor) };
+  const algum = linhas.some((l) => l.on);
+  const implAgentes = impl * (1 - redutor);
+  const licenca = algum ? P.impl_licenca ?? 0 : 0;
+  const passo = P.impl_treino_passo ?? 0;
+  // em centavos antes de arredondar: um valor exato no passo não pode subir um degrau por erro de ponto flutuante
+  const baseTreino = Math.round((implAgentes + licenca) * (P.impl_treino_pct ?? 0) * 100) / 100;
+  const treino = algum && passo > 0 ? Math.ceil(baseTreino / passo) * passo : 0;
+  const implRed = implAgentes + licenca + treino;
+  const mensalRed = mensal * (1 - redutor);
+  return { linhas, impl, mensal, licenca, treino, implRed, mensalRed, anoRed: implRed + mensalRed * P.meses };
 }
 
 /** Custos adicionais do mês, cobrados direto pela Meta, pela Anthropic e pela Groq (não somam ao preço). */
@@ -160,7 +171,10 @@ function Simulador() {
   const [redutor, setRedutor] = useState<number | null>(null);
   const [trocar, setTrocar] = useState(false);
   const [verTodas, setVerTodas] = useState(false);
-  const [pedirTodas, setPedirTodas] = useState(false);
+  // as outras prefeituras ficam ocultas para o comercial: a senha do titular libera uma vez, até bloquear o simulador
+  const [pedir, setPedir] = useState<'trocar' | 'todas' | null>(null);
+  const [liberado, setLiberado] = useState(false);
+  const [trocando, setTrocando] = useState(false);
   const [ajuste, setAjuste] = useState(false);
   const sair = useRpcMutation('simulador_sair', ['simulador_acesso', 'simulador_precos']);
   const salvarRedutor = useRpcMutation<{ municipio_id: number; redutor: number }>('simulador_redutor', ['simulador_precos']);
@@ -187,14 +201,14 @@ function Simulador() {
   const calc = useMemo(() => {
     if (!d || !m || !marcados) return null;
     const v = volumes(m, d.parametros, d.agentes, marcados);
-    return { v, p: preco(d.agentes, v, marcados, red, d.parametros.meses, titular ? 1 : m.fator), c: custos(d.agentes, v, marcados, d.parametros) };
+    return { v, p: preco(d.agentes, v, marcados, red, d.parametros, titular ? 1 : m.fator), c: custos(d.agentes, v, marcados, d.parametros) };
   }, [d, m, marcados, red, titular]);
 
   const todas = useMemo(() => {
     if (!d || !marcados) return [];
     return d.municipios.map((x) => {
       const v = volumes(x, d.parametros, d.agentes, marcados);
-      return { x, v, p: preco(d.agentes, v, marcados, titular ? x.redutor ?? 0 : 0, d.parametros.meses, titular ? 1 : x.fator), c: custos(d.agentes, v, marcados, d.parametros) };
+      return { x, v, p: preco(d.agentes, v, marcados, titular ? x.redutor ?? 0 : 0, d.parametros, titular ? 1 : x.fator), c: custos(d.agentes, v, marcados, d.parametros) };
     });
   }, [d, marcados, titular]);
 
@@ -202,6 +216,8 @@ function Simulador() {
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   if (!d || !m || !calc) return null;
   const { v, p, c } = calc;
+  const abrir = (o: 'trocar' | 'todas') => (o === 'trocar' ? setTrocando(true) : setVerTodas(true));
+  const pedirAcesso = (o: 'trocar' | 'todas') => (titular || liberado ? abrir(o) : setPedir(o));
   const alternar = (num: number) => setMarcados((s) => {
     const n = new Set(s);
     if (n.has(num)) n.delete(num);
@@ -219,25 +235,32 @@ function Simulador() {
           <Button variant="secondary" size="sm" icon={Lock} loading={sair.isPending} onClick={() => sair.mutate({})}>Bloquear</Button>
         </>} />
       <TrocarSenha open={trocar} onClose={() => setTrocar(false)} titular={titular} />
-      <SenhaTitular open={pedirTodas} onClose={() => setPedirTodas(false)} fn="simulador_ver_todas" titulo="Ver todas" onOk={() => { setPedirTodas(false); setVerTodas(true); }} />
+      <SenhaTitular open={pedir != null} onClose={() => setPedir(null)} fn="simulador_ver_todas" titulo={pedir === 'trocar' ? 'Trocar prefeitura' : 'Ver todas'}
+        onOk={() => { setLiberado(true); if (pedir) abrir(pedir); setPedir(null); }} />
       <AjusteTotal open={ajuste} onClose={() => setAjuste(false)} municipio={m} />
 
       {/* prefeitura (e, para o titular, o redutor) */}
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-4">
-          {titular ? (
+          {titular || trocando ? (
             <label className="min-w-0 flex-1 basis-64">
               <span className="mb-1 block text-[12px] font-bold uppercase tracking-wide text-subtle">Prefeitura</span>
-              <select value={munId ?? ''} onChange={(e) => abrirPrefeitura(Number(e.target.value))} aria-label="Prefeitura"
-                className="h-11 w-full rounded-2xl bg-white px-3 text-[15px] font-semibold ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-purple-500">
-                {d.municipios.map((x) => <option key={x.id} value={x.id}>{x.nome}{x.uf ? ` – ${x.uf}` : ''}</option>)}
-              </select>
+              <span className="flex items-center gap-2">
+                <select value={munId ?? ''} onChange={(e) => { abrirPrefeitura(Number(e.target.value)); if (!titular) setTrocando(false); }} aria-label="Prefeitura"
+                  className="h-11 min-w-0 flex-1 rounded-2xl bg-white px-3 text-[15px] font-semibold ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-purple-500">
+                  {d.municipios.map((x) => <option key={x.id} value={x.id}>{x.nome}{x.uf ? ` – ${x.uf}` : ''}</option>)}
+                </select>
+                {!titular && <Button variant="secondary" size="sm" onClick={() => setTrocando(false)}>Cancelar</Button>}
+              </span>
             </label>
           ) : (
-            // para o comercial, só a prefeitura aberta: as outras ficam ocultas ("Ver todas", no fim, pede a senha do titular)
+            // para o comercial, só a prefeitura aberta: trocar pede a senha do titular, e a lista volta a se esconder depois da escolha
             <div className="min-w-0 flex-1 basis-64">
               <span className="mb-1 block text-[12px] font-bold uppercase tracking-wide text-subtle">Prefeitura</span>
-              <div className="font-display text-[22px] font-extrabold leading-tight">{m.nome}{m.uf ? ` – ${m.uf}` : ''}</div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <div className="font-display text-[22px] font-extrabold leading-tight">{m.nome}{m.uf ? ` – ${m.uf}` : ''}</div>
+                <Button variant="secondary" size="sm" icon={ArrowLeftRight} onClick={() => pedirAcesso('trocar')}>Trocar prefeitura</Button>
+              </div>
             </div>
           )}
           {titular && (
@@ -277,7 +300,7 @@ function Simulador() {
         <Numero rotulo="Agentes marcados" valor={`${marcados.size} de ${d.agentes.length}`} />
       </div>
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Numero destaque rotulo={`Implantação${red ? ' com redutor' : ''}`} valor={r0(p.implRed)} onClick={titular ? undefined : () => setAjuste(true)} />
+        <Numero destaque rotulo={`Implantação${red ? ' com redutor' : ''}`} valor={r0(p.implRed)} detalhe="Agentes, licença anual de uso e treinamento" onClick={titular ? undefined : () => setAjuste(true)} />
         <Numero destaque rotulo={`Mensal${red ? ' com redutor' : ''}`} valor={r0(p.mensalRed)} onClick={titular ? undefined : () => setAjuste(true)} />
         <Numero destaque rotulo={`Total no 1º ano (${d.parametros.meses} meses)`} valor={r0(p.anoRed)} onClick={titular ? undefined : () => setAjuste(true)} />
         <Numero rotulo="Custos adicionais por mês" valor={r0(c.total)} detalhe="Cobrados direto pela Meta, Anthropic e Groq; não somam" />
@@ -336,13 +359,17 @@ function Simulador() {
                     <td className="px-2 py-1.5 text-right tabular">{r0(p.impl)}</td><td className="px-2 py-1.5 text-right tabular">{r0(p.mensal)}</td></tr>
                   <tr><td colSpan={6} className="px-2 py-1.5 text-right">Redutor ({pct(red)})</td>
                     <td className="px-2 py-1.5 text-right tabular">{red ? `−${r0(p.impl * red)}` : '—'}</td><td className="px-2 py-1.5 text-right tabular">{red ? `−${r0(p.mensal * red)}` : '—'}</td></tr>
-                  <tr className="bg-purple-50 text-[14px] font-bold"><td colSpan={6} className="px-2 py-2 text-right">Total com redutor</td>
-                    <td className="px-2 py-2 text-right tabular">{r0(p.implRed)}</td><td className="px-2 py-2 text-right tabular">{r0(p.mensalRed)}</td></tr>
                 </>
               ) : (
-                <tr className="bg-purple-50 text-[14px] font-bold" onClick={() => setAjuste(true)}><td colSpan={6} className="px-2 py-2 text-right">Total dos agentes marcados</td>
-                  <td className="px-2 py-2 text-right tabular">{r0(p.impl)}</td><td className="px-2 py-2 text-right tabular">{r0(p.mensal)}</td></tr>
+                <tr className="font-semibold" onClick={() => setAjuste(true)}><td colSpan={6} className="px-2 py-1.5 text-right">Total dos agentes marcados</td>
+                  <td className="px-2 py-1.5 text-right tabular">{r0(p.impl)}</td><td className="px-2 py-1.5 text-right tabular">{r0(p.mensal)}</td></tr>
               )}
+              <tr><td colSpan={6} className="px-2 py-1.5 text-right">Licença anual de uso</td>
+                <td className="px-2 py-1.5 text-right tabular">{r0(p.licenca)}</td><td className="px-2 py-1.5 text-right">—</td></tr>
+              <tr><td colSpan={6} className="px-2 py-1.5 text-right">Treinamento ({pct(d.parametros.impl_treino_pct ?? 0)} do valor estimado final, para cima a cada {r0(d.parametros.impl_treino_passo ?? 0)})</td>
+                <td className="px-2 py-1.5 text-right tabular">{r0(p.treino)}</td><td className="px-2 py-1.5 text-right">—</td></tr>
+              <tr className="bg-purple-50 text-[14px] font-bold" onClick={titular ? undefined : () => setAjuste(true)}><td colSpan={6} className="px-2 py-2 text-right">{red ? 'Total com redutor' : 'Total'}</td>
+                <td className="px-2 py-2 text-right tabular">{r0(p.implRed)}</td><td className="px-2 py-2 text-right tabular">{r0(p.mensalRed)}</td></tr>
             </tbody>
           </table>
         </Card>
@@ -383,7 +410,7 @@ function Simulador() {
       {/* todas as prefeituras */}
       {!titular && !verTodas ? (
         <div className="mt-6 flex justify-end">
-          <button type="button" onClick={() => setPedirTodas(true)} className="text-[12px] font-semibold text-subtle hover:text-purple-700">Ver todas</button>
+          <button type="button" onClick={() => pedirAcesso('todas')} className="text-[12px] font-semibold text-subtle hover:text-purple-700">Ver todas</button>
         </div>
       ) : (
       <Section title="Todas as prefeituras" subtitle={`Com os agentes marcados acima${titular ? ' e o redutor de cada prefeitura' : ''}. Toque numa linha para abri-la.`}

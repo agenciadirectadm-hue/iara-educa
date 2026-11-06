@@ -14,21 +14,30 @@ export function Sheet({ open, onClose, title, subtitle, children, footer, size =
   const panelRef = useRef<HTMLDivElement>(null);
   const drag = useDragControls();
 
+  // Quem usa a folha costuma passar uma função nova a cada digitação. Se ela entrasse nas dependências abaixo, cada tecla
+  // reabriria o efeito, o foco sairia do campo e só daria para digitar um caractere por vez.
+  const fecharRef = useRef(onClose);
+  useEffect(() => { fecharRef.current = onClose; });
+
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && fecharRef.current();
     document.addEventListener('keydown', onKey);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const t = setTimeout(() => panelRef.current?.querySelector<HTMLElement>('[data-autofocus], button, a, input, select, textarea')?.focus(), 60);
+    const t = setTimeout(() => {
+      const painel = panelRef.current;
+      // se o foco já está num campo da folha (autoFocus), fica lá
+      if (painel && !painel.contains(document.activeElement)) painel.querySelector<HTMLElement>('[data-autofocus], button, a, input, select, textarea')?.focus();
+    }, 60);
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = overflow;
       clearTimeout(t);
       prev?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   const width = { sm: 'lg:w-[400px]', md: 'lg:w-[480px]', lg: 'lg:w-[640px]', xl: 'lg:w-[min(920px,calc(100vw-280px))]' }[size];
   return createPortal(
