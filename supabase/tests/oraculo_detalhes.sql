@@ -99,17 +99,17 @@ begin
 
   -- D4: as perguntas reais do Prefeito
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "ola, como esta a rede hoje/"}');
-  v_out := v_out || jsonb_build_object('passo', 'D4a. "como está a rede hoje": números e o que pede atenção', 'ok',
-    r ->> 'topico' = 'panorama' and r ->> 'resposta' like '%Alunos matriculados%' and r ->> 'resposta' like '%Presença%' and r ->> 'resposta' like '%O que pede atenção agora%', 'resposta', left(r ->> 'resposta', 400));
+  v_out := v_out || jsonb_build_object('passo', 'D4a. "como está a rede hoje": o que pede decisão e o que vai bem', 'ok',
+    r ->> 'topico' = 'panorama' and r ->> 'resposta' like '%alunos%' and r ->> 'resposta' like '%presença%' and r ->> 'resposta' like '%O que pede a sua decisão%' and r ->> 'resposta' like '%O que vai bem%', 'resposta', left(r ->> 'resposta', 400));
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "me fale mais sobre os encaminhamentos ao conselho tutelar"}');
-  v_out := v_out || jsonb_build_object('passo', 'D4b. "me fale mais sobre os encaminhamentos": números, motivo, situação, espera e onde pesa', 'ok',
-    r ->> 'topico' = 'protecao' and r ->> 'resposta' like '%Por motivo%' and r ->> 'resposta' like '%Em que situação estão%' and r ->> 'resposta' like '%Há quanto tempo aguardam%' and r ->> 'resposta' like '%Regiões com os%'
+  v_out := v_out || jsonb_build_object('passo', 'D4b. "me fale mais sobre os encaminhamentos": números, motivo, espera e sugestão', 'ok',
+    r ->> 'topico' = 'protecao' and r ->> 'resposta' like '%Motivo principal%' and r ->> 'resposta' like '%Tempo de espera%' and r ->> 'resposta' like '%Sugestão:%'
     and r ->> 'resposta' not like '%Restrições de guarda%', 'resposta', left(r ->> 'resposta', 900));
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "quais os maiores motivos de encaminhamento"}');
   v_out := v_out || jsonb_build_object('passo', 'D4c. "maiores motivos de encaminhamento": por motivo, com percentual', 'ok',
-    r ->> 'topico' = 'protecao' and r ->> 'resposta' like '%Excesso de faltas%' and r ->> 'resposta' ~ '\([0-9]+%\)' and r ->> 'resposta' !~ 'Ausências: [0-9]+ h', 'resposta', left(r ->> 'resposta', 600));
+    r ->> 'topico' = 'protecao' and r ->> 'resposta' like 'Os principais motivos%excesso de faltas%' and r ->> 'resposta' ~ '\([0-9]+%\)' and r ->> 'resposta' !~ 'Ausências: [0-9]+ h', 'resposta', left(r ->> 'resposta', 600));
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "quais as tres escolas com mais ocorrencias?"}');
   v_out := v_out || jsonb_build_object('passo', 'D4d. "as três escolas com mais ocorrências": exatamente 3, numeradas', 'ok',
@@ -117,7 +117,7 @@ begin
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "qual o cardapio de hoje"}');
   v_out := v_out || jsonb_build_object('passo', 'D4e. "cardápio de hoje": as refeições de verdade, por faixa', 'ok',
-    r ->> 'topico' = 'cardapio' and r ->> 'resposta' ~ 'Creche' and r ->> 'resposta' ~ 'Almoço|Lanche' and r ->> 'resposta' not like '%Refeições servidas%', 'resposta', left(r ->> 'resposta', 500));
+    r ->> 'topico' = 'merenda' and r ->> 'resposta' ~ 'Almoço|Lanche' and (r ->> 'resposta' like 'Hoje (%' or r ->> 'resposta' like '%não tem aula%'), 'resposta', left(r ->> 'resposta', 500));
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "quantas crianças estao abaixo do peso normal?"}');
   v_out := v_out || jsonb_build_object('passo', 'D4f. "abaixo do peso": diz o motivo real e mostra as medidas, sem cair em matrículas', 'ok',
@@ -125,15 +125,15 @@ begin
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "quantas crianças faltaram às aulas ontem/"}');
   v_out := v_out || jsonb_build_object('passo', 'D4g. "faltaram ontem": o dia pedido, não os últimos 30 dias', 'ok',
-    r ->> 'topico' = 'periodo' and r ->> 'resposta' like 'Ontem (' || to_char(v_hoje - 1, 'DD/MM') || ')%' and r ->> 'resposta' like '%Faltas registradas%', 'resposta', r ->> 'resposta');
+    r ->> 'topico' = 'frequencia' and r ->> 'resposta' like '%' || to_char(v_hoje - 1, 'DD/MM') || '%' and r ->> 'resposta' like '%faltas registradas%', 'resposta', r ->> 'resposta');
 
   r := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "Quantos profissionais marcaram o ponto hoje?"}');
   r2 := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "quantas crianças usam óculos"}');
   r3 := pg_temp.as_call('od-pref', 'oraculo_perguntar', '{"pergunta": "quais as maiores causas de chamados de manutenção?"}');
   v_out := v_out || jsonb_build_object('passo', 'D5. Período sem registro avisa; sem assunto é avisado; "maiores causas" abre o detalhe', 'ok',
     (r ->> 'topico' = 'periodo' and (r ->> 'resposta' like '%sem registro%' or exists (select 1 from iara.ponto_marcacoes where data = v_hoje)))
-    and (r2 ->> 'fora')::boolean and r2 ->> 'resposta' like 'Não achei%'
-    and r3 ->> 'topico' = 'manutencao' and r3 ->> 'resposta' like '%por categoria%',
+    and (r2 ->> 'fora')::boolean and r2 ->> 'resposta' like 'Não tenho esta informação%'
+    and r3 ->> 'topico' = 'manutencao' and r3 ->> 'resposta' like 'O que mais quebra%',
     'periodo', r ->> 'resposta', 'fora', left(r2 ->> 'resposta', 80), 'causas', left(r3 ->> 'resposta', 200));
 
   -- D6: sigilo: em detalhe de pessoas nenhum item mostra 1 ou 2; o total some quando o resto é pequeno

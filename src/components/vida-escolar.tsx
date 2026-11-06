@@ -22,8 +22,8 @@ export function useRecarregarVidaEscolar() {
 export function OcorrenciasTabela({ itens, onAbrir, mostrarAluno = true }: { itens: any[]; onAbrir: (id: string) => void; mostrarAluno?: boolean }) {
   if (!itens.length) return <EmptyState compact title="Nenhuma ocorrência" />;
   return (
-    <Tabela colunas={mostrarAluno ? 'minmax(180px,1.2fr) 96px minmax(190px,1fr) minmax(220px,2fr) 110px 190px' : '96px minmax(190px,1fr) minmax(240px,2fr) 110px 190px'}
-      largura={mostrarAluno ? 1020 : 800} rotulo="Ocorrências">
+    <Tabela colunas={mostrarAluno ? 'minmax(190px,1.2fr) 96px 400px minmax(240px,2fr) 72px 420px' : '96px 400px minmax(240px,2fr) 72px 420px'}
+      largura={mostrarAluno ? 1500 : 1290} rotulo="Ocorrências">
       <TCabecalho>
         {mostrarAluno && <TCelula>Aluno</TCelula>}<TCelula>Quando</TCelula><TCelula>Tipo</TCelula><TCelula>O que aconteceu</TCelula><TCelula>Registro</TCelula><TCelula>Situação</TCelula>
       </TCabecalho>

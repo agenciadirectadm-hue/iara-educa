@@ -8,16 +8,15 @@ import { useRpc, useRpcMutation } from '@/lib/hooks';
 import { Badge, Button, Card, ErrorState, Field, PageHeader, Section, SkeletonList, inputCls } from '@/components/ui';
 
 const SUGESTOES = [
-  'Como está a rede municipal hoje?',
-  'O que está acontecendo na rede?',
-  'Quais os motivos dos encaminhamentos ao Conselho Tutelar?',
-  'Qual o cardápio de hoje?',
-  'Quantas crianças faltaram ontem?',
-  'Por que as crianças estão faltando?',
-  'Quais as três escolas com mais ocorrências?',
-  'Me fale mais sobre a fila da creche',
-  'Quais os problemas mais comuns de manutenção?',
-  'Quantos alunos do Bolsa Família ficaram abaixo da frequência mínima?',
+  'O que pede a minha decisão hoje?',
+  'O que nossos alunos do ensino fundamental comeram hoje?',
+  'Alguma rota de transporte falhou hoje?',
+  'As crianças estão indo à escola?',
+  'Por que a fila da creche não anda?',
+  'As crianças estão aprendendo a ler?',
+  'Como estão os encaminhamentos ao Conselho Tutelar?',
+  'Como está a manutenção das escolas?',
+  'Quantos alunos do Bolsa Família estão em risco?',
 ];
 const MAX_AUDIO_S = 60;
 
@@ -40,6 +39,18 @@ const paraBase64 = (b: Blob) => new Promise<string>((ok, falha) => {
   r.onerror = () => falha(r.error);
   r.readAsDataURL(b);
 });
+
+/** A resposta em blocos: o primeiro traz a resposta direta, em destaque; a sugestão de decisão fecha, com fundo próprio. */
+function Resposta({ texto }: { texto: string }) {
+  const blocos = texto.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  return (
+    <div className="space-y-2 text-[15px] leading-snug text-ink">
+      {blocos.map((b, i) => (b.startsWith('Sugestão:')
+        ? <p key={i} className="rounded-xl bg-purple-50 px-3 py-2 ring-1 ring-purple-200"><b className="text-purple-900">Sugestão:</b>{b.slice('Sugestão:'.length)}</p>
+        : <p key={i} className={clsx('whitespace-pre-line', i === 0 && 'font-semibold')}>{b}</p>))}
+    </div>
+  );
+}
 
 /** Oráculo do Prefeito: pergunta por texto ou por áudio sobre qualquer número consolidado do município. As respostas vêm só
  * de números agregados (nenhum dado de pessoa); com a chave da Anthropic, o Claude Opus 5.5 combina as consultas. */
@@ -119,7 +130,7 @@ export default function Oraculo() {
     <div>
       <PageHeader eyebrow="Gabinete do Prefeito"
         title={<span className="inline-flex items-center gap-2"><Sparkles className="size-6 text-purple-700" />Oráculo do Prefeito</span>}
-        subtitle="Pergunte, por texto ou por áudio, sobre toda a rede municipal: vagas, frequência, ocorrências, merenda, transporte, manutenção, professores e o que está acontecendo agora. Na cidade, numa unidade ou numa região, sem expor pessoas." />
+        subtitle="Pergunte como a um assessor, por texto ou por áudio. O Oráculo responde com a informação tratada: o que aconteceu, comparado com o quê, por quê, onde e o que fazer. Na cidade, numa unidade ou numa região, sem expor pessoas." />
 
       <div className="mb-3 flex flex-wrap gap-2">
         {s.claude
@@ -202,11 +213,11 @@ function Conversa({ t }: { t: Troca }) {
       </div>
       <div className="flex justify-start">
         <div className="max-w-[92%] rounded-2xl rounded-bl-md bg-slate-50 px-3 py-2.5 ring-1 ring-line">
-          {t.carregando && <p className="animate-pulse text-[14px] text-muted">Consultando os números…</p>}
+          {t.carregando && <p className="animate-pulse text-[14px] text-muted">Analisando os dados da rede…</p>}
           {t.erro && <p role="alert" className="text-[14px] font-semibold text-red-700">{t.erro}</p>}
           {t.r && (
             <>
-              <p className="whitespace-pre-line text-[15px] leading-snug text-ink">{t.r.resposta}</p>
+              <Resposta texto={t.r.resposta} />
               {t.r.consultas.filter((c) => c?.numeros?.length).map((c, i) => (
                 <div key={i} className="mt-2">
                   {c.recorte && <div className="text-[11px] font-bold uppercase tracking-wide text-muted">{c.recorte}</div>}

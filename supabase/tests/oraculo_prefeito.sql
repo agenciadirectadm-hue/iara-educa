@@ -58,7 +58,7 @@ begin
   r2 := pg_temp.as_call('or-pref', 'oraculo_perguntar', jsonb_build_object('pergunta', 'Como está a frequência na ' || v_ap || '?'));
   r3 := pg_temp.as_call('or-pref', 'oraculo_perguntar', '{"pergunta": "Quantos professores temos?"}');
   v_out := v_out || jsonb_build_object('passo', 'O3. Por regras: tópico e recorte da pergunta, resposta em português', 'ok',
-    r ->> 'topico' = 'creche' and (r ->> 'unidade')::int = v_unit and r2 ->> 'topico' = 'frequencia' and r2 ->> 'area' is not null
+    r ->> 'topico' = 'fila' and (r ->> 'unidade')::int = v_unit and r2 ->> 'topico' = 'frequencia' and r2 ->> 'area' is not null
     and r3 ->> 'topico' = 'profissionais' and r3 ->> 'recorte' = 'Maringá' and r ->> 'modo' = 'REGRAS' and length(r ->> 'resposta') > 20,
     'respostas', jsonb_build_array(r ->> 'resposta', r2 ->> 'resposta', r3 ->> 'resposta'));
 
@@ -105,7 +105,7 @@ begin
   r3 := pg_temp.as_call('or-pref', 'oraculo_perguntar', '{"pergunta": "Quantos alunos estão matriculados?"}');
   v_out := v_out || jsonb_build_object('passo', 'O8. Pergunta por nome: só a contagem; sem assunto: aviso e resumo; assunto conhecido: como antes', 'ok',
     r ->> 'topico' = 'nomes' and not (r ->> 'fora')::boolean and jsonb_array_length(r -> 'numeros') = 0 and r ->> 'resposta' like '%Só a contagem%'
-    and (r2 ->> 'fora')::boolean and r2 ->> 'resposta' like 'Não achei%' and r3 ->> 'topico' = 'matriculas' and not (r3 ->> 'fora')::boolean,
+    and (r2 ->> 'fora')::boolean and r2 ->> 'resposta' like 'Não tenho esta informação%' and r3 ->> 'topico' = 'matriculas' and not (r3 ->> 'fora')::boolean,
     'nome', r ->> 'resposta', 'sem_assunto', left(r2 ->> 'resposta', 90));
   raise exception 'RESULTADO: %', v_out;
 end $$;

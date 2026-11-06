@@ -22,6 +22,17 @@ const TOPICOS = ["visao_geral", "matriculas", "fila", "vagas", "creche", "freque
 
 export const FERRAMENTAS = [
   {
+    name: "leitura_executiva",
+    description: "A leitura pronta de uma pergunta do Prefeito: responde o que foi perguntado, com o melhor dado disponível, a base, a comparação, a causa, onde se concentra e uma sugestão " +
+      "de decisão. Cobre merenda (o que comeram, por etapa, com o cardápio e as refeições servidas), transporte, frequência, fila e vagas, proteção, ocorrências, manutenção, aprendizagem, " +
+      "professores, Bolsa Família e \"o que pede a minha decisão\". Use primeiro. Se vier encontrada = false, use as outras ferramentas.",
+    input_schema: {
+      type: "object",
+      properties: { pergunta: { type: "string", description: "A pergunta, com as palavras do Prefeito." } },
+      required: ["pergunta"],
+    },
+  },
+  {
     name: "numeros_do_municipio",
     description: "Números consolidados da rede municipal de educação sobre um tópico, na cidade toda, numa unidade (CMEI ou escola) " +
       "ou numa região (área de ponderação do IBGE). Tópicos: visao_geral (resumo), matriculas, fila (fila de espera por vaga), vagas, " +
@@ -151,15 +162,25 @@ export const FERRAMENTAS = [
   },
 ];
 const FUNCAO: Record<string, string> = {
-  numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades", indicadores_disponiveis: "oraculo_indicadores",
+  leitura_executiva: "oraculo_leitura", numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades", indicadores_disponiveis: "oraculo_indicadores",
   situacoes_pontuais: "oraculo_situacoes", comparar_unidades: "oraculo_ranking", contar_por_nome: "oraculo_nomes",
   detalhar: "oraculo_detalhar", numero_no_periodo: "oraculo_periodo", cardapio_do_dia: "oraculo_cardapio", calendario_da_rede: "oraculo_calendario",
 };
 
 const SISTEMA = `Você é o Oráculo do Prefeito no IARA Educa, a plataforma da Secretaria Municipal de Educação de Maringá (PR).
-O Prefeito pergunta, por texto ou por áudio, sobre a rede municipal de educação; responda com os números das ferramentas.
+O Prefeito pergunta, por texto ou por áudio, sobre a rede municipal de educação. Imagine que ele está em Brasília, numa audiência, mostrando o
+controle que a Prefeitura tem da rede: a resposta precisa ser imediata, precisa e útil. Você não entrega números soltos: trata os dados e entrega informação.
 
-- Use apenas números que as ferramentas devolverem. Se faltar o dado, diga o que existe e o que não existe.
+- Comece por leitura_executiva, com as palavras do Prefeito: ela já traz a leitura. Complemente com as outras ferramentas só se faltar algo.
+- A primeira frase responde o que foi perguntado, na mesma etapa, unidade, região e dia.
+- Sem o dado exato, contorne: traga o melhor dado disponível e diga o que ainda não fechou. Exemplo: "o que os alunos do ensino fundamental comeram hoje?"
+  responde quantas refeições foram servidas ontem e o cardápio de ontem, o cardápio de hoje e que os números de hoje ainda não fecharam.
+- Número sempre com sentido: de quantos (base), comparado com o quê (média ou período anterior), por quê (causa) e onde se concentra. Um número que assusta sem contexto
+  engana: "521 viagens com atraso" precisa dizer que a média foi de 4 minutos e que só 24 passaram de 15.
+- Selecione: traga o que importa, no máximo três itens de cada lista. O detalhe completo só se ele pedir.
+- Quando houver decisão a tomar, termine com "Sugestão:" e o que fazer e quem aciona. A sugestão sai dos números; nunca invente número nem causa.
+- Se o IARA não tiver o assunto, diga "Não tenho esta informação neste momento", quem pode confirmar e o que há de mais próximo.
+- Use apenas números que as ferramentas devolverem.
 - Quando a pergunta citar uma unidade ou região e você não tiver certeza do nome, consulte unidades_do_municipio antes.
 - Para comparar unidades ou regiões, use comparar_unidades, com o limite que o Prefeito pedir (três escolas = limite 3). Para "o que está
   acontecendo", use situacoes_pontuais.
@@ -169,9 +190,8 @@ O Prefeito pergunta, por texto ou por áudio, sobre a rede municipal de educaç�
 - Se vier "faltando" ou "sem_registro", diga o motivo e o que existe; nunca transforme falta de dado em zero.
 - Se o assunto não estiver em nenhuma ferramenta, veja indicadores_disponiveis: o Oráculo cobre quase toda a operação. Salários, folha e
   orçamento não estão no IARA Educa: diga isso.
-- Responda em português do Brasil, como para ser lido no celular ou ouvido em voz alta: o número principal primeiro, depois o que explica
-  esse número (os principais motivos, com percentual, e onde mais pesa) e o recorte e o período. Até 5 frases curtas numa pergunta simples;
-  num pedido de detalhe, pode ir um pouco além. Números no padrão brasileiro (1.234; 93,4%). Sem tabelas nem markdown.
+- Responda em português do Brasil, como para ser lido no celular ou ouvido em voz alta: frases curtas, sem tabelas nem markdown. Pode usar "•" numa lista curta.
+  Números no padrão brasileiro (1.234; 93,4%).
 - O Oráculo só traz números e situações sem identificar pessoas. Contar quantos têm um nome é permitido (contar_por_nome); dizer
   quem são, ou dar telefone e endereço, não: explique que o detalhe fica com a Secretaria, na unidade, com os registros de acesso.
 - Este é o ambiente de demonstração: os dados são fictícios (as matrículas oficiais são do Censo Escolar 2025).`;
@@ -265,7 +285,7 @@ type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; par
 
 // títulos e dicas das ferramentas para o assistente: só leitura, dados do próprio IARA
 const TITULO: Record<string, string> = {
-  numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões", indicadores_disponiveis: "O que o Oráculo sabe",
+  leitura_executiva: "Leitura pronta para o Prefeito", numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões", indicadores_disponiveis: "O que o Oráculo sabe",
   situacoes_pontuais: "Situações que pedem atenção", comparar_unidades: "Comparar unidades e regiões", contar_por_nome: "Contar pessoas por nome",
   detalhar: "Motivos, tipos e perfil de um assunto", numero_no_periodo: "Número em um dia ou período", cardapio_do_dia: "Cardápio do dia", calendario_da_rede: "Calendário da rede",
 };
@@ -282,11 +302,13 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
       return ok({
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.3.0" },
+        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.4.0" },
         instructions: "Oráculo do Prefeito de Maringá (IARA Educa): toda a operação da rede municipal de educação em números — matrículas, " +
           "fila, vagas, frequência, ocorrências, profissionais e ponto, transporte, merenda, almoxarifado, manutenção, biblioteca, desempenho, AEE, " +
           "proteção, atendimento, Bolsa Família e mais — na cidade, numa unidade ou numa região. Para qualquer pergunta sobre a educação no " +
-          "município, consulte estas ferramentas: numeros_do_municipio (assuntos), detalhar (motivos, tipos, perfil, \"me fale mais\": não repita a contagem " +
+          "município, comece por leitura_executiva (a resposta já tratada: o que foi perguntado, o melhor dado disponível, comparação, causa e sugestão de decisão). " +
+          "Responda como quem informa o Prefeito numa audiência: número com sentido, não número solto. Sem o dado exato, contorne com o melhor dado disponível e diga o que não fechou. " +
+          "Outras ferramentas: numeros_do_municipio (assuntos), detalhar (motivos, tipos, perfil, \"me fale mais\": não repita a contagem " +
           "quando pedirem o porquê), numero_no_periodo (ontem, esta semana, um mês), cardapio_do_dia, calendario_da_rede, situacoes_pontuais " +
           "(o que está acontecendo), comparar_unidades (qual tem mais ou menos), contar_por_nome (estatística de nomes) e indicadores_disponiveis " +
           "(tudo o que há). Se vier faltando ou sem_registro, diga o motivo: falta de dado não é zero. Só dados agregados: não há quem são as pessoas nem contatos.",
