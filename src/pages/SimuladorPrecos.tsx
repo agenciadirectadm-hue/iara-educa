@@ -366,7 +366,7 @@ function Simulador() {
               )}
               <tr><td colSpan={6} className="px-2 py-1.5 text-right">Licença anual de uso</td>
                 <td className="px-2 py-1.5 text-right tabular">{r0(p.licenca)}</td><td className="px-2 py-1.5 text-right">—</td></tr>
-              <tr><td colSpan={6} className="px-2 py-1.5 text-right">Treinamento ({pct(d.parametros.impl_treino_pct ?? 0)} do valor estimado final, para cima a cada {r0(d.parametros.impl_treino_passo ?? 0)})</td>
+              <tr><td colSpan={6} className="px-2 py-1.5 text-right">Treinamento</td>
                 <td className="px-2 py-1.5 text-right tabular">{r0(p.treino)}</td><td className="px-2 py-1.5 text-right">—</td></tr>
               <tr className="bg-purple-50 text-[14px] font-bold" onClick={titular ? undefined : () => setAjuste(true)}><td colSpan={6} className="px-2 py-2 text-right">{red ? 'Total com redutor' : 'Total'}</td>
                 <td className="px-2 py-2 text-right tabular">{r0(p.implRed)}</td><td className="px-2 py-2 text-right tabular">{r0(p.mensalRed)}</td></tr>
