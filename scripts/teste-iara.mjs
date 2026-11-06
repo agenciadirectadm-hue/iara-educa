@@ -103,6 +103,13 @@ if (roteiro === 'conversa') {
   await send('Recusar vaga', `decline:${falsa}`);
   await send('qual o prazo para responder a oferta?');
   if (/Oferta não encontrada/.test(ultimaIara()?.body ?? '')) falhas.push('a pergunta virou motivo de recusa');
+  // resposta curta demais não recusa: pede o motivo de novo
+  await send('Recusar vaga', `decline:${falsa}`);
+  await send('sim');
+  if (!/poucas palavras/.test(ultimaIara()?.body ?? '')) falhas.push(`resposta curta não pediu o motivo: ${ultimaIara()?.body?.slice(0, 160)}`);
+  // e um motivo escrito de próprio punho, sem tocar em botão, vale
+  await send('a creche fica muito longe da minha casa');
+  if (!/Oferta não encontrada/.test(ultimaIara()?.body ?? '')) falhas.push(`o motivo escrito não foi para a recusa: ${ultimaIara()?.body?.slice(0, 160)}`);
   if (falhas.length) {
     console.error('\nFALHAS:\n' + falhas.join('\n'));
     process.exit(1);

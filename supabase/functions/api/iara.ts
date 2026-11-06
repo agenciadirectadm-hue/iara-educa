@@ -1958,7 +1958,12 @@ export class Agent {
       return;
     }
     if (flow === "oferta" && step === "decline_reason") {
-      return await this.declineOffer(String(this.ctx.data?.offer_id ?? ""), text);
+      // recusar libera a vaga: pergunta não vira motivo (a conversa segue, sem recusar) e resposta curta demais pede o motivo de novo
+      const pergunta = /\?\s*$/.test(text) || /^(qual|quais|quando|onde|como|quanto|quantos|quantas|posso|pode|podem)\b/.test(expandir(t));
+      if (!pergunta) {
+        if (text.trim().length < 5) return this.say("Pode me contar o motivo em poucas palavras?");
+        return await this.declineOffer(String(this.ctx.data?.offer_id ?? ""), text);
+      }
     }
     this.done();
     return await this.route(detectIntent(t), text);
