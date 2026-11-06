@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
-import { createHashRouter, Navigate, useRouteError, useSearchParams } from 'react-router';
+import { createHashRouter, Navigate, useLocation, useRouteError, useSearchParams } from 'react-router';
 import { AppShell } from './app/AppShell';
-import Splash, { SPLASH_KEY } from './pages/Splash';
+import Splash, { aberturaJaVistaNaAba } from './pages/Splash';
 import Entrar from './pages/Entrar';
 import { useSession } from './lib/session';
 import { erroDeVersao, recarregarNovaVersao } from './lib/novaVersao';
@@ -95,17 +95,17 @@ function Loader() {
 
 const S = (el: ReactNode) => <Suspense fallback={<Loader />}>{el}</Suspense>;
 
+/** O endereço do site é sempre a abertura: ela é a tela principal. */
 function RootGate() {
-  const { session, ready } = useSession();
-  let seen = false;
-  try {
-    seen = localStorage.getItem(SPLASH_KEY) === 'true';
-  } catch {
-    seen = false;
-  }
-  if (!seen) return <Navigate to="/abertura" replace />;
-  if (!ready) return <Loader />;
-  return <Navigate to={session ? '/inicio' : '/entrar'} replace />;
+  return <Navigate to="/abertura" replace />;
+}
+
+/** Quem chega direto numa tela do sistema (aba nova, endereço salvo) também passa antes pela abertura, e depois segue para onde ia.
+ * O QR code do WhatsApp e os documentos para imprimir ficam de fora, e o que já está aberto nesta aba não repete a abertura. */
+function ChegadaPelaAbertura({ children }: { children: ReactNode }) {
+  const { pathname, search } = useLocation();
+  if (!aberturaJaVistaNaAba()) return <Navigate to="/abertura" replace state={{ depois: pathname === '/entrar' || pathname === '/inicio' ? null : pathname + search }} />;
+  return <>{children}</>;
 }
 
 function RequireSession({ children }: { children: ReactNode }) {
@@ -162,7 +162,7 @@ function NotFound() {
 export const router = createHashRouter([
   { path: '/', element: <RootGate /> },
   { path: '/abertura', element: <Splash /> },
-  { path: '/entrar', element: <Entrar /> },
+  { path: '/entrar', element: <ChegadaPelaAbertura><Entrar /></ChegadaPelaAbertura> },
   // início da conversa pelo WhatsApp (destino do QR code) e cartaz para imprimir — públicos
   { path: '/whatsapp', element: S(<WhatsAppEntry />) },
   { path: '/whatsapp/cartaz', element: S(<WhatsAppPoster />) },
@@ -170,7 +170,7 @@ export const router = createHashRouter([
   { path: '/declaracao/:id', element: <RequireSession>{S(<Declaracao />)}</RequireSession> },
   { path: '/certificado/:codigo', element: <RequireSession>{S(<Certificado />)}</RequireSession> },
   {
-    element: <AppShell />,
+    element: <ChegadaPelaAbertura><AppShell /></ChegadaPelaAbertura>,
     errorElement: <RouteError />,
     children: [
       { path: '/inicio', element: <RequireSession>{S(<Home />)}</RequireSession> },
