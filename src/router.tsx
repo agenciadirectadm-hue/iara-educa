@@ -28,6 +28,8 @@ const VacancySearch = lazy(() => import('./pages/VacancySearch'));
 const Queue = lazy(() => import('./pages/Queue'));
 const QueueEntry = lazy(() => import('./pages/QueueEntry'));
 const Offers = lazy(() => import('./pages/Offers'));
+const RecusasVaga = lazy(() => import('./pages/RecusasVaga'));
+const MinhasOfertas = lazy(() => import('./pages/MinhasOfertas'));
 const IaraHub = lazy(() => import('./pages/IaraHub'));
 const Conversation = lazy(() => import('./pages/Conversation'));
 const CitizenCases = lazy(() => import('./pages/CitizenCases'));
@@ -239,6 +241,8 @@ export const router = createHashRouter([
       { path: '/fila', element: <RequireSession>{S(<Queue />)}</RequireSession>, handle: { wide: true } },
       { path: '/fila/:id', element: <RequireSession>{S(<QueueEntry />)}</RequireSession> },
       { path: '/ofertas', element: <RequireSession>{S(<Offers />)}</RequireSession> },
+      { path: '/recusas', element: <RequireSession>{S(<RecusasVaga />)}</RequireSession>, handle: { wide: true } },
+      { path: '/minhas-ofertas', element: <RequireSession>{S(<MinhasOfertas />)}</RequireSession>, handle: { wide: true } },
       { path: '/iara', element: <RequireSession>{S(<IaraHub />)}</RequireSession>, handle: { full: true } },
       { path: '/conversas/:id', element: <RequireSession>{S(<Conversation />)}</RequireSession> },
       { path: '/protocolos', element: <RequireSession>{S(<CitizenCases />)}</RequireSession> },

@@ -156,7 +156,7 @@ function NetworkIndicators() {
               { key: 'o', label: 'Ofertadas', value: f.offered, color: '#7A24C5', to: '/ofertas' },
               { key: 'a', label: 'Aceitas', value: f.accepted_or_enrolled, color: '#1594D2', to: '/ofertas' },
               { key: 'm', label: 'Matriculadas', value: f.enrolled, color: '#16A36A' },
-              { key: 'r', label: 'Recusadas', value: f.declined, color: '#F2B640' },
+              { key: 'r', label: 'Recusadas', value: f.declined, color: '#F2B640', ...(can('recusas.read') ? { to: '/recusas' } : {}) },
               { key: 'e', label: 'Expiradas', value: f.expired, color: '#94A3B8' },
             ]} />
           </Card>

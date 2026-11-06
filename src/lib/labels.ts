@@ -49,6 +49,13 @@ export const FLAG: Record<string, { label: string; short: string }> = {
   VULNERABILIDADE: { label: 'Rede de proteção (regra anterior)', short: 'Proteção' },
 };
 
+/** Motivos de recusa de vaga, na ordem da lista iara.oferta_motivos_recusa. "Outro motivo" pede o texto da família. */
+export const MOTIVO_OUTRO = 'Outro motivo';
+export const MOTIVOS_RECUSA = [
+  'Unidade longe de casa ou do trabalho', 'Turno ou horário não atende', 'Prefere aguardar outra unidade', 'Sem transporte até a unidade',
+  'Irmãos em outra unidade', 'Já conseguiu vaga em outra escola', 'Mudança de endereço ou de cidade', 'Saúde ou adaptação da criança',
+];
+
 export const OFFER_STATUS: Record<string, { label: string; tone: Tone }> = {
   OFFERED: { label: 'Aguardando resposta', tone: 'amber' },
   ACCEPTED: { label: 'Aceita — aguardando matrícula', tone: 'teal' },

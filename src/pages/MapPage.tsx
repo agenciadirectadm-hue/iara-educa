@@ -145,7 +145,7 @@ export default function MapPage() {
 
   // pontos do mapa de calor
   const verCalor = recorte === 'pontos' && quesito.pontos === 'calor';
-  const calorRes = useRpc<any>('mapa_calor', { camada: quesito.value }, {
+  const calorRes = useRpc<any>(quesito.rpc ?? 'mapa_calor', { camada: quesito.value }, {
     enabled: verCalor, staleTime: 60_000, refetchInterval: quesito.value === 'transporte_veiculos' ? 60_000 : false,
   });
   // pontos no semáforo: a mancha de calor vai do verde ao vermelho (ou ao contrário, quando mais é melhor); taxas e veículos
@@ -161,6 +161,9 @@ export default function MapPage() {
       faixas = [{ titulo: 'Veículos agora', itens: [
         { cor: SEMAFORO.verde, rotulo: 'Em rota' }, { cor: SEMAFORO.amarelo, rotulo: 'Na escola, esperando a volta' },
         { cor: SEMAFORO.vermelho, rotulo: 'Viagem não realizada' }, { cor: SEMAFORO.cinza, rotulo: 'Fora de viagem' }] }];
+    } else if (d.legenda) {
+      // faixas fixas: as cores e a legenda vêm do servidor
+      faixas = [{ titulo: `Pontos · ${quesito.label}`, itens: d.legenda }];
     } else if (d.modo === 'taxa') {
       const c = cortes(pontos.map((x) => x.valor), pior);
       pontos = pontos.map((x) => ({ ...x, cor: corDe(classe(x.valor, c)) }));
@@ -318,7 +321,7 @@ export default function MapPage() {
             pontos={veiculos}
             onSelectLinha={(id) => navigate(`/transporte/rotas/${id}`)}
             homeLabel="Ponto pesquisado"
-            chave={desktop ? 'right-3 top-[68px]' : 'bottom-[142px] right-3'}
+            chave={quesito.rpc ? false : desktop ? 'right-3 top-[68px]' : 'bottom-[142px] right-3'}
             legend="overlay"
             legendClassName={desktop ? 'bottom-3 left-[424px]' : 'left-3 top-[66px]'}
             focus={selected ? { lat: selected.lat, lng: selected.lng, zoom: 15 } : detUnidade ? { lat: detUnidade.lat, lng: detUnidade.lng, zoom: 15 }

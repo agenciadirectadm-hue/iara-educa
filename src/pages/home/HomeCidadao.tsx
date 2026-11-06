@@ -9,8 +9,8 @@ import {
 import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
 import { fmtDate, fmtKm, timeAgo, timeLeft } from '@/lib/format';
-import { CASE_STATUS, DOC, DOC_STATUS, SHIFT } from '@/lib/labels';
-import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Section, Simulado, SkeletonList } from '@/components/ui';
+import { CASE_STATUS, DOC, DOC_STATUS, MOTIVOS_RECUSA, MOTIVO_OUTRO, SHIFT } from '@/lib/labels';
+import { Avatar, Badge, Button, ButtonLink, Card, ErrorState, Field, Section, Simulado, SkeletonList, inputCls } from '@/components/ui';
 import { EnviarDocumento } from '@/components/arquivos';
 import { IaraMascot } from '@/components/iara';
 import { useSession } from '@/lib/session';
@@ -146,6 +146,7 @@ function OfferHero({ offer, now }: { offer: any; now: number }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [declineOpen, setDeclineOpen] = useState(false);
+  const [outroMotivo, setOutroMotivo] = useState('');
   const [busy, setBusy] = useState(false);
   const respond = async (accept: boolean, reason?: string) => {
     setBusy(true);
@@ -153,6 +154,7 @@ function OfferHero({ offer, now }: { offer: any; now: number }) {
       const r = await rpc<any>('offer_respond', { offer_id: offer.id, accept, reason, channel: 'PORTAL' });
       toast({ title: accept ? 'Aceite registrado ✅' : 'Recusa registrada', description: r.message, tone: accept ? 'success' : 'info' });
       qc.invalidateQueries({ queryKey: ['citizen_home'] });
+      qc.invalidateQueries({ queryKey: ['familia_ofertas'] });
       setDeclineOpen(false);
     } catch (e) {
       toast({ title: 'Não foi possível registrar', description: (e as Error).message, tone: 'error' });
@@ -182,11 +184,17 @@ function OfferHero({ offer, now }: { offer: any; now: number }) {
         </Button>
         <Button className="flex-1 bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25" size="lg" icon={X} onClick={() => setDeclineOpen(true)}>Recusar</Button>
       </div>
-      <Sheet open={declineOpen} onClose={() => setDeclineOpen(false)} title="Por que você vai recusar?" subtitle="Pela regra vigente, a criança volta para a fila sem perder a pontuação.">
+      <Sheet open={declineOpen} onClose={() => setDeclineOpen(false)} title="Por que você vai recusar?" subtitle={`Vaga oferecida: ${offer.unit}. Pela regra vigente, a criança volta para a fila sem perder a pontuação.`}>
         <div className="space-y-2 pt-1">
-          {['Unidade distante do trabalho', 'Turno incompatível', 'Prefiro aguardar outra unidade', 'Outro motivo'].map((r) => (
+          {MOTIVOS_RECUSA.map((r) => (
             <Button key={r} block variant="secondary" size="lg" disabled={busy} onClick={() => respond(false, r)}>{r}</Button>
           ))}
+          <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-line">
+            <Field label={MOTIVO_OUTRO} hint="Conte em poucas palavras.">
+              <input value={outroMotivo} onChange={(e) => setOutroMotivo(e.target.value)} maxLength={200} className={inputCls} />
+            </Field>
+            <Button className="mt-2" block variant="secondary" disabled={busy || outroMotivo.trim().length < 5} onClick={() => respond(false, `${MOTIVO_OUTRO}: ${outroMotivo.trim()}`)}>Registrar este motivo</Button>
+          </div>
         </div>
       </Sheet>
     </motion.div>

@@ -167,6 +167,14 @@ const DOC_LABEL: Record<string, string> = {
   VACINACAO: "carteira de vacinação", CADUNICO: "comprovante CadÚnico", DECLARACAO_TRABALHO: "declaração de trabalho", LAUDO: "laudo",
   TRANSFERENCIA: "declaração de transferência (ou histórico) da escola anterior", GUARDA: "termo de guarda",
 };
+// Motivos de recusa de vaga: rótulo curto do botão e o texto completo gravado (o mesmo da lista iara.oferta_motivos_recusa).
+const MOTIVOS_RECUSA: [string, string][] = [
+  ["Longe de casa/trabalho", "Unidade longe de casa ou do trabalho"], ["Turno não atende", "Turno ou horário não atende"],
+  ["Aguardar outra unidade", "Prefere aguardar outra unidade"], ["Sem transporte", "Sem transporte até a unidade"],
+  ["Irmãos em outra unidade", "Irmãos em outra unidade"], ["Vaga em outra escola", "Já conseguiu vaga em outra escola"],
+  ["Mudança de endereço", "Mudança de endereço ou de cidade"], ["Saúde ou adaptação", "Saúde ou adaptação da criança"],
+  ["Outro motivo", "Outro motivo"],
+];
 const SHIFT_LABEL: Record<string, string> = { MANHA: "manhã", TARDE: "tarde", NOITE: "noite", INTEGRAL: "integral" };
 const REL_CHILD: QuickReply[] = [
   { label: "Sou a mãe", action: "ans:MAE" }, { label: "Sou o pai", action: "ans:PAI" },
@@ -254,7 +262,7 @@ function detectIntent(t: string): string {
   if (/(recurso|contestar|discordo da posicao|classificacao errada)/.test(t)) return "servico:RECURSO";
   if (/(\baee\b|inclus|deficien|autis|\btea\b|\btgd\b|laudo|superdota|altas habilidades)/.test(t)) return "servico:AEE";
   if (/(outros servicos|outro servico|outras solicitacoes|servicos|tirar uma duvida)/.test(t)) return "servicos";
-  if (/(oferta|aceitar|aceito|recusar|recuso)/.test(t)) return "oferta";
+  if (/(oferta|aceitar|aceito|recusar|recuso|recusei|recusad[ao]s?\b)/.test(t)) return "oferta";
   if (/(posicao|fila|colocacao|lugar na)/.test(t)) return "fila";
   if (/(protocolo|acompanhar|andamento|solicitacao|status do pedido|meu pedido)/.test(t)) return "acompanhar";
   if (/(o que falta|que falta|esta faltando|falta (algum|algo|alguma|mais|entregar|enviar|mandar)|pendenc)/.test(t)) return "documentos";
@@ -1029,11 +1037,17 @@ export class Agent {
       case "decline":
         this.ctx = { flow: "oferta", step: "decline_reason", data: { offer_id: value } };
         this.say("Entendi. Qual o motivo da recusa? Isso ajuda a Central a melhorar as ofertas.", {
-          quick_replies: ["Unidade distante", "Turno incompatível", "Prefiro aguardar outra unidade", "Outro motivo"].map((r) => ({ label: r, action: `decline_reason:${value}:${r}` })),
+          quick_replies: MOTIVOS_RECUSA.map(([label, motivo]) => ({ label, action: `decline_reason:${value}:${motivo}` })),
         });
         return;
       case "decline_reason": {
         const [offerId, ...reason] = value.split(":");
+        if (reason.join(":") === "Outro motivo") {
+          // o motivo é a própria pessoa quem diz: a próxima mensagem vai para a recusa (fluxo oferta/decline_reason)
+          this.ctx = { flow: "oferta", step: "decline_reason", data: { offer_id: offerId } };
+          this.say("Pode me contar o motivo em poucas palavras?");
+          return;
+        }
         return await this.declineOffer(offerId, reason.join(":"));
       }
       case "aviso_ok":
@@ -2954,10 +2968,12 @@ export class Agent {
     const pending = all.filter((o) => o.status === "OFFERED");
     const accepted = all.filter((o) => o.status === "ACCEPTED");
     if (!pending.length && !accepted.length) {
-      this.say("Não há ofertas de vaga para suas crianças no momento. Quando houver, aviso por aqui com unidade, turno e prazo.", { quick_replies: [MENU[1]] });
+      this.say("Não há ofertas de vaga abertas para suas crianças no momento. Quando houver, aviso por aqui com unidade, turno e prazo.", { quick_replies: [MENU[1]] });
+      await this.recusasDaFamilia();
       this.done();
       return;
     }
+    await this.recusasDaFamilia();
     for (const o of pending) {
       this.say(`Há uma vaga para **${o.child}** ${naUnidade(o.unit)} (${o.class}, turno ${SHIFT_LABEL[o.shift] ?? o.shift}). Prazo para efetivar a matrícula: até ${dt(o.expires_at)} (${Math.max(0, o.hours_left)} h).`, {
         quick_replies: [{ label: "Aceitar vaga", action: `accept:${o.id}` }, { label: "Recusar vaga", action: `decline:${o.id}` }],
@@ -2989,6 +3005,26 @@ export class Agent {
       quick_replies: missing.length ? [{ label: "Enviar documento", action: "intent:documentos" }, MENU[3]] : [MENU[3]],
     });
     this.done("Aceite de oferta registrado (aguardando matrícula).");
+  }
+
+  /** Portal = WhatsApp: as vagas que a família já recusou, com a unidade e o motivo (o mesmo de /minhas-ofertas). */
+  private async recusasDaFamilia(): Promise<void> {
+    try {
+      const r = await this.tool<any>("get_offer_history", "familia_ofertas", {});
+      const recusadas = ((r?.ofertas ?? []) as any[]).filter((o) => o.situacao === "DECLINED").slice(0, 5);
+      if (!recusadas.length) return;
+      this.say(recusadas.length === 1 ? "Esta vaga foi recusada:" : "Estas vagas foram recusadas:", {
+        cards: recusadas.map((o) => ({
+          title: o.unidade,
+          subtitle: `${o.crianca} · ${o.turma} · ${SHIFT_LABEL[o.turno] ?? o.turno}`,
+          lines: [`Recusada em ${dt(o.respondida_em)}`, `Motivo: ${o.motivo ?? "não informado"}${o.texto ? ` (${o.texto})` : ""}`],
+          unit_id: o.unit_id, badge: "recusada", tone: "gray",
+        })),
+        notice: "Pela regra vigente, quem recusa volta à fila sem perder a pontuação.",
+      });
+    } catch {
+      this.say("Não tenho o histórico de vagas recusadas neste momento. A Central de Vagas pode confirmar.");
+    }
   }
 
   private async declineOffer(offerId: string, reason: string): Promise<void> {

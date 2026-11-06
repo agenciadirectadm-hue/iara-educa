@@ -1,4 +1,4 @@
-import { Accessibility, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
+import { Accessibility, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -66,6 +66,7 @@ const I = {
   almoxarifado: { to: '/materiais?aba=pedidos', label: 'Pedidos de material', icon: Warehouse, match: '/materiais', grupo: 'estrutura' },
   // Sprint 5
   rematricula: { to: '/rematricula', label: 'Rematrícula', icon: ArrowRightLeft, grupo: 'matricula' },
+  recusas: { to: '/recusas', label: 'Recusas de vaga', icon: ThumbsDown, grupo: 'matricula' },
   ensalamento: { to: '/ensalamento', label: 'Ensalamento', icon: DoorOpen, grupo: 'estrutura' },
   eventos: { to: '/eventos', label: 'Eventos e certificados', icon: Award, grupo: 'pedagogico' },
   // comercial (só o perfil Comercial)
@@ -87,14 +88,14 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
   const unitId = me?.unit?.id;
   switch (role) {
     case 'PREFEITO':
-      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.oraculo, I.bolsaFamilia, I.publicos, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.recusas, I.oraculo, I.bolsaFamilia, I.publicos, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
     case 'SECRETARIO':
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
       return {
         primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
         more: [I.iara, I.whatsapp,
-          I.vagas, I.ofertas, I.rematricula, I.alunos, I.responsaveis, I.validacoes,
+          I.vagas, I.ofertas, ...(role === 'GERENCIA_EI' ? [] : [I.recusas]), I.rematricula, I.alunos, I.responsaveis, I.validacoes,
           I.frequencia, I.presenca, I.bolsaFamilia, I.ocorrencias, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
           I.unidades, I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
@@ -106,7 +107,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'CONTROLE_EXTERNO':
       return {
         primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.controleFila, I.controleCaso, I.regras],
-        more: [I.distancias, I.mapa, I.unidades, I.indicadores, I.qualidade, I.ajuda],
+        more: [I.recusas, I.distancias, I.mapa, I.unidades, I.indicadores, I.qualidade, I.ajuda],
       };
     case 'INOVACAO':
       return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.unidades, I.nutricao, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.suporte, I.ajuda] };
@@ -114,7 +115,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'ATENDIMENTO':
       return {
         primary: [I.inicio, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
-        more: [I.whatsapp, I.fila, I.ofertas, I.rematricula, I.validacoes, I.alunos, I.responsaveis, I.verificar, I.mapa, I.unidades, I.ensalamento, I.auditoria, I.regras, I.suporte, I.ajuda],
+        more: [I.whatsapp, I.fila, I.ofertas, ...(role === 'ANALISTA_CENTRAL' ? [I.recusas] : []), I.rematricula, I.validacoes, I.alunos, I.responsaveis, I.verificar, I.mapa, I.unidades, I.ensalamento, I.auditoria, I.regras, I.suporte, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
@@ -159,6 +160,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: '/escola?aba=boletim', label: 'Boletim', icon: GraduationCap, match: '/escola', grupo: 'escolar' }, { to: '/escola?aba=historico', label: 'Histórico escolar', icon: GraduationCap, match: '/escola', grupo: 'escolar' },
           { to: '/escola?aba=biblioteca', label: 'Biblioteca', icon: LibraryBig, match: '/escola', grupo: 'escolar' }, { to: '/escola?aba=eventos', label: 'Eventos e certificados', icon: Award, match: '/escola', grupo: 'escolar' },
           { ...I.calendario, to: '/escola?aba=calendario', match: '/escola' },
+          { to: '/minhas-ofertas', label: 'Ofertas de vaga', icon: Handshake, grupo: 'matricula' },
           { to: '/escola?aba=rematricula', label: 'Rematrícula', icon: ArrowRightLeft, match: '/escola', grupo: 'matricula' },
           { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola', grupo: 'matricula' },
           { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen, grupo: 'matricula' },

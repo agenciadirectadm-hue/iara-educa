@@ -84,6 +84,7 @@ function PontosCalor({ d, quesito, can, onDetalhe }: {
       )}
       {d.faixas && <Card className="p-3 text-[12.5px]"><div className="mb-1 font-semibold">Esperado para a idade</div><ul className="list-disc space-y-0.5 pl-4">{(d.faixas as string[]).map((f) => <li key={f}>{f}</li>)}</ul></Card>}
       {detalhe && <DetalheQuesito quesito={quesito} nivel="cidade" id={null} can={can} onIr={onDetalhe} embutido />}
+      {!detalhe && d.niveis_titulo && d.niveis && <div className="mb-[-6px] text-[12.5px] font-semibold text-ink-2">{d.niveis_titulo}</div>}
       {!detalhe && d.niveis && <Card className="divide-y divide-line text-[13px]">{(d.niveis as any[]).map((n) => <div key={n.rotulo} className="flex justify-between px-3 py-1.5"><span>{n.rotulo}</span><b>{fmtInt(n.n)}</b></div>)}</Card>}
       {!detalhe && d.pendencias && <Card className="divide-y divide-line text-[13px]">{(d.pendencias as any[]).map((n) => <div key={n.item} className="flex justify-between px-3 py-1.5"><span>{n.item}</span><b>{fmtInt(n.n)}</b></div>)}</Card>}
       <p className="text-[12px] leading-relaxed text-muted">{d.nota} Atualizado em {fmtDateTime(d.atualizado_em)}.</p>

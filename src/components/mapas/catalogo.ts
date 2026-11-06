@@ -2,7 +2,7 @@
  * — áreas de ponderação do IBGE — ou as 793 microrregiões — setores censitários). Toda medida usa a mesma regra de cores
  * (semaforo.ts): vermelho = agir primeiro, amarelo = intermediário, verde = melhor, cinza = sem dado.
  * Pontos vêm das unidades (rede) ou de api.mapa_calor; regiões e microrregiões, de api.mapa_recorte. */
-import { Baby, Bus, CalendarCheck, Contact, GraduationCap, NotebookPen, School, type LucideIcon } from 'lucide-react';
+import { Baby, Bus, CalendarCheck, Contact, GraduationCap, Handshake, NotebookPen, School, type LucideIcon } from 'lucide-react';
 import type { HeatMode } from '@/components/map/MapView';
 import type { Pior } from '@/components/map/semaforo';
 
@@ -23,6 +23,8 @@ export type Quesito = {
   /** Pergunta quando o recorte é região ou microrregião (se mudar o sentido: ex. presença pela casa do aluno). */
   perguntaRecorte?: string;
   recortes: Recorte[];
+  /** Pontos de calor que vêm de outra função, no mesmo formato de api.mapa_calor. */
+  rpc?: string;
   /** De onde vêm os pontos: unidades da rede (MapView), api.mapa_calor, ou as linhas das rotas do transporte. */
   pontos?: 'rede' | 'calor' | 'rotas';
   /** Pontos da rede: mancha de calor das unidades. */
@@ -55,6 +57,15 @@ export const TEMAS: Tema[] = [
         heat: 'enrollments', pior: 'maior', palavras: MAIS('alunos') },
       { value: 'unidades', label: 'Escolas e CMEIs', pergunta: 'Onde ficam as escolas e os CMEIs?', recortes: ['pontos', 'area', 'setor'], pontos: 'rede', fonte: 'publico',
         pior: 'menor', palavras: MENOS('unidades') },
+    ],
+  },
+  {
+    value: 'ofertas', label: 'Ofertas de vaga', icon: Handshake, publico: false, quesitos: [
+      { value: 'oferta_aceite', label: 'Aceitação de vagas', pergunta: 'Onde as famílias aceitam a vaga oferecida?', recortes: ['pontos'], pontos: 'calor', rpc: 'recusas_mapa', fonte: 'demo', perm: 'recusas.read',
+        pior: 'menor', palavras: { pior: 'Aceita pouco', melhor: 'Aceita muito' } },
+      { value: 'oferta_recusa', label: 'Recusa de vagas', pergunta: 'Onde as famílias recusam a vaga oferecida?', recortes: ['pontos'], pontos: 'calor', rpc: 'recusas_mapa', fonte: 'demo', perm: 'recusas.read',
+        pior: 'maior', palavras: { pior: 'Recusa muito', melhor: 'Recusa pouco' } },
+      { value: 'oferta_motivo', label: 'Motivo da recusa', pergunta: 'Qual o principal motivo de recusa em cada unidade?', recortes: ['pontos'], pontos: 'calor', rpc: 'recusas_mapa', fonte: 'demo', perm: 'recusas.read' },
     ],
   },
   {

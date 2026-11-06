@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -77,6 +77,34 @@ if (roteiro === 'conversa') {
     console.error('\nFALHAS:\n' + falhas.join('\n'));
     process.exit(1);
   }
+} else if (roteiro === 'recusa') {
+  // recusa de vaga: o histórico da família, a lista de motivos e "Outro motivo" pedindo o texto. Usa uma oferta inexistente,
+  // então nada é gravado além das mensagens; a gravação do motivo está em supabase/tests/recusas_vaga.sql.
+  const ultimaIara = () => [...(conv.messages ?? [])].reverse().find((m) => m.sender_type === 'IARA');
+  await send('quero ver as vagas que recusei');
+  if (lastQuick(conv).some((q) => q.label.startsWith('Confirmar código'))) await tap('Confirmar código');
+  const cards = (conv.messages ?? []).slice(-8).flatMap((m) => m.payload?.cards ?? []);
+  const recusa = cards.find((c) => c.badge === 'recusada');
+  if (!recusa) falhas.push('a recusa da família não apareceu no histórico');
+  else if (!(recusa.lines ?? []).some((l) => /Motivo: Turno ou horário não atende/.test(l))) falhas.push(`motivo errado no histórico: ${JSON.stringify(recusa.lines)}`);
+  const falsa = '00000000-0000-4000-8000-000000000000';
+  await send('Recusar vaga', `decline:${falsa}`);
+  const botoes = lastQuick(conv);
+  for (const b of ['Longe de casa/trabalho', 'Turno não atende', 'Aguardar outra unidade', 'Sem transporte', 'Irmãos em outra unidade', 'Vaga em outra escola', 'Mudança de endereço', 'Saúde ou adaptação', 'Outro motivo'])
+    if (!botoes.some((q) => q.label === b)) falhas.push(`falta o botão ${b}`);
+  if (botoes.some((q) => q.label.length > 24)) falhas.push('botão com mais de 24 letras');
+  if (!botoes.find((q) => q.label === 'Longe de casa/trabalho')?.action.endsWith(':Unidade longe de casa ou do trabalho')) falhas.push('o botão não envia o motivo completo');
+  await tap('Outro motivo');
+  if (!/poucas palavras/.test(ultimaIara()?.body ?? '')) falhas.push(`Outro motivo não pediu o texto: ${ultimaIara()?.body}`);
+  await send('a família vai se mudar para outra cidade');
+  // a oferta não existe: a IARA tenta gravar a recusa com o texto digitado e o banco recusa, sem gravar nada
+  const fim = (conv.messages ?? []).slice(-2).map((m) => m.body).join(' ');
+  if (/poucas palavras/.test(fim) || /Recusa registrada/.test(fim)) falhas.push(`o texto não foi para a recusa: ${fim.slice(0, 160)}`);
+  if (falhas.length) {
+    console.error('\nFALHAS:\n' + falhas.join('\n'));
+    process.exit(1);
+  }
+  console.log('\n✓ Recusa: histórico, motivos e Outro motivo.');
 } else if (roteiro === 'sem-dado') {
   // o que a IARA não tem: diz que não tem neste momento, em vez de pedir para reformular; e o que dá para responder, responde
   for (const p of ['quero saber se na escola tem energia eletrica', 'a escola tem piscina?', 'o uniforme é de que cor?', 'qual o nome da cozinheira?', 'a quadra da escola é coberta?']) {

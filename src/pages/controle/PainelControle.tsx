@@ -100,6 +100,7 @@ export default function PainelControle() {
               Silêncio não é aceite: a oferta expira em 72 h (IN nº 025/2025, Anexo II) e a vaga volta para a fila.
               {o.resposta_media_h != null && <> Resposta média das famílias: <b className="text-ink-2">{fmtInt(o.resposta_media_h)} h</b>.</>}
             </p>
+            <Link to="/recusas" className="mt-2 inline-block text-[13px] font-semibold text-purple-700 underline">Ver recusas e motivos</Link>
           </Card>
         </Section>
 
