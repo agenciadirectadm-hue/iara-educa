@@ -262,7 +262,12 @@ function LinhasOnibus({ onibus, aproximada }: { onibus: any; aproximada: boolean
 function ClassesTab({ d, unitId }: { d: any; unitId: number }) {
   const [sp, setSp] = useSearchParams();
   const serie = sp.get('serie') ? Number(sp.get('serie')) : null;
+  const { me } = useSession();
   const classes = useRpc<any>('unit_classes', { unit_id: unitId }, { retry: false });
+  // sem acesso às turmas desta unidade a lista vem vazia, sem erro: o servidor vê a consulta sem dado de pessoa
+  const semAcesso = !classes.isLoading && (!!classes.error || !(classes.data?.items ?? []).length);
+  const servidor = !!me && !['CIDADAO', 'CIDADAO_NOVO'].includes(me.role);
+  const consulta = useRpc<any>('unit_classes_consulta', { unit_id: unitId }, { enabled: serie != null && semAcesso && servidor, retry: false });
   const byGrade = d.ops_by_grade as any[];
   const stages = useMemo(() => {
     const m = new Map<number, { name: string; grades: any[] }>();
@@ -282,6 +287,7 @@ function ClassesTab({ d, unitId }: { d: any; unitId: number }) {
   if (!byGrade.length) return <Card><EmptyState compact title="Turmas pendentes SEDUC" body="Esta unidade não tem microdado de turmas no Censo 2025 nem turmas operacionais importadas." /></Card>;
   const grade = byGrade.find((g) => g.grade_level_id === serie);
   const items = ((classes.data?.items ?? []) as any[]).filter((c) => !serie || c.grade_level_id === serie);
+  const itensConsulta = ((consulta.data?.items ?? []) as any[]).filter((c) => c.grade_level_id === serie);
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-[13px]">
@@ -313,10 +319,31 @@ function ClassesTab({ d, unitId }: { d: any; unitId: number }) {
         </div>
       )}
       {serie && (
-        classes.isLoading ? <SkeletonList rows={3} /> : classes.error ? (
+        classes.isLoading || (semAcesso && servidor && consulta.isLoading) ? <SkeletonList rows={3} /> : !grade ? (
+          <Card><EmptyState compact title="Esta etapa não tem turma nesta unidade" body="O Censo registra a etapa, mas ainda não há turma lançada aqui. Toque em “Todas as etapas” para ver as demais." /></Card>
+        ) : semAcesso && itensConsulta.length > 0 ? (
+          <div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {itensConsulta.map((c) => (
+                <div key={c.id} className="rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-display text-lg font-extrabold">{c.name}</div>
+                      <div className="text-[12.5px] text-muted">{SHIFT[c.shift]}</div>
+                    </div>
+                    <SeloVagasTurma capacity={c.capacity} enrolled={c.enrolled} offerable={c.offerable} />
+                  </div>
+                  <div className="mt-3"><OccupancyBar capacity={c.capacity} enrolled={c.enrolled} reserved={c.reserved} blocked={c.blocked} offerable={c.offerable} showLegend /></div>
+                  <div className="mt-2 text-[12.5px] text-muted">Capacidade {c.capacity} · fila da série {c.queue}</div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[12.5px] text-muted">Consulta: a ficha de cada turma, com regente e alunos, fica com a equipe desta unidade e com a Secretaria.</p>
+          </div>
+        ) : semAcesso ? (
           <Card className="p-4 text-sm text-muted">
-            <p><b>{grade?.classes} turma(s)</b> · capacidade {grade?.capacity} · {grade?.enrolled} matrículas · {grade?.offerable} vaga(s) ofertável(is).</p>
-            <p className="mt-1">O detalhe por turma é restrito a perfis da rede ou desta unidade.</p>
+            <p className="text-ink-2"><b>{grade.grade}:</b> {grade.classes} turma(s) · capacidade {grade.capacity} · {grade.enrolled} matrículas · {grade.offerable} vaga(s) ofertável(is) · fila {grade.queue}.</p>
+            <p className="mt-1">{servidor ? 'Não consegui abrir as turmas agora. Tente de novo em instantes.' : 'O detalhe de cada turma fica com a equipe da unidade e com a Secretaria.'}</p>
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
