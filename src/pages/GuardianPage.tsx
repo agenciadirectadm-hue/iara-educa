@@ -11,11 +11,14 @@ import { Crumbs } from '@/components/Crumbs';
 import { Completude } from '@/components/cadastro';
 import MapView from '@/components/map/MapView';
 import { ExcluirCadastro } from '@/components/documentos';
+import { ReunioesResponsavel } from '@/components/reunioes';
+import { useSession } from '@/lib/session';
 
 export default function GuardianPage() {
   const { id } = useParams();
   const res = useRpc<any>('guardian_detail', { guardian_id: id });
   const units = useUnitsMap();
+  const { can } = useSession();
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const d = res.data;
@@ -150,6 +153,12 @@ export default function GuardianPage() {
               ))}
             </Tabela>
           </Card>
+        </Section>
+      )}
+
+      {can('reunioes.read') && (
+        <Section title="Reuniões com a escola" subtitle="Registros de reunião com este responsável.">
+          <ReunioesResponsavel guardianId={g.id} />
         </Section>
       )}
 

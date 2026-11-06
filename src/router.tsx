@@ -17,6 +17,8 @@ const ClassPage = lazy(() => import('./pages/ClassPage'));
 const TerritoryPage = lazy(() => import('./pages/TerritoryPage'));
 const StudentPage = lazy(() => import('./pages/StudentPage'));
 const GuardianPage = lazy(() => import('./pages/GuardianPage'));
+const Reunioes = lazy(() => import('./pages/Reunioes'));
+const ReunioesControle = lazy(() => import('./pages/controle/ReunioesControle'));
 const Alunos = lazy(() => import('./pages/Alunos'));
 const Responsaveis = lazy(() => import('./pages/Responsaveis'));
 const CadastroAluno = lazy(() => import('./pages/CadastroAluno'));
@@ -255,6 +257,8 @@ export const router = createHashRouter([
       { path: '/controle', element: <RequireSession>{S(<PainelControle />)}</RequireSession>, handle: { wide: true } },
       { path: '/controle/fila', element: <RequireSession>{S(<FilaPublica />)}</RequireSession>, handle: { wide: true } },
       { path: '/controle/caso', element: <RequireSession>{S(<ConsultaCaso />)}</RequireSession> },
+      { path: '/controle/reunioes', element: <RequireSession>{S(<ReunioesControle />)}</RequireSession>, handle: { wide: true } },
+      { path: '/reunioes', element: <RequireSession>{S(<Reunioes />)}</RequireSession>, handle: { wide: true } },
       { path: '/ajuda', element: S(<Help />) },
       { path: '*', element: <NotFound /> },
     ],

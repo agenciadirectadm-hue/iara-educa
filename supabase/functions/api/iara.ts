@@ -10,7 +10,7 @@ export type Card = { title: string; subtitle?: string; lines?: string[]; unit_id
 export type Reply = { body: string; payload?: { quick_replies?: QuickReply[]; cards?: Card[]; notice?: string } };
 export type ToolLog = { tool: string; input: unknown; output: unknown; status: "OK" | "ERRO" | "NEGADO"; error?: string; ms: number; correlation_id: string; idempotency_key?: string };
 
-type Memoria = { erros?: number; ultimo?: string; kb_docs?: boolean; ultima?: string };
+type Memoria = { reuniao_visto?: string; erros?: number; ultimo?: string; kb_docs?: boolean; ultima?: string };
 type Ctx = { flow?: string | null; step?: string | null; data?: Record<string, any>; pending?: string | null; opcoes?: QuickReply[]; mem?: Memoria };
 export type ConvSnapshot = {
   conversation_id: string;
@@ -146,7 +146,7 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto"]);
+const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto"]);
 /** Motivos da ausência (mensagem de busca ativa): os mesmos do portal. */
 const MOTIVO_AUSENCIA: [string, string][] = [["SAUDE", "Saúde"], ["CONSULTA", "Consulta ou atendimento"], ["TRANSPORTE", "Transporte"],
   ["DIFICULDADE_FAMILIAR", "Dificuldade familiar"], ["RECUSA", "Dificuldade para ir à escola"], ["OUTRO", "Outro motivo"], ["ESTA_NA_ESCOLA", "Estava na escola"]];
@@ -196,7 +196,7 @@ const daUnidade = (name?: string | null) => (!name ? "da unidade" : /^CMEI\s/i.t
 function detectIntent(t: string): string {
   // segurança primeiro: valem em qualquer ponto da conversa
   if (/(quero morrer|me matar|tirar (a )?minha vida|suicid)/.test(t)) return "crise";
-  if (/(abus(o|ou|aram|ando|ada|ado)\b|assedi|violencia (em casa|sexual|domestica)|maltrat|estupr|molest|tocou (nela|nele|nas partes)|me bate\b|bate (nela|nele|nos meus|na minha|no meu)|ameaca de morte)/.test(t)) return "protecao";
+  if (/(abus(o|ou|aram|ando|ada|ado)\b|assedi|violencia (em casa|sexual|domestica|fisica|psicologica|contra)|espanc|(pai|mae|padrasto|madrasta|marido|companheiro|namorado|ex) .{0,25}(bate|bateu|agride|agrediu|ameaca|ameacou)|maltrat|estupr|molest|tocou (nela|nele|nas partes)|me bate\b|bate (nela|nele|nos meus|na minha|no meu)|ameaca de morte)/.test(t)) return "protecao";
   if (/(desmaiou|convuls|nao (esta |ta )?respira|parou de respirar|engasg|sangrando|inconsciente|ambulancia|\bsamu\b|emergencia)/.test(t)) return "emergencia";
   if (/(cancelar|menu|recomecar|inicio|ajuda|deixa (pra|para) la|esquece\b|mudei de ideia|nao quero mais isso|outra coisa)\b/.test(t)) return "menu";
   if (/(atendente|humano|uma pessoa|falar com alguem|servidor|alguem de verdade|tem alguem ai)/.test(t)) return "atendente";
@@ -248,6 +248,7 @@ function detectIntent(t: string): string {
   if (/(falar|falo|conversar|contato|contatar|ligar|telefone|whatsapp|numero)\b.{0,25}\b(professor|diretor|diretora|direcao|coordenador|coordenadora|pedagog|secretaria da escola|secretaria do cmei|escola|cmei|creche)/.test(t)) return "falar_escola";
   if (/(\bagenda\b|tarefa de casa|licao de casa|dever de casa|recado da professora|recado da escola|bilhete)/.test(t)) return "agenda";
   if (/(se machucou|machucad|foi mordid|mordeu|bullying|apanhou|bateram|empurraram|quero relatar|relatar (um|uma|o|a)|aconteceu (algo|uma coisa) na escola|reclamar da professora|registrar (uma )?ocorrencia)/.test(t)) return "relatar_ocorrencia";
+  if (/(registro (da|de) reuniao|ata da reuniao|validar (o |a |meu |esse |este )?(registro|reuniao|ata)|confirmar (o )?registro da)/.test(t)) return "reuniao_registro";
   if (/ocorrencia/.test(t)) return "ocorrencias";
   if (/(aviso|comunicado|recado|mural|enquete|reuniao de pais|reuniao da escola)/.test(t)) return "avisos";
   if (/(calendario|feriado|tem aula|vai ter aula|dia sem aula|recesso|ferias escolares)/.test(t)) return "calendario";
@@ -643,7 +644,14 @@ export class Agent {
       if (!this.ctx.flow && this.conv.guardian_id && !["atendente", "frustracao", "crianca_doente", "vai_faltar"].includes(intent) && (intent === "desconhecido" || motivoAusencia(t))
           && await this.ausenciaTextoLivre(text, t)) return;
       this.trocarAssunto();
-      return await this.route(intent, text);
+      // registro de reunião sem validação vem antes de qualquer outro assunto; numa saudação, é só ele
+      const alertou = intent !== "reuniao_registro" && (await this.alertaReuniao());
+      if (alertou && intent === "saudacao") return;
+      try {
+        return await this.route(intent, text);
+      } finally {
+        if (alertou) this.botaoReuniaoNoFim();
+      }
     } catch (e) {
       const msg = (e as Error).message ?? "erro";
       this.say(`Não consegui concluir esta etapa: ${msg} Nada foi registrado nesta tentativa. Quer tentar de novo ou falar com um atendente?`,
@@ -675,8 +683,9 @@ export class Agent {
         this.say("Sinto muito que você esteja passando por isso, e fico feliz que tenha falado. Você não precisa enfrentar isso sozinho(a). O **CVV atende 24 horas pelo 188**, ligação gratuita. Se houver risco agora, ligue **192 (SAMU)**.");
         return await this.handoff("Prioridade: pessoa em sofrimento");
       case "protecao":
-        this.say("Obrigada por confiar isso a mim. Se alguém estiver em risco agora, ligue **190**. O **Disque 100** recebe denúncias 24 horas, sem precisar se identificar, e o Conselho Tutelar também atende esses casos. Não precisa me contar detalhes por aqui.");
-        return await this.handoff("Prioridade: possível situação de proteção à criança");
+        this.say("🚨 **Recebi e estou tratando como urgente.** Obrigada por confiar isso a mim. Se alguém estiver em risco agora, ligue **190**. O **Disque 100** recebe denúncias 24 horas, sem precisar se identificar, e o Conselho Tutelar também atende esses casos. Não precisa me contar detalhes por aqui.");
+        await this.registrarProtecao(text);
+        return await this.handoff("URGENTE: possível situação de proteção à criança");
       case "emergencia":
         this.say("Se for uma emergência, ligue agora para o **SAMU (192)** ou os **Bombeiros (193)**. Depois que a criança estiver atendida, eu aviso a escola por aqui.", {
           quick_replies: [{ label: "Avisar a escola", action: "recado:doente|" }, { label: "Falar com atendente", action: "handoff:Emergência informada pela família" }],
@@ -812,6 +821,8 @@ export class Agent {
       }
       case "ocorrencias":
         return await this.ocorrencias();
+      case "reuniao_registro":
+        return await this.reunioes();
       case "relatar_ocorrencia":
         return await this.startOcorrencia(norm(text));
       case "boletim":
@@ -1076,6 +1087,10 @@ export class Agent {
       }
       case "oc_rev":
         return await this.ocorrenciaRevisao(value);
+      case "re_ok":
+        return await this.reuniaoAceite(value);
+      case "re_man":
+        return await this.reuniaoManifestar(value);
       case "enq": {
         const [id, op] = value.split("|");
         return await this.enqueteResponder(id, Number(op));
@@ -1856,6 +1871,7 @@ export class Agent {
     if (flow === "transporte_aviso") return await this.transporteAvisoStep(text);
     if (flow === "ausencia" && step === "aus_texto") return await this.ausenciaResponder(`${this.ctx.data?.id}|OUTRO`, text);
     if (flow === "ocorrencia_revisao" && step === "oc_rev_texto") return await this.ocorrenciaRevisao(this.ctx.data?.id, text);
+    if (flow === "reuniao" && step === "re_man_texto") return await this.reuniaoManifestar(this.ctx.data?.id, text);
     if (flow === "cadastro") return await this.registerStep(text);
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
@@ -2454,6 +2470,109 @@ export class Agent {
     await this.tool("confirm_occurrence", "familia_ocorrencia_ciente", { id }, `ciencia_ocorrencia:${id}`);
     this.done("Deu ciência de uma ocorrência registrada pela escola.");
     this.say("Ciência confirmada ✅ Se quiser comentar com a escola, use a Vida escolar no portal ou me conte aqui.", { quick_replies: [ESCOLA_MENU[7]] });
+  }
+
+  // ================================================================== registro de reunião com o responsável
+  /** Relato de possível violência: a ocorrência urgente sai na hora. Se o registro falhar, o atendimento humano segue do mesmo jeito. */
+  private async registrarProtecao(texto: string): Promise<void> {
+    if (!this.conv.guardian_id) return;
+    try {
+      const r = await this.tool("report_protection", "familia_relato_protecao", { texto: texto.slice(0, 2000), canal: "WHATSAPP" });
+      if (r?.ok) this.say("Registrei em sigilo, com urgência, para a Secretaria de Educação. Nenhum outro responsável é avisado.");
+    } catch {
+      // segue para o atendimento humano
+    }
+  }
+
+  /** Só os botões da última mensagem ficam na tela: o de responder o registro acompanha a resposta ao outro assunto. */
+  private botaoReuniaoNoFim() {
+    const ultima = this.messages[this.messages.length - 1];
+    if (!ultima) return;
+    const botoes = ultima.payload?.quick_replies ?? [];
+    if (botoes.some((q) => q.action === "intent:reuniao_registro")) return;
+    ultima.payload = { ...ultima.payload, quick_replies: [{ label: "Ler e responder agora", action: "intent:reuniao_registro" }, ...botoes] };
+  }
+
+  /** Avisa antes de qualquer outro assunto, uma vez por etapa. Sem a identidade confirmada, não diz de quem nem do que se trata. */
+  private async alertaReuniao(): Promise<boolean> {
+    if (!this.conv.guardian_id) return false;
+    let pendente: any = null;
+    try {
+      const r = await this.tool("get_meeting_records", "familia_reunioes", {});
+      pendente = ((r?.reunioes ?? []) as any[]).find((x) => x.pode_responder) ?? null;
+    } catch {
+      return false;
+    }
+    if (!pendente) return false;
+    const ultimo = ((pendente.avisos ?? []) as any[]).at(-1);
+    const dia = ultimo?.dia ?? 0;
+    const chave = `${pendente.id}:${dia}:${pendente.situacao}`;
+    if (this.mem.reuniao_visto === chave) return false;
+    this.mem.reuniao_visto = chave;
+    const botao = { quick_replies: [{ label: "Ler e responder agora", action: "intent:reuniao_registro" }, { label: "Outro assunto", action: "intent:menu" }] };
+    const urgente = dia >= 2 || pendente.situacao === "PRAZO_VENCIDO";
+    if (!this.verified()) {
+      this.say(urgente
+        ? "🚨 **URGENTE.** Há um registro da escola sem a sua validação, e o prazo está acabando. Para ler e responder, confirme a sua identidade agora."
+        : "📋 **Antes de continuar:** há um registro da escola aguardando a sua validação. Para ler e responder, confirme a sua identidade.", botao);
+      return true;
+    }
+    if (pendente.situacao === "PRAZO_VENCIDO") {
+      this.say(`🚨 **URGENTE.** O registro da reunião sobre ${pendente.aluno} ficou sem validação depois do último aviso, e o envio ao Conselho Tutelar, à Defensoria Pública e ao Ministério Público está sendo preparado. Você ainda pode responder agora. Responder não significa concordar.`, botao);
+    } else if (urgente) {
+      this.say(`🚨 **URGENTE: ${ultimo.titulo}.** ${ultimo.texto}`, botao);
+    } else {
+      this.say(`📋 **Antes de continuar:** a escola registrou uma reunião sobre ${pendente.aluno} e aguarda a sua validação. Leva só um minuto. Responder não significa concordar: você pode se manifestar.`, botao);
+    }
+    return true;
+  }
+
+  private async reunioes(): Promise<void> {
+    if (!this.needGuardian("intent:reuniao_registro")) return;
+    if (!this.ensureVerified("intent:reuniao_registro")) return;
+    const r = await this.tool("get_meeting_records", "familia_reunioes", {});
+    const todas = (r?.reunioes ?? []) as any[];
+    const pendentes = todas.filter((x) => x.pode_responder);
+    if (!pendentes.length) {
+      this.done();
+      if (!todas.length) return this.say("Não há registro de reunião com a escola para você neste momento.");
+      return this.say(`Seus registros de reunião estão em dia. ${todas.slice(0, 3).map((x) => `${x.aluno} (${diaBr(x.realizada_em?.slice(0, 10))}): ${x.situacao === "ACEITA" ? "você confirmou" : "você se manifestou"}`).join("; ")}.`);
+    }
+    for (const x of pendentes.slice(0, 2)) {
+      const ultimo = ((x.avisos ?? []) as any[]).at(-1);
+      const urgente = (ultimo?.dia ?? 0) >= 2 || x.situacao === "PRAZO_VENCIDO";
+      this.say(`${urgente ? "🚨 **URGENTE.** " : ""}Leia o registro da reunião sobre **${x.aluno}** e responda. Responder não significa concordar: se algo não está certo, escolha “Quero me manifestar”.`, {
+        cards: [{
+          title: `${x.tema_rotulo} · ${x.aluno}`,
+          subtitle: `${x.unidade} · reunião de ${diaBr(x.realizada_em?.slice(0, 10))}`,
+          lines: [`Assunto: ${x.resumo}`, `Soluções propostas: ${x.solucoes}`, `Posição da escola: ${x.posicao_escola}`, `Sua posição: ${x.posicao_responsavel}`],
+          tone: urgente ? "red" : "amber",
+        }],
+        quick_replies: [{ label: "Confirmo o registro", action: `re_ok:${x.id}` }, { label: "Quero me manifestar", action: `re_man:${x.id}` }],
+      });
+    }
+    this.done("Leu o registro de reunião.");
+  }
+
+  private async reuniaoAceite(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`re_ok:${id}`)) return;
+    const r = await this.tool("confirm_meeting_record", "familia_reuniao_responder", { id, acao: "ACEITAR", canal: "WHATSAPP" }, `reuniao_ok:${id}`);
+    this.done("Confirmou o registro de reunião.");
+    this.say(`${r.mensagem ?? "Registro confirmado."} ✅`, { quick_replies: [MENU[0]] });
+  }
+
+  private async reuniaoManifestar(id: string, texto?: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`re_man:${id}`)) return;
+    if (!texto) {
+      this.ctx = { flow: "reuniao", step: "re_man_texto", data: { id } };
+      return this.say("Escreva a sua manifestação. Ela fica junto do registro, e a escola e os órgãos de acompanhamento podem ler.");
+    }
+    if (texto.trim().length < 10) return this.say("Escreva um pouco mais, por favor (pelo menos uma frase).");
+    const r = await this.tool("state_meeting_position", "familia_reuniao_responder", { id, acao: "MANIFESTAR", texto: texto.trim().slice(0, 4000), canal: "WHATSAPP" }, `reuniao_man:${id}`);
+    this.done("Registrou manifestação sobre o registro de reunião.");
+    this.say(`${r.mensagem ?? "Manifestação registrada."} ✅`, { quick_replies: [MENU[0]] });
   }
 
   /** 2ª instância: a família pede a análise da Secretaria depois da resposta da escola (ou com o prazo vencido). */

@@ -21,6 +21,7 @@ import { LinkMetodologia, TresDistancias, TresDistanciasInscricao, useDistancias
 import { PontosCriterio } from '@/components/PontosCriterio';
 import { AVISO_FAMILIA_FICTICIA } from '@/lib/avisos';
 import { VidaEscolarResumo } from '@/pages/Escola';
+import { FaixaReuniaoFamilia } from '@/components/reunioes';
 
 // o quadro tem mapa: só carrega quando a família abre "ver o caminho"
 const QuadroDistancias = lazy(() => import('@/components/QuadroDistancias'));
@@ -64,6 +65,7 @@ function CitizenHome() {
         </div>
       </div>
 
+      {d.guardian && <FaixaReuniaoFamilia />}
       {pendingOffer && <OfferHero offer={pendingOffer} now={now} />}
 
       <div className="mt-4 grid grid-cols-3 gap-2.5 sm:grid-cols-7">

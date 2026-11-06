@@ -26,8 +26,9 @@ import { AntropometriaAluno } from '@/components/sprint4';
 import { Foto, TrocarFoto } from '@/components/arquivos';
 import { DocumentosAluno, ExcluirCadastro } from '@/components/documentos';
 import { BoletimView, DeclaracoesAluno } from '@/components/pedagogico';
+import { ReunioesAluno, reuniaoUrgente, useReunioesAluno } from '@/components/reunioes';
 
-type Tab = 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
+type Tab = 'reunioes' | 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
   | 'alimentacao' | 'ocorrencias' | 'agenda' | 'boletim' | 'declaracoes' | 'historico' | 'medidas';
 
 export default function StudentPage() {
@@ -39,6 +40,7 @@ export default function StudentPage() {
   const docs = useRpc<any>('aluno_documentos', { student_id: id }, { enabled: !!id, retry: false });
   const { can, me } = useSession();
   const [guarda, setGuarda] = useState(false);
+  const reunioes = useReunioesAluno(id, can('reunioes.read'));
   if (res.isLoading) return <SkeletonList rows={5} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   const d = res.data;
@@ -57,6 +59,7 @@ export default function StudentPage() {
       { value: 'ocorrencias' as Tab, label: 'Ocorrências', count: (ve.data.ocorrencias as any[]).filter((o) => o.situacao !== 'ENCERRADA').length || null },
       ...(ve.data.class_id ? [{ value: 'agenda' as Tab, label: 'Agenda' }] : []),
     ] : []),
+    ...(can('reunioes.read') ? [{ value: 'reunioes' as Tab, label: 'Reuniões', count: ((reunioes.data?.itens ?? []) as any[]).length || null }] : []),
     ...(d.school && can('notas.read') ? [{ value: 'boletim' as Tab, label: 'Boletim' }, { value: 'historico' as Tab, label: 'Histórico escolar' }] : []),
     ...(d.school && can('antropometria.read') ? [{ value: 'medidas' as Tab, label: 'Peso e altura' }] : []),
     ...(!['PROFESSOR', 'PROFESSOR_AEE'].includes(me?.role ?? '') ? [{ value: 'declaracoes' as Tab, label: 'Declarações' }] : []),
@@ -93,6 +96,11 @@ export default function StudentPage() {
                 <Badge tone="amber" icon={AlertTriangle}>{((ve.data?.ocorrencias ?? []) as any[]).filter((o) => o.situacao !== 'ENCERRADA').length} ocorrência(s) em aberto</Badge>
               </button>
             )}
+            {((reunioes.data?.itens ?? []) as any[]).some(reuniaoUrgente) && (
+              <button onClick={() => setSp({ aba: 'reunioes' }, { replace: true })}>
+                <Badge tone="red" icon={AlertTriangle}>Reunião: atenção urgente</Badge>
+              </button>
+            )}
           </div>
         </div>
         <div className="hidden shrink-0 flex-col gap-2 sm:flex">
@@ -119,6 +127,10 @@ export default function StudentPage() {
         {tab === 'alimentacao' && ve.data && <AlimentacaoAluno v={ve.data} studentId={s.id} />}
         {tab === 'ocorrencias' && ve.data && <OcorrenciasAluno v={ve.data} aluno={{ id: s.id, nome: s.full_name }} />}
         {tab === 'agenda' && ve.data && <AgendaAluno v={ve.data} aluno={{ id: s.id, nome: s.full_name }} />}
+        {tab === 'reunioes' && (
+          <ReunioesAluno aluno={{ id: s.id, nome: s.full_name }} ocorrencias={ve.data?.ocorrencias}
+            responsaveis={(d.guardians as any[]).map((g) => ({ id: g.id, nome: g.full_name ?? g.name, parentesco: g.relationship }))} />
+        )}
         {tab === 'auditoria' && <Audit d={d} />}
       </div>
     </div>

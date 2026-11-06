@@ -20,8 +20,9 @@ import { AusenciasFamilia } from '@/components/busca-ativa';
 import { HistoricoFamilia } from '@/components/conselho';
 import { AntropometriaFamilia, BibliotecaFamilia } from '@/components/sprint4';
 import { AulasFamilia, EventosFamilia, RematriculaFamilia } from '@/components/sprint5';
+import { ReunioesFamilia } from '@/components/reunioes';
 
-type Aba = 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas' | 'aulas' | 'rematricula' | 'eventos';
+type Aba = 'reunioes' | 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas' | 'aulas' | 'rematricula' | 'eventos';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -31,6 +32,7 @@ export default function Escola() {
   const avisos = useRpc<any>('familia_avisos', {}, { enabled: !!me?.guardian });
   const agenda = useRpc<any>('familia_agenda', {}, { enabled: !!me?.guardian });
   const ocorr = useRpc<any>('familia_ocorrencias', {}, { enabled: !!me?.guardian });
+  const reun = useRpc<any>('familia_reunioes', {}, { enabled: !!me?.guardian });
   const aee = useRpc<any[]>('familia_aee', {}, { enabled: !!me?.guardian });
   const rem = useRpc<any[]>('familia_rematricula', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
@@ -46,6 +48,7 @@ export default function Escola() {
         { value: 'avisos', label: 'Avisos', count: pend || null },
         { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
         { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
+        { value: 'reunioes', label: 'Reuniões', count: reun.data?.aguardando || null },
         { value: 'aulas', label: 'O que estudou' },
         { value: 'rematricula', label: 'Rematrícula', count: rem.data?.filter((r) => r.situacao === 'PENDENTE').length || null },
         { value: 'boletim', label: 'Boletim' },
@@ -64,6 +67,7 @@ export default function Escola() {
         {aba === 'avisos' && <Avisos res={avisos} historico={historico} />}
         {aba === 'agenda' && <AgendaFamilia res={agenda} historico={historico} />}
         {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
+        {aba === 'reunioes' && <ReunioesFamilia />}
         {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
         {aba === 'boletim' && <BoletimFamilia />}
         {aba === 'historico' && <HistoricoFamilia />}

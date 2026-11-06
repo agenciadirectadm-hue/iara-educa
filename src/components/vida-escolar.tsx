@@ -132,6 +132,9 @@ export function OcorrenciaSheet({ id, onClose }: { id: string | null; onClose: (
           )}
           <Card className="p-3">
             <p className="text-[14.5px]">{o.descricao}</p>
+            {/^Registro de reunião (R-[0-9A-F]{6})/.test(o.descricao ?? '') && !familia && (
+              <Link to={`/reunioes?codigo=${o.descricao.match(/R-[0-9A-F]{6}/)[0]}`} className="mt-1 inline-block text-[13px] font-semibold text-purple-800 underline">Abrir o registro da reunião e confirmar o envio às autoridades</Link>
+            )}
             {o.local && <p className="mt-1 text-[12.5px] text-muted">Local: {o.local}</p>}
             {o.providencias && <p className="mt-2 whitespace-pre-line rounded-2xl bg-slate-50 p-2.5 text-[13px]"><b>Providências imediatas:</b> {o.providencias}</p>}
             {o.solucao && <p className="mt-2 whitespace-pre-line rounded-2xl bg-green-50 p-2.5 text-[13px] text-green-900"><b>Solução:</b> {o.solucao}</p>}
