@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
@@ -28,7 +28,7 @@ function marcarAberturaVista() {
 }
 
 /** Abertura (spec §7.1): flores surgem → copa → corpo → IARA acena → saudação → ENTRAR. Pode ser pulada. */
-export default function Splash() {
+export default function Splash({ cidade = 'Maringá', figura }: { cidade?: string; figura?: ReactNode }) {
   const navigate = useNavigate();
   const reduce = useReducedMotion();
 
@@ -89,7 +89,7 @@ export default function Splash() {
           transition={{ duration: t(1.5), delay: t(0.45), ease: [0.65, 0, 0.35, 1] }}
           className="relative"
         >
-          <IaraMascot height={Math.min(420, typeof window !== 'undefined' ? window.innerHeight * 0.48 : 380)} mood="wave" entrance delay={t(0.5)} />
+          {figura ?? <IaraMascot height={Math.min(420, typeof window !== 'undefined' ? window.innerHeight * 0.48 : 380)} mood="wave" entrance delay={t(0.5)} />}
         </motion.div>
         <div className="relative">
           <FlowerBurst count={14} delay={t(1.2)} radius={170} />
@@ -109,7 +109,7 @@ export default function Splash() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: t(0.6), delay: t(2.8) }}
         >
-          Mais oportunidades para cada criança de Maringá.
+          Mais oportunidades para cada criança de {cidade}.
         </motion.p>
 
         <motion.button
@@ -132,7 +132,7 @@ export default function Splash() {
         animate={{ opacity: 1 }}
         transition={{ delay: t(3.4) }}
       >
-        Secretaria Municipal de Educação · Maringá — PR
+        Secretaria Municipal de Educação · {cidade} — PR
         <br />
         <span className="font-semibold text-amber-800">Protótipo em demonstração · dados pessoais fictícios</span>
       </motion.footer>

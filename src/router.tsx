@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createHashRouter, Navigate, useRouteError, useSearchParams } from 'react-router';
 import { AppShell } from './app/AppShell';
-import Splash, { aberturaJaVistaNaAba } from './pages/Splash';
+import { aberturaJaVistaNaAba } from './pages/Splash';
+import AberturaUmuarama from './pages/AberturaUmuarama';
 import Entrar from './pages/Entrar';
 import { useSession } from './lib/session';
 import { erroDeVersao, recarregarNovaVersao } from './lib/novaVersao';
@@ -160,7 +161,9 @@ function NotFound() {
 
 export const router = createHashRouter([
   { path: '/', element: <RootGate /> },
-  { path: '/abertura', element: <Splash /> },
+  // Provisório, para a apresentação em Umuarama. Para voltar à original: element: <Splash /> (importar o default de './pages/Splash').
+  { path: '/abertura', element: <AberturaUmuarama /> },
+  { path: '/umuarama', element: <AberturaUmuarama /> },
   { path: '/entrar', element: <ChegadaPelaAbertura><Entrar /></ChegadaPelaAbertura> },
   // início da conversa pelo WhatsApp (destino do QR code) e cartaz para imprimir — públicos
   { path: '/whatsapp', element: S(<WhatsAppEntry />) },
