@@ -14,6 +14,7 @@ import {
   Avatar, Badge, Card, DataPair, EmptyState, ErrorState, Kpi, ListRow, OccupancyBar, PageHeader, Section, SeloVagasTurma, SkeletonList, SourceChip, Tabs, inputCls,
 } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
+import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 import MapView from '@/components/map/MapView';
 
 type Tab = 'geral' | 'turmas' | 'alunos' | 'fila' | 'equipe' | 'atendimentos' | 'fontes' | 'historico';
@@ -196,6 +197,8 @@ function Overview({ d }: { d: any }) {
           ))}
         </div>
       </Section>
+      <LinhasOnibus onibus={d.onibus} aproximada={u.geo.precision !== 'VALIDADO'} />
+
       <Section title="Infraestrutura e transporte">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Card className="flex items-start gap-3 p-4"><HardHat className="size-5 text-slate-500" /><div className="text-[13.5px]"><b>Salas, obras e acessibilidade</b><p className="text-muted">Módulo de infraestrutura pendente de integração — sem dados públicos confiáveis. {u.public.capacity ? `Capacidade estrutural divulgada: ${u.public.capacity} alunos.` : ''}</p></div></Card>
@@ -203,6 +206,53 @@ function Overview({ d }: { d: any }) {
         </div>
       </Section>
     </div>
+  );
+}
+
+const ATENDIMENTO_ONIBUS: Record<string, string> = { PARCIAL: 'Só alguns horários', FIM_DE_SEMANA: 'Só fim de semana' };
+
+function LinhasOnibus({ onibus, aproximada }: { onibus: any; aproximada: boolean }) {
+  const linhas = (onibus?.linhas ?? []) as any[];
+  const consulta = onibus?.atualizado_em ? new Date(onibus.atualizado_em).toLocaleDateString('pt-BR') : null;
+  return (
+    <Section
+      title="Ônibus que atendem esta unidade"
+      subtitle={`Linhas da TCCC com parada a até ${onibus?.raio_m ?? 500} m, em linha reta`}
+      action={<SourceChip kind="publico" detail={`Linhas e paradas publicadas pela TCCC no Na Hora Maringá${consulta ? `, consultadas em ${consulta}` : ''}. O raio de 500 m é o mesmo que o aplicativo oficial usa para paradas próximas.`} />}
+    >
+      <Card className="overflow-hidden">
+        {!consulta ? (
+          <EmptyState compact title="Linhas de ônibus ainda não carregadas" />
+        ) : !linhas.length ? (
+          <EmptyState compact title={`Nenhuma parada da TCCC a até ${onibus.raio_m} m`} />
+        ) : (
+          <Tabela colunas="4.5rem minmax(11rem,1fr) minmax(14rem,1.3fr) 4.5rem 10.5rem" largura={680} rotulo="Linhas de ônibus que atendem esta unidade">
+            <TCabecalho>
+              <TCelula fixa>Linha</TCelula>
+              <TCelula>Nome</TCelula>
+              <TCelula>Parada mais próxima</TCelula>
+              <TCelula className="text-right">Distância</TCelula>
+              <TCelula>Atendimento</TCelula>
+            </TCabecalho>
+            {linhas.map((l) => (
+              <TLinha key={l.codigo} onClick={() => window.open(l.url, '_blank', 'noopener,noreferrer')} rotulo={`Linha ${l.codigo}, ${l.nome}: abrir horários e trajeto na fonte oficial`}>
+                <TCelula fixa livre className="font-display font-extrabold">{l.codigo}</TCelula>
+                <TCelula titulo={l.nome} className="font-semibold">{l.nome}</TCelula>
+                <TCelula titulo={l.parada} className="text-muted">{l.parada}</TCelula>
+                <TCelula className="text-right">{l.distancia_m} m</TCelula>
+                <TCelula livre className="flex items-center gap-1.5 text-[12.5px] text-muted">
+                  {ATENDIMENTO_ONIBUS[l.atendimento]
+                    ? <Badge tone={l.atendimento === 'PARCIAL' ? 'amber' : 'gray'}>{ATENDIMENTO_ONIBUS[l.atendimento]}</Badge>
+                    : 'Regular'}
+                  <ExternalLink className="size-3 shrink-0" aria-hidden />
+                </TCelula>
+              </TLinha>
+            ))}
+          </Tabela>
+        )}
+      </Card>
+      {aproximada && linhas.length > 0 && <p className="mt-2 text-[12.5px] text-muted">A coordenada desta unidade é aproximada: confirme a parada antes de orientar a família.</p>}
+    </Section>
   );
 }
 
@@ -387,6 +437,7 @@ function SourcesTab({ d }: { d: any }) {
     ['Direção', u.director_status, u.director_source],
     ['Matrículas/turmas', u.public.status, u.public.source],
     ['Censo 2025', u.census.status, 'Microdados do Censo Escolar 2025 / INEP'],
+    ['Linhas de ônibus', d.onibus?.atualizado_em ? `${d.onibus.linhas.length} linha(s) da TCCC a até ${d.onibus.raio_m} m · consulta de ${new Date(d.onibus.atualizado_em).toLocaleDateString('pt-BR')}` : 'Ainda não carregadas', d.onibus?.fonte],
     ['Confirmação SEDUC', u.seduc_confirmation, 'Turma a turma: pendente de integração'],
   ];
   return (
