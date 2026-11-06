@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { IaraMascot } from '@/components/iara';
 import Splash from './Splash';
 
-// Abertura provisória do site, para a apresentação em Umuarama: a mesma tela, com o Umuaraminha ao lado da Ipê.
+// Abertura provisória do site, para a apresentação em Umuarama: a mesma tela e os mesmos textos, com o Umuaraminha ao lado da Ipê.
 // Para voltar à original: em router.tsx, a rota /abertura volta a usar <Splash />. Depois, apagar este arquivo, a pasta public/umuarama e a rota /umuarama.
 
 const RAZAO_UMU = 386 / 706;
@@ -59,11 +58,5 @@ function IpeEUmuaraminha() {
 }
 
 export default function AberturaUmuarama() {
-  useEffect(() => {
-    const antes = document.title;
-    document.title = 'IARA Educa · Umuarama';
-    return () => { document.title = antes; };
-  }, []);
-
-  return <Splash cidade="Umuarama" figura={<IpeEUmuaraminha />} />;
+  return <Splash figura={<IpeEUmuaraminha />} />;
 }

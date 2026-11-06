@@ -28,7 +28,7 @@ function marcarAberturaVista() {
 }
 
 /** Abertura (spec §7.1): flores surgem → copa → corpo → IARA acena → saudação → ENTRAR. Pode ser pulada. */
-export default function Splash({ cidade = 'Maringá', figura }: { cidade?: string; figura?: ReactNode }) {
+export default function Splash({ figura }: { figura?: ReactNode }) {
   const navigate = useNavigate();
   const reduce = useReducedMotion();
 
@@ -109,7 +109,7 @@ export default function Splash({ cidade = 'Maringá', figura }: { cidade?: strin
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: t(0.6), delay: t(2.8) }}
         >
-          Mais oportunidades para cada criança de {cidade}.
+          Mais oportunidades para cada criança de Maringá.
         </motion.p>
 
         <motion.button
@@ -132,7 +132,7 @@ export default function Splash({ cidade = 'Maringá', figura }: { cidade?: strin
         animate={{ opacity: 1 }}
         transition={{ delay: t(3.4) }}
       >
-        Secretaria Municipal de Educação · {cidade} — PR
+        Secretaria Municipal de Educação · Maringá — PR
         <br />
         <span className="font-semibold text-amber-800">Protótipo em demonstração · dados pessoais fictícios</span>
       </motion.footer>
