@@ -8,7 +8,8 @@ import {
 import { useSession } from '@/lib/session';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { rpc } from '@/lib/api';
-import { agrupar, navFor, type Grupo, type NavItem } from './nav';
+import { keepPreviousData } from '@tanstack/react-query';
+import { NA_BARRA, agrupar, navFor, type Grupo, type NavItem } from './nav';
 import { Avatar, Badge, Spinner } from '@/components/ui';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { IaraAvatar } from '@/components/iara';
@@ -61,7 +62,7 @@ export function AppShell() {
         </main>
       </div>
       <BottomNav nav={nav} onMore={() => setMore(true)} />
-      <MoreSheet open={more} onClose={() => setMore(false)} items={nav.more} />
+      <MoreSheet open={more} onClose={() => setMore(false)} items={[...nav.primary.slice(NA_BARRA), ...nav.more]} />
       <AccountSheet open={account} onClose={() => setAccount(false)} />
       <SearchSheet open={search} onClose={() => setSearch(false)} />
     </div>
@@ -196,7 +197,7 @@ function BottomNav({ nav, onMore }: { nav: { primary: NavItem[]; more: NavItem[]
   return (
     <nav className="glass fixed inset-x-0 bottom-0 z-40 border-t border-line/70 pb-safe lg:hidden" aria-label="Navegação principal">
       <div className="mx-auto grid h-[66px] max-w-xl grid-cols-5">
-        {nav.primary.map((item) => {
+        {nav.primary.slice(0, NA_BARRA).map((item) => {
           const active = isActive(item, loc.pathname, loc.search);
           return (
             <NavLink key={item.to + item.label} to={item.to} className="relative flex flex-col items-center justify-center gap-1" aria-current={active ? 'page' : undefined}>
@@ -322,11 +323,11 @@ const GROUPS: { key: string; label: string; icon: typeof Users; path: (id: strin
 function SearchSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { me } = useSession();
   const [q, setQ] = useState('');
-  const dq = useDebounced(q.trim(), 280);
+  const dq = useDebounced(q.trim(), 200);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const authed = !!me && me.scope !== 'GUARDIAN';
-  const res = useRpc<any>(authed ? 'global_search' : 'units_list', authed ? { q: dq } : { q: dq }, { enabled: open && dq.length >= 2 });
+  const res = useRpc<any>(authed ? 'global_search' : 'units_list', authed ? { q: dq } : { q: dq }, { enabled: open && dq.length >= 2, placeholderData: keepPreviousData });
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 80);
     else setQ('');
@@ -356,7 +357,7 @@ function SearchSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       </div>
       {dq.length < 2 ? (
         <p className="py-6 text-center text-sm text-muted">Digite pelo menos 2 letras.</p>
-      ) : res.isLoading ? (
+      ) : res.isLoading || (res.isPlaceholderData && total === 0) ? (
         <div className="flex justify-center py-8"><Spinner /></div>
       ) : total === 0 ? (
         <p className="py-6 text-center text-sm text-muted">Nada encontrado para “{dq}” no seu escopo.</p>

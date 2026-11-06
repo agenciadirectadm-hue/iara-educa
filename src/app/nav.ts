@@ -15,6 +15,9 @@ export const GRUPOS: { key: Grupo; label: string }[] = [
   { key: 'ajuda', label: 'Ajuda' },
 ];
 
+/** Itens da barra inferior no celular; os demais itens de `primary` vão para "Mais" (na barra lateral aparecem todos). */
+export const NA_BARRA = 4;
+
 export type NavItem = { to: string; label: string; icon: ComponentType<{ className?: string }>; match?: string; grupo?: Grupo };
 
 const I = {
@@ -95,12 +98,12 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
       return {
-        primary: [I.inicio, I.mapa, I.atendimentos, I.fila],
+        primary: [I.inicio, I.unidades, I.atendimentos, I.fila, I.mapa],
         more: [I.iara, I.whatsapp,
           I.vagas, I.ofertas, ...(role === 'GERENCIA_EI' ? [] : [I.recusas]), I.rematricula, I.alunos, I.responsaveis, I.validacoes,
           I.frequencia, I.presenca, I.bolsaFamilia, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
-          I.unidades, I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
+          I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
           I.gestao, I.pessoal, I.indicadores,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.auditoria, I.qualidade, I.regras,
@@ -108,21 +111,22 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
       };
     case 'CONTROLE_EXTERNO':
       return {
-        primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.controleFila, I.controleCaso, I.controleReunioes, I.regras],
-        more: [I.recusas, I.distancias, I.mapa, I.unidades, I.indicadores, I.qualidade, I.ajuda],
+        primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.unidades, I.controleFila, I.controleCaso, I.controleReunioes, I.regras],
+        more: [I.recusas, I.distancias, I.mapa, I.indicadores, I.qualidade, I.ajuda],
       };
     case 'INOVACAO':
-      return { primary: [I.inicio, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.unidades, I.nutricao, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.unidades, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.nutricao, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.suporte, I.ajuda] };
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
-        primary: [I.inicio, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
-        more: [I.whatsapp, I.fila, I.ofertas, ...(role === 'ANALISTA_CENTRAL' ? [I.recusas] : []), I.rematricula, I.validacoes, I.alunos, I.responsaveis, I.verificar, I.mapa, I.unidades, I.ensalamento, I.auditoria, I.regras, I.suporte, I.ajuda],
+        primary: [I.inicio, I.iara, I.unidades, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
+        more: [I.whatsapp, I.fila, I.ofertas, ...(role === 'ANALISTA_CENTRAL' ? [I.recusas] : []), I.rematricula, I.validacoes, I.alunos, I.responsaveis, I.verificar, I.mapa, I.ensalamento, I.auditoria, I.regras, I.suporte, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
         primary: [
           { ...I.inicio, label: 'Minha unidade' },
+          I.unidades,
           I.iara,
           { ...I.fila, to: `/fila?unidade=${unitId}`, match: '/fila' },
           I.atendimentos,
@@ -132,7 +136,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}`, grupo: 'escolar' },
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
-          I.unidades, I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
+          I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.gestao, I.indicadores, I.auditoria, I.regras, I.suporte, I.ajuda,
         ],
       };
@@ -140,6 +144,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
       return {
         primary: [
           I.inicio,
+          I.unidades,
           I.alunos,
           { ...I.ofertas, label: 'Matrículas' },
           I.iara,
@@ -149,14 +154,14 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, grupo: 'escolar' },
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos, I.verificar,
-          I.unidades, I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
+          I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.suporte, I.ajuda,
         ],
       };
     case 'CIDADAO':
     case 'CIDADAO_NOVO':
       return {
-        primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList }],
+        primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, I.unidades, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList, grupo: 'matricula' }],
         more: [
           { to: '/escola', label: 'Vida escolar', icon: School, grupo: 'escolar' }, { to: '/escola?aba=aulas', label: 'O que estudou', icon: NotebookPen, match: '/escola', grupo: 'escolar' },
           { to: '/escola?aba=boletim', label: 'Boletim', icon: GraduationCap, match: '/escola', grupo: 'escolar' }, { to: '/escola?aba=historico', label: 'Histórico escolar', icon: GraduationCap, match: '/escola', grupo: 'escolar' },
@@ -167,40 +172,40 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola', grupo: 'matricula' },
           { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen, grupo: 'matricula' },
           { to: '/escola?aba=transporte', label: 'Transporte escolar', icon: Bus, match: '/escola', grupo: 'matricula' },
-          { ...I.vagas, label: 'Consultar vagas' }, { ...I.unidades, grupo: 'matricula' }, { ...I.mapa, label: 'Unidades no mapa', grupo: 'matricula' },
+          { ...I.vagas, label: 'Consultar vagas' }, { ...I.mapa, label: 'Unidades no mapa', grupo: 'matricula' },
           I.regras, I.ajuda],
       };
     case 'PROFESSOR':
       return {
-        primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.ocorrencias, I.meuPonto, I.mural],
-        more: [I.reunioes, I.calendario, I.biblioteca, I.eventos, I.unidades, I.regras, I.suporte, I.ajuda],
+        primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.unidades, I.ocorrencias, I.meuPonto, I.mural],
+        more: [I.reunioes, I.calendario, I.biblioteca, I.eventos, I.regras, I.suporte, I.ajuda],
       };
     case 'NUTRICAO':
       return {
-        primary: [I.inicio, { ...I.nutricao, label: 'Cardápios' }, I.cozinha, I.mural],
-        more: [{ ...I.almoxarifado, label: 'Alimentos e pedidos', to: '/materiais?aba=alimentos' }, I.materiais, I.unidades, I.mapa, I.calendario, I.eventos, I.suporte, I.ajuda],
+        primary: [I.inicio, { ...I.nutricao, label: 'Cardápios' }, I.unidades, I.cozinha, I.mural],
+        more: [{ ...I.almoxarifado, label: 'Alimentos e pedidos', to: '/materiais?aba=alimentos' }, I.materiais, I.mapa, I.calendario, I.eventos, I.suporte, I.ajuda],
       };
     case 'TRANSPORTE':
       return {
-        primary: [{ ...I.inicio, label: 'Transporte hoje', icon: Bus }, I.mapaRotas, I.mapa, I.mural],
-        more: [I.unidades, I.calendario, I.eventos, I.suporte, I.ajuda],
+        primary: [{ ...I.inicio, label: 'Transporte hoje', icon: Bus }, I.mapaRotas, I.unidades, I.mapa, I.mural],
+        more: [I.calendario, I.eventos, I.suporte, I.ajuda],
       };
     case 'ALMOXARIFADO':
       return {
-        primary: [{ ...I.inicio, label: 'Almoxarifado', icon: Warehouse }, { ...I.materiais, label: 'Estoque' }, I.cozinha, I.mapa],
-        more: [I.unidades, I.calendario, I.eventos, I.suporte, I.ajuda],
+        primary: [{ ...I.inicio, label: 'Almoxarifado', icon: Warehouse }, { ...I.materiais, label: 'Estoque' }, I.unidades, I.cozinha, I.mapa],
+        more: [I.calendario, I.eventos, I.suporte, I.ajuda],
       };
     case 'PROFESSOR_AEE':
       return {
-        primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.meuPonto, I.mural, I.calendario],
-        more: [I.reunioes, I.eventos, I.unidades, I.regras, I.suporte, I.ajuda],
+        primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.unidades, I.meuPonto, I.mural, I.calendario],
+        more: [I.reunioes, I.eventos, I.regras, I.suporte, I.ajuda],
       };
     case 'COMERCIAL':
       return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [] };
     case 'MANUTENCAO':
       return {
-        primary: [I.inicio, { ...I.manutencao, label: 'Chamados' }, I.materiais, I.mapa],
-        more: [I.unidades, I.calendario, I.suporte, I.ajuda],
+        primary: [I.inicio, { ...I.manutencao, label: 'Chamados' }, I.unidades, I.materiais, I.mapa],
+        more: [I.calendario, I.suporte, I.ajuda],
       };
     default:
       return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.verificar, I.regras, I.qualidade] };
