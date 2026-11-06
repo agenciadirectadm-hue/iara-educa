@@ -45,7 +45,8 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 export function rpc<T = any>(fn: string, args: object = {}): Promise<T> {
-  return request<T>(`/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) });
+  // URL única: o navegador guarda o preflight de CORS por URL, e assim só o primeiro chamado da sessão paga essa ida a mais
+  return request<T>('/rpc', { method: 'POST', body: JSON.stringify({ fn, args }) });
 }
 
 export function createSession(persona: string, unitId?: number | null) {

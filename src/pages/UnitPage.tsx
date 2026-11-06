@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import clsx from 'clsx';
 import {
@@ -15,7 +15,8 @@ import {
 } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
-import MapView from '@/components/map/MapView';
+// o mapa pesa mais que a ficha inteira: ela abre primeiro, e ele chega depois
+const MapView = lazy(() => import('@/components/map/MapView'));
 
 type Tab = 'geral' | 'turmas' | 'alunos' | 'fila' | 'equipe' | 'atendimentos' | 'fontes' | 'historico';
 
@@ -94,16 +95,18 @@ function Overview({ d }: { d: any }) {
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
         <Card className="overflow-hidden">
-          <MapView
-            className="h-64"
-            units={units.data?.units ?? []}
-            selectedId={u.id}
-            selectedLabel="Esta unidade"
-            focus={{ lat: u.lat, lng: u.lng, zoom: 15 }}
-            cooperative
-            controls={false}
-            onSelectUnit={(x) => (window.location.hash = `#/unidades/${x.id}`)}
-          />
+          <Suspense fallback={<div className="h-64 animate-pulse bg-slate-100" />}>
+            <MapView
+              className="h-64"
+              units={units.data?.units ?? []}
+              selectedId={u.id}
+              selectedLabel="Esta unidade"
+              focus={{ lat: u.lat, lng: u.lng, zoom: 15 }}
+              cooperative
+              controls={false}
+              onSelectUnit={(x) => (window.location.hash = `#/unidades/${x.id}`)}
+            />
+          </Suspense>
           <div className="flex items-center justify-between gap-2 p-3 text-[13px]">
             <span className="text-muted">{u.geo.status}</span>
             <a className="inline-flex items-center gap-1 font-semibold text-purple-700" href={`https://www.openstreetmap.org/directions?to=${u.lat}%2C${u.lng}`} target="_blank" rel="noreferrer">Como chegar <ExternalLink className="size-3.5" /></a>

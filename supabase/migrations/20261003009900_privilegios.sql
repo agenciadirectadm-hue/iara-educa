@@ -26,6 +26,9 @@ grant execute on function
   iara.digitos(text), iara.endereco_aproximado(text)
   to authenticated;
 
+-- Pesquisa global: candidatos pelo índice de nome; a RLS decide o que aparece (SECURITY INVOKER: global_search)
+grant execute on function iara.busca_alunos(text, text), iara.busca_responsaveis(text, text) to authenticated;
+
 -- Distâncias (linha reta, a pé, de carro): medida usada pelo critério de proximidade (SECURITY INVOKER: queue_list)
 grant execute on function iara.medida_distancia_fila(), iara.medida_rotulo(text) to authenticated;
 

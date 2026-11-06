@@ -21,11 +21,13 @@ function urlPooler(): string | null {
 }
 
 const OPCOES = { prepare: false, max: 3, idle_timeout: 10, connect_timeout: 10, onnotice: () => {} };
+// No pooler, a conexão ociosa não prende o banco. Mantê-la aberta evita repetir TLS e autenticação (cerca de 330 ms por clique).
+const OPCOES_POOLER = { ...OPCOES, max: 5, idle_timeout: 240 };
 
 async function conectar() {
   const pooler = urlPooler();
   if (pooler) {
-    const p = postgres(pooler, OPCOES);
+    const p = postgres(pooler, OPCOES_POOLER);
     try {
       await p`select 1`;
       return p;

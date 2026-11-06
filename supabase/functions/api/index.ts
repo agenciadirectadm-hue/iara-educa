@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(req) });
   const json = jsonPara(req);
   const url = new URL(req.url);
-  const path = url.pathname.replace(/^.*?\/api(?=\/|$)/, "") || "/";
+  let path = url.pathname.replace(/^.*?\/api(?=\/|$)/, "") || "/";
   const meta: RequestMeta = {
     rid: (req.headers.get("x-request-id") ?? crypto.randomUUID()).slice(0, 80),
     ip: ipDe(req),
@@ -165,6 +165,15 @@ Deno.serve(async (req: Request) => {
     // o proxy da plataforma só devolve a resposta depois que o corpo é lido: descarta sem guardar
     try { for await (const _ of req.body ?? []) { /* descarta */ } } catch { /* conexão encerrada */ }
     return json({ error: "Conteúdo grande demais." }, 413);
+  }
+
+  // Uma URL só para todas as funções, com o nome no corpo: o navegador guarda o preflight de CORS por URL, então cada função nova
+  // numa URL própria custava uma ida a mais ao servidor. Limites e rotinas seguem vendo /rpc/<função>; a rota antiga continua valendo.
+  let argsRpc: unknown;
+  if (path === "/rpc" && req.method === "POST") {
+    const corpo = await req.json().catch(() => ({}));
+    path = `/rpc/${String(corpo?.fn ?? "")}`;
+    argsRpc = corpo?.args ?? {};
   }
 
   try {
@@ -233,7 +242,7 @@ Deno.serve(async (req: Request) => {
       const fn = path.slice(5);
       const { userId, expired } = await resolveUser(req);
       if (expired) return json({ error: "Sua sessão expirou. Escolha um perfil novamente.", code: "SESSION_EXPIRED" }, 401);
-      const args = await req.json().catch(() => ({}));
+      const args = argsRpc !== undefined ? argsRpc : await req.json().catch(() => ({}));
       const result = await callApi(userId, meta, fn, args);
       return json(result ?? {});
     }

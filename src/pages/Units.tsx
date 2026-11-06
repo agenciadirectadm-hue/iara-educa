@@ -1,23 +1,29 @@
-import { useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
+import { keepPreviousData } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Map as MapIcon, School, Search, X } from 'lucide-react';
 import { useBootstrap } from '@/lib/data';
-import { useDebounced, useRpc } from '@/lib/hooks';
+import { useRpc } from '@/lib/hooks';
 import { fmtInt, fmtPct } from '@/lib/format';
 import { Badge, ButtonLink, Card, Chip, ErrorState, OccupancyBar, PageHeader, SkeletonList, SourceChip, inputCls } from '@/components/ui';
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 export default function Units() {
   const [sp, setSp] = useSearchParams();
   const boot = useBootstrap();
   const [q, setQ] = useState(sp.get('q') ?? '');
-  const dq = useDebounced(q, 250);
+  const termo = useDeferredValue(semAcento(q.trim()));
   const type = sp.get('tipo') ?? '';
   const territory = sp.get('territorio') ?? '';
   const stage = sp.get('etapa') ?? '';
   const sort = sp.get('ordem') ?? 'name';
   const hasVacancy = sp.get('vaga') === '1';
-  const res = useRpc<any>('units_list', { q: dq || null, type: type || null, territory_id: territory ? Number(territory) : null, stage: stage || null, sort, has_vacancy: hasVacancy });
+  // a rede inteira já vem nesta consulta: a pesquisa filtra aqui mesmo, sem ir ao servidor a cada letra
+  const res = useRpc<any>('units_list', { type: type || null, territory_id: territory ? Number(territory) : null, stage: stage || null, sort, has_vacancy: hasVacancy }, { placeholderData: keepPreviousData });
+  const comChave = useMemo(() => ((res.data?.items ?? []) as any[]).map((u) => ({ u, chave: semAcento(`${u.name} ${u.neighborhood ?? ''} ${u.address ?? ''}`) })), [res.data]);
+  const itens = useMemo(() => (termo ? comChave.filter((x) => x.chave.includes(termo)) : comChave).map((x) => x.u), [comChave, termo]);
   const set = (k: string, v: string | null) => {
     const n = new URLSearchParams(sp);
     if (!v) n.delete(k);
@@ -46,7 +52,7 @@ export default function Units() {
         <Chip active={stage === 'EJA'} onClick={() => set('etapa', stage === 'EJA' ? null : 'EJA')}>Com EJA</Chip>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
-        <span>{res.data ? `${fmtInt(res.data.total)} unidade(s)` : ''}</span>
+        <span>{res.data ? `${fmtInt(itens.length)} unidade(s)` : ''}</span>
         {/* 29 áreas de ponderação (IBGE, Censo 2022): seletor no lugar de botões */}
         <select value={territory} onChange={(e) => set('territorio', e.target.value || null)} aria-label="Área de ponderação"
           className="h-9 max-w-full rounded-xl bg-white px-2 text-[13px] font-semibold text-ink ring-1 ring-line sm:max-w-xs">
@@ -66,7 +72,8 @@ export default function Units() {
       <div className="mt-3">
         {res.isLoading ? <SkeletonList rows={6} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {res.data.items.map((u: any) => (
+            {!itens.length && <p className="col-span-full py-6 text-center text-sm text-muted">Nenhuma unidade encontrada para “{q.trim()}”.</p>}
+            {itens.map((u: any) => (
               <Link key={u.id} to={`/unidades/${u.id}`} className="group rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 transition hover:shadow-lift">
                 <div className="flex items-start gap-3">
                   <span className={clsx('inline-flex size-10 shrink-0 items-center justify-center rounded-2xl text-white', u.status !== 'ATIVA' ? 'bg-slate-400' : u.type === 'CMEI' ? 'bg-purple-500' : 'bg-blue-500')}><School className="size-5" /></span>
