@@ -146,7 +146,7 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto"]);
+const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto", "ob_unidade"]);
 /** Motivos da ausência (mensagem de busca ativa): os mesmos do portal. */
 const MOTIVO_AUSENCIA: [string, string][] = [["SAUDE", "Saúde"], ["CONSULTA", "Consulta ou atendimento"], ["TRANSPORTE", "Transporte"],
   ["DIFICULDADE_FAMILIAR", "Dificuldade familiar"], ["RECUSA", "Dificuldade para ir à escola"], ["OUTRO", "Outro motivo"], ["ESTA_NA_ESCOLA", "Estava na escola"]];
@@ -193,6 +193,64 @@ const REL_NAME: Record<string, string> = {
 const naUnidade = (name?: string | null) => (!name ? "na unidade" : /^CMEI\s/i.test(name) ? `no ${name}` : `na ${name}`);
 const daUnidade = (name?: string | null) => (!name ? "da unidade" : /^CMEI\s/i.test(name) ? `do ${name}` : `da ${name}`);
 
+/** Onde a família confere linhas e horários da TCCC. */
+const NA_HORA_MARINGA = "https://www.nahoramaringa.com.br/pesquisa-por-linhas/";
+const ONIBUS_PALAVRA = "(?:onibus|busao|circular)";
+/** Rotas próprias da Prefeitura são só para alunos; as linhas da TCCC, para qualquer pessoa. Vai em toda resposta sobre ônibus. */
+const ROTAS_SO_ALUNOS = "As linhas da TCCC são o transporte público, abertas a qualquer pessoa. As rotas próprias da Prefeitura atendem só alunos.";
+
+/** O que é claramente transporte escolar (rotas próprias, só para alunos): o resto sobre ônibus, rota ou transporte vai para a TCCC. */
+function sinalTransporteEscolar(t: string): boolean {
+  if (/(transporte escolar|onibus escolar|onibus (da|do) (escola|creche|cmei|prefeitura|transporte)|\brotas? (escolar|escolares|propria|proprias|da prefeitura|da escola|da creche|do cmei|do transporte)\b|\b(minha|meu|nossa|nosso) (rota|ponto)\b|\b(onibus|rota|ponto) d[ao] (minha |meu |nossa |nosso )?(filh|crianca|menin|net|aluno)|\bponto (do transporte|da rota|da van)\b|\br-?\d{3}\b|\bvan\b|\bperua\b|motorista)/.test(t)) return true;
+  // problema só é do transporte escolar se falar de ônibus: "a professora atrasou" não é
+  return /(onibus|busao|circular|transporte|\brotas?\b)/.test(t) && /(perdeu o|nao passou|ja passou|nao vai (de |no |na |usar)|nao tem (onibus|transporte)|atrasa|atraso|quebr|\bmonitora?\b)/.test(t);
+}
+
+/**
+ * Pergunta clara sobre ônibus até um lugar: responde com a TCCC antes dos demais assuntos, para qualquer pessoa.
+ * A pergunta ambígua ("ônibus", "tem transporte?") também vai para a TCCC, mas só depois dos outros assuntos, em detectIntent.
+ */
+function perguntaOnibusDeLinha(t: string): boolean {
+  const txt = t.replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  if (sinalTransporteEscolar(txt)) return false;
+  const veiculo = `(?:${ONIBUS_PALAVRA}|linhas?|rotas?)`;
+  if (new RegExp(`\\btccc\\b|\\bna hora maringa\\b|transporte (coletivo|publico)|${ONIBUS_PALAVRA} (de linha|urbano|coletivo|circular)|(?:linhas?|rotas?) de ${ONIBUS_PALAVRA}`).test(txt)) return true;
+  if (/(que horas|horario|quando)/.test(txt) && new RegExp(`\\b${ONIBUS_PALAVRA}\\b`).test(txt)) return true;
+  const destino = "(?:passa|passam|vai|vao|pego|pega|pegar|atende|atendem|chega|chegam|para|ate|perto|leva|levam|serve|servem)";
+  if (new RegExp(`\\b(?:qual|quais|que) (?:e )?(?:(?:o|a|os|as) )?${veiculo}\\b.{0,40}\\b${destino}\\b`).test(txt)) return true;
+  if (new RegExp(`\\b(?:tem|algum|alguma|existe|ha) (?:(?:algum|alguma|um|uma) )?${veiculo}\\b.{0,40}\\b(?:para|ate|passa|passam|perto|vai|vao|chega|chegam|atende|atendem)\\b`).test(txt)) return true;
+  if (new RegExp(`\\b${veiculo}\\b.{0,10}\\b(?:passa|passam)\\b.{0,6}\\bperto\\b`).test(txt)) return true;
+  if (new RegExp(`\\b(?:passa|passam) (?:(?:algum|alguma|um|uma) )?${veiculo}\\b.{0,15}\\b(?:perto|na|no|pela|pelo|em frente)\\b`).test(txt)) return true;
+  if (new RegExp(`\\bcomo\\b.{0,25}\\b(?:chego|chegar|chega|vou|ir|vai)\\b.{0,35}\\bde ${ONIBUS_PALAVRA}\\b`).test(txt)) return true;
+  if (new RegExp(`\\b(?:da para|consigo|posso|tem como)\\b.{0,25}\\bde ${ONIBUS_PALAVRA}\\b.{0,15}\\b(?:ate|para|na|no|ao)\\b`).test(txt)) return true;
+  return codigoDeLinha(txt) !== null;
+}
+
+/** "linha 220", "ônibus 528A", "o 220 passa": o código citado, em maiúsculas. */
+function codigoDeLinha(t: string): string | null {
+  const m = t.match(new RegExp(`\\b(?:${ONIBUS_PALAVRA}|linha) (\\d{3}[a-z]?)\\b`)) ?? t.match(/\b(?:o|a) (\d{3}[a-z]?) (?:passa|vai|atende|para|chega)\b/);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/** Tira do nome o que é só da frase; nulo quando sobra a própria escola da pessoa ("da minha filha") ou nada. */
+function limparNomeDeUnidade(s: string): string | null {
+  const nome = s.replace(/[?!,;:.]+/g, " ").replace(/\s+/g, " ").trim()
+    .replace(/(?:(?:^| )(?:perto|hoje|agora|amanha|por favor|de onibus|da tccc|de manha|de tarde|a tarde|aqui|ai))+$/, "")
+    .replace(/^(?:(?:escola municipal|escola|colegio|cmei|creche|unidade|municipal|centro municipal de educacao infantil|de educacao infantil|ir|chegar|levar|buscar|pegar|ate|para|ao|no|na|o|a|os|as|do|da|de|dos|das) )+/, "").trim();
+  if (nome.length < 3) return null;
+  if (/\b(?:minha|minhas|meu|meus|nossa|nosso|dele|dela|deles|delas|crianca|criancas|filho|filha|filhos|filhas|casa|mim|voce)\b/.test(nome)) return null;
+  if (/^(?:escola|cmei|creche|unidade|colegio|la)$/.test(nome)) return null;
+  return nome;
+}
+
+/** O nome da escola citado na pergunta sobre ônibus. A última menção a "escola/CMEI" vale; sem ela, o que vem depois da preposição. */
+function nomeDeUnidade(t: string): string | null {
+  const txt = t.replace(/\bna hora maringa\b/g, " ").replace(/[?!,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  const m = txt.match(/^.*\b(?:escola municipal|escola|colegio|cmei|creche|unidade|e\.\s?m\.?|e m) (.+)$/)
+    ?? txt.match(/\b(?:para|ate|perto d[aeo]s?|em frente d[aeo]s?|ao|no|na|pelo|pela) (.+)$/);
+  return m ? limparNomeDeUnidade(m[1]) : null;
+}
+
 function detectIntent(t: string): string {
   // segurança primeiro: valem em qualquer ponto da conversa
   if (/(quero morrer|me matar|tirar (a )?minha vida|suicid)/.test(t)) return "crise";
@@ -203,6 +261,8 @@ function detectIntent(t: string): string {
   if (/^(nao entendi|nao entendi nada|como assim|pode repetir|repete|repetir|hein|ahn|e agora|o que eu faco|e dai|como e isso)[?.! ]*$/.test(t)) return "repetir";
   if (/(nao (esta |ta )?(me )?entend|voce nao entend|nao foi isso|nao e isso|nao era isso|nada a ver|ja falei|ja disse|nao responde|nao ajuda|nao resolve|burra|pessimo|pessima|horrivel|que droga|inutil)/.test(t)) return "frustracao";
   if (/(quem e voce|voce e (um |uma )?(robo|pessoa|ia\b|inteligencia)|e (um )?robo|com quem (eu )?(falo|estou falando)|o que voce (faz|sabe|pode|consegue)|como voce funciona|o que da (pra|para) fazer)/.test(t)) return "sobre_iara";
+  if (perguntaOnibusDeLinha(t)) return "onibus_linha";
+  if (/(que horas|horario)/.test(t) && sinalTransporteEscolar(t)) return "transporte";
   // perguntas gerais: respondem pela base oficial, sem pedir identidade
   if (/(como funciona|quais? (sao )?(os |as )?(criterios?|regras?)|quanto tempo demora|demora quanto|quanto demora|como e a (fila|pontuacao)|como (eu )?(peco|solicito|consigo|faco para (pedir|conseguir)) (uma )?vaga|quem resolve|que etapas|quais etapas|uniforme|material escolar|lista de material|professora? de apoio|mediador|auxiliar de sala)/.test(t)) return "conhecimento";
   if (/\b(tem|vai ter|ha|teve|vai haver) aula\b|\b(escola|creche|cmei|unidade)\b.{0,20}\b(aberta|aberto|abre|abriu|fechada|fechado|fecha|fechou|funcionando|funciona)\b|\b(e|sera) dia (letivo|de aula)\b/.test(t)) return "tem_aula";
@@ -256,7 +316,8 @@ function detectIntent(t: string): string {
   if (/(periodo integral|educacao integral|contraturno|\bintegral\b)/.test(t)) return "servico:INTEGRAL";
   if (/(nao vai (de |no |na |usar o )?(onibus|van|transporte|perua)|nao vai usar o transporte|vou (buscar|levar) (ele|ela|na escola|a |o ))/.test(t)) return "transporte_aviso";
   if (/(pedir|solicitar|preciso de|quero) (o )?(transporte|onibus|van)/.test(t)) return "servico:TRANSPORTE";
-  if (/(transporte|onibus|\bvan\b|perua|motorista)/.test(t)) return "transporte";
+  if (sinalTransporteEscolar(t)) return "transporte";
+  if (/(transporte|onibus|busao|\brotas?\b)/.test(t)) return "onibus_linha";
   if (/(historico escolar|declaracao de (transferencia|conclusao|vaga zero))/.test(t)) return "servico:DOCUMENTO";
   if (/(declaracao|atestado de matricula|comprovante de matricula)/.test(t)) return "declaracao";
   if (/((alterar|trocar|mudar) (o )?responsavel|termo de guarda)/.test(t)) return "servico:ALTERACAO_RESPONSAVEL";
@@ -347,9 +408,9 @@ const BOTAO_NEGATIVO = /^(nao|agora nao|nao,|depois)/;
 /** Sem assunto próprio: dentro de um passo da conversa, são a resposta do passo. */
 const SEM_ASSUNTO = new Set(["desconhecido", "saudacao", "confirmacao"]);
 /** Passos de resposta curta: se a pessoa muda de assunto aqui, a conversa acompanha (nos narrativos, o texto é a própria resposta). */
-const PASSOS_CURTOS = new Set(["decline_reason", "name", "bairro", "child_name", "adult_name", "city", "phone", "email"]);
+const PASSOS_CURTOS = new Set(["decline_reason", "name", "bairro", "child_name", "adult_name", "city", "phone", "email", "ob_unidade"]);
 /** Assuntos que a pessoa pode repetir só citando outra criança ("e o Davi?"). */
-const TEMAS_CONTINUAVEIS = new Set(["documentos", "frequencia", "boletim", "fila", "acompanhar", "oferta", "cardapio", "agenda", "ocorrencias", "transporte", "biblioteca", "medidas", "aulas", "aee_plano", "rematricula", "avisos"]);
+const TEMAS_CONTINUAVEIS = new Set(["documentos", "frequencia", "boletim", "fila", "acompanhar", "oferta", "cardapio", "agenda", "ocorrencias", "transporte", "onibus_linha", "biblioteca", "medidas", "aulas", "aee_plano", "rematricula", "avisos"]);
 const SIGLAS_DA_BASE = new Set(["aee", "cid", "eja", "tea", "tgd", "sus", "pcd"]);
 const PALAVRAS_VAZIAS = new Set(["quanto", "quantos", "quantas", "tempo", "quais", "para", "pela", "pelo", "como", "qual", "quais", "quando", "onde", "quero", "preciso", "gostaria", "saber", "minha", "minhas", "meus", "voce", "voces", "esta", "estao", "isso", "essa", "esse", "tenho", "temos", "pode", "posso", "fazer", "aqui", "hoje", "muito", "mais", "ainda", "sobre", "porque", "tambem", "tudo", "crianca", "filho", "filha", "escola"]);
 
@@ -641,7 +702,8 @@ export class Agent {
           return await this.continueFlow(text);
         }
       }
-      if (!this.ctx.flow && this.conv.guardian_id && !["atendente", "frustracao", "crianca_doente", "vai_faltar"].includes(intent) && (intent === "desconhecido" || motivoAusencia(t))
+      // "foi por causa do ônibus" responde à ausência; "qual ônibus passa na escola?" é pergunta
+      if (!this.ctx.flow && this.conv.guardian_id && !["atendente", "frustracao", "crianca_doente", "vai_faltar"].includes(intent) && !(intent === "onibus_linha" && perguntaOnibusDeLinha(expandir(t))) && (intent === "desconhecido" || motivoAusencia(t))
           && await this.ausenciaTextoLivre(text, t)) return;
       this.trocarAssunto();
       // registro de reunião sem validação vem antes de qualquer outro assunto; numa saudação, é só ele
@@ -833,6 +895,8 @@ export class Agent {
         return await this.startDeclaracao(norm(text));
       case "transporte":
         return await this.transporte();
+      case "onibus_linha":
+        return await this.onibusLinha(text);
       case "biblioteca":
         return await this.biblioteca();
       case "medidas":
@@ -977,6 +1041,11 @@ export class Agent {
       case "docs":
         this.trocarAssunto();
         return await this.documents(value || null, true);
+      case "onibus": {
+        const id = Number(value);
+        if (!Number.isInteger(id) || id <= 0) return this.onibusPerguntarUnidade(null);
+        return await this.onibusMostrar([id], this.ctx.flow === "onibus_linha" ? ((this.ctx.data?.codigo as string | null | undefined) ?? null) : null);
+      }
       case "recado": {
         const [sugestao, citado] = value.split("|");
         this.trocarAssunto();
@@ -1869,6 +1938,7 @@ export class Agent {
     if (flow === "ocorrencia") return await this.ocorrenciaStep(text);
     if (flow === "declaracao") return await this.declaracaoStep(text);
     if (flow === "transporte_aviso") return await this.transporteAvisoStep(text);
+    if (flow === "onibus_linha" && step === "ob_unidade") return await this.onibusLinha(text, true);
     if (flow === "ausencia" && step === "aus_texto") return await this.ausenciaResponder(`${this.ctx.data?.id}|OUTRO`, text);
     if (flow === "ocorrencia_revisao" && step === "oc_rev_texto") return await this.ocorrenciaRevisao(this.ctx.data?.id, text);
     if (flow === "reuniao" && step === "re_man_texto") return await this.reuniaoManifestar(this.ctx.data?.id, text);
@@ -2922,7 +2992,13 @@ export class Agent {
   }
 
   private async transporte(): Promise<void> {
-    if (!this.needGuardian("intent:transporte")) return;
+    // rota própria é só para aluno: sem cadastro, o caminho é a TCCC
+    if (!this.conv.guardian_id) {
+      this.done();
+      return this.say(`As rotas próprias da Prefeitura atendem só alunos da rede, e o pedido é feito com o cadastro da família. Para qualquer pessoa, o transporte público são as linhas da TCCC: me diga a escola ou o CMEI e eu mostro quais passam lá.`, {
+        quick_replies: [{ label: "Ônibus da TCCC", action: "intent:onibus_linha" }, { label: "Fazer meu cadastro", action: "intent:cadastro" }],
+      });
+    }
     if (!this.ensureVerified("intent:transporte")) return;
     const kids = ((await this.tool("get_school_transport", "familia_transporte", {})) as any[]) ?? [];
     const comRota = kids.filter((k) => k.rota);
@@ -2932,7 +3008,7 @@ export class Agent {
       return this.say(aguardando
         ? `O pedido de transporte de ${aguardando.primeiro_nome} está com a Gerência de Transporte Escolar, aguardando vaga numa rota. Assim que for incluída, eu aviso.`
         : "Suas crianças não usam o transporte escolar. Se precisar, eu abro o pedido para a Gerência de Transporte avaliar.",
-        { quick_replies: aguardando ? [MENU[3]] : [{ label: "Pedir transporte escolar", action: "svc:TRANSPORTE" }, MENU[0]] });
+        { quick_replies: [...(aguardando ? [MENU[3]] : [{ label: "Pedir transporte escolar", action: "svc:TRANSPORTE" }, MENU[0]]), { label: "Ônibus da TCCC", action: "intent:onibus_linha" }] });
     }
     const hm = (t?: string | null) => (t ? String(t).slice(0, 5) : "—");
     const mais = (t: string | null | undefined, min: number) => {
@@ -2975,6 +3051,122 @@ export class Agent {
       quick_replies: [{ label: "Avisar que não vai usar", action: "intent:transporte_aviso" }, ESCOLA_MENU[0]],
     });
     this.done("Consultou o transporte escolar.");
+  }
+
+  /**
+   * Ônibus da TCCC até a escola. Dado público: não pede identidade nem cadastro.
+   * Ordem: escola citada pelo nome, criança citada, escolas das crianças do cadastro; sem nenhuma delas, pergunta.
+   */
+  private async onibusLinha(text: string, respostaDoPasso = false): Promise<void> {
+    const t = expandir(norm(text));
+    if (respostaDoPasso && !/\b(?:escola|colegio|cmei|creche|unidade)\b/.test(t)) {
+      // esperando o nome da escola, outro assunto ("o ônibus não passou") não é nome: a conversa acompanha
+      const assunto = detectar(norm(text));
+      if (!SEM_ASSUNTO.has(assunto) && assunto !== "onibus_linha" && assunto !== "unidade") {
+        this.done();
+        return await this.route(assunto, text);
+      }
+    }
+    const codigo = codigoDeLinha(t) ?? (this.ctx.flow === "onibus_linha" ? (this.ctx.data?.codigo as string | null | undefined) : null) ?? null;
+    const kids = this.conv.guardian_id ? (((await this.family())?.children ?? []) as any[]) : [];
+    const citada = kids.find((k) => temNome(t, k.first_name));
+    // "a rota da Ana" e "o ônibus da Ana" são a rota própria que ela usa, não uma linha da TCCC
+    if (citada && !/\b(?:escola|colegio|cmei|creche|unidade)\b/.test(t) && (/\brotas?\b/.test(t) || temNome(t.replace(/^.*\bonibus (?:da|do) /, ""), citada.first_name) && /\bonibus (?:da|do) /.test(t))) {
+      this.done();
+      return await this.transporte();
+    }
+    const nome = nomeDeUnidade(t) ?? (respostaDoPasso ? limparNomeDeUnidade(t) : null);
+    // "escola da Ana" é a criança; "escola Ana Chiquette Men" é o nome da unidade
+    if (nome && !(citada && nome === norm(citada.first_name))) {
+      const achadas = await this.unidadesPorNome(nome);
+      if (achadas.length === 1) return await this.onibusMostrar([achadas[0].id], codigo);
+      if (achadas.length > 1) {
+        this.ctx = { flow: "onibus_linha", step: "ob_unidade", data: { codigo } };
+        return this.say(achadas.length > 6 ? "Encontrei várias unidades com esse nome. Escolha uma aqui ou escreva mais do nome:" : "Encontrei mais de uma unidade com esse nome. Qual delas?", {
+          quick_replies: achadas.slice(0, 6).map((u) => ({ label: u.name, action: `onibus:${u.id}` })),
+        });
+      }
+      if (!citada) {
+        this.ctx = { flow: "onibus_linha", step: "ob_unidade", data: { codigo } };
+        return this.say(`Não encontrei "${nome}" entre as escolas e os CMEIs da rede. Sei os ônibus até as unidades da rede; para outros destinos, o Na Hora Maringá mostra o caminho: ${NA_HORA_MARINGA}\n\nQual é o nome da escola ou do CMEI?`);
+      }
+    }
+    if (citada) {
+      if (citada.school?.unit_id) return await this.onibusMostrar([citada.school.unit_id], codigo);
+      this.ctx = { flow: "onibus_linha", step: "ob_unidade", data: { codigo } };
+      return this.say(`${citada.first_name} ainda não tem matrícula ativa na rede. Me diga o nome da escola ou do CMEI e eu mostro os ônibus.`);
+    }
+    const escolas = [...new Set(kids.map((k) => k.school?.unit_id).filter(Boolean))] as number[];
+    if (escolas.length) return await this.onibusMostrar(escolas, codigo);
+    this.onibusPerguntarUnidade(codigo, !respostaDoPasso);
+  }
+
+  private onibusPerguntarUnidade(codigo: string | null, explicar = false) {
+    this.ctx = { flow: "onibus_linha", step: "ob_unidade", data: { codigo } };
+    this.say(`${explicar ? `${ROTAS_SO_ALUNOS}\n\n` : ""}De qual escola ou CMEI você quer saber os ônibus?`);
+  }
+
+  /** Unidades pelo nome: quem tem o termo no nome vem antes de quem só tem no bairro ou no endereço; sem resultado, tenta a palavra mais longa. */
+  private async unidadesPorNome(nome: string): Promise<any[]> {
+    const busca = async (q: string) => {
+      const res = await this.tool("list_units", "units_list", { q });
+      const unidades = (res?.items ?? []) as any[];
+      const peloNome = unidades.filter((u) => norm(u.name).includes(norm(q)));
+      return peloNome.length ? peloNome : unidades;
+    };
+    const achadas = await busca(nome);
+    if (achadas.length) return achadas;
+    const maisLonga = nome.split(" ").filter((p) => p.length >= 4 && !/^(jardim|parque|vila|municipal)$/.test(p)).sort((a, b) => b.length - a.length)[0];
+    return maisLonga && maisLonga !== nome ? await busca(maisLonga) : [];
+  }
+
+  private async onibusMostrar(ids: number[], codigo: string | null = null): Promise<void> {
+    const fichas: any[] = [];
+    for (const id of ids.slice(0, 3)) fichas.push(await this.tool("get_unit", "unit_detail", { id }));
+    const botoes: QuickReply[] = [{ label: "Outra escola", action: "onibus:outra" }, ...(this.conv.guardian_id ? [{ label: "Transporte escolar", action: "intent:transporte" }] : [])];
+    const fone = (u: any) => (u?.phone ? ` O telefone ${daUnidade(u.name)} é ${u.phone}.` : "");
+
+    if (!fichas[0]?.onibus?.atualizado_em) {
+      this.done();
+      const u = fichas[0]?.unit;
+      return this.say(`Sobre os ônibus ${daUnidade(u?.name)}, não tenho esta informação neste momento. O Na Hora Maringá, da TCCC, informa linhas e horários: ${NA_HORA_MARINGA}${fone(u)}\n\n${ROTAS_SO_ALUNOS}`, { quick_replies: botoes });
+    }
+
+    const raio = fichas[0].onibus.raio_m ?? 500;
+    if (fichas.every((f) => !(f.onibus?.linhas ?? []).length)) {
+      this.done();
+      const u = fichas[0].unit;
+      return this.say(`Não encontrei parada da TCCC a até ${raio} m ${daUnidade(u.name)}. O Na Hora Maringá ajuda a confirmar o melhor caminho: ${NA_HORA_MARINGA}${fone(u)}\n\n${ROTAS_SO_ALUNOS}`, { quick_replies: botoes });
+    }
+
+    const RESTRICAO: Record<string, string> = { PARCIAL: "só alguns horários", FIM_DE_SEMANA: "só fim de semana" };
+    const cards: Card[] = fichas.map((f) => {
+      const linhas = (f.onibus?.linhas ?? []) as any[];
+      const resto = linhas.slice(8);
+      return {
+        title: f.unit.name,
+        unit_id: f.unit.id,
+        lines: [
+          ...linhas.slice(0, 8).map((l) => `${l.codigo} ${l.nome}: ${l.parada}, ${l.distancia_m} m${RESTRICAO[l.atendimento] ? ` (${RESTRICAO[l.atendimento]})` : ""}`),
+          ...(resto.length ? [`Mais ${resto.length} ${resto.length === 1 ? "linha" : "linhas"} a até ${raio} m: ${resto.map((l) => l.codigo).join(", ")}`] : []),
+          ...(linhas.length ? [] : [`Sem parada da TCCC a até ${raio} m.`]),
+          ...(f.unit.geo?.precision !== "VALIDADO" ? ["A localização desta unidade é aproximada: confirme a parada antes de sair."] : []),
+        ],
+      };
+    });
+
+    const abertura = codigo
+      ? fichas.map((f) => {
+          const l = ((f.onibus?.linhas ?? []) as any[]).find((x) => String(x.codigo).toUpperCase() === codigo);
+          if (!l) return `A linha ${codigo} não tem parada a até ${raio} m ${daUnidade(f.unit.name)}.`;
+          const restricao = l.atendimento === "PARCIAL" ? ", mas só em alguns horários" : l.atendimento === "FIM_DE_SEMANA" ? ", mas só no fim de semana" : "";
+          return `Sim, a linha ${l.codigo} para a ${l.distancia_m} m ${daUnidade(f.unit.name)}, em ${l.parada}${restricao}.`;
+        }).join("\n")
+      : fichas.length === 1
+        ? `Estes são os ônibus da TCCC com parada a até ${raio} m ${daUnidade(fichas[0].unit.name)}, em linha reta.`
+        : `Estes são os ônibus da TCCC com parada a até ${raio} m de cada escola, em linha reta.`;
+    this.say(`${abertura}\nHorários e trajetos: ${NA_HORA_MARINGA}\n\n${ROTAS_SO_ALUNOS}${codigo ? `\n\nTodas as linhas a até ${raio} m:` : ""}`, { cards, quick_replies: botoes });
+    this.done("Consultou os ônibus da TCCC até a unidade.");
   }
 
   private async startTransporteAviso(t: string): Promise<void> {

@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa|reuniao]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa|reuniao|onibus]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -131,6 +131,95 @@ if (roteiro === 'conversa') {
     process.exit(1);
   }
   console.log('\n✓ O que não tem, diz que não tem.');
+} else if (roteiro === 'onibus') {
+  // Ônibus, linha, rota e transporte até a escola: responde com a TCCC, para qualquer pessoa, sem pedir código.
+  // As rotas próprias da Prefeitura são só para alunos: ficam com o que é claramente transporte escolar.
+  // Grava as mensagens da conversa de teste e cria uma família sem cadastro (o fim do roteiro diz como limpar).
+  const resposta = () => {
+    const msgs = conv.messages ?? [];
+    const inicio = msgs.map((m) => m.sender_type).lastIndexOf('CIDADAO');
+    return msgs.slice(inicio + 1).filter((m) => m.sender_type === 'IARA')
+      .map((m) => [m.body, ...(m.payload?.cards ?? []).flatMap((c) => [c.title, ...(c.lines ?? [])])].join('\n')).join('\n');
+  };
+  const confereResposta = (texto, tem, naoTem = []) => {
+    const r = resposta();
+    for (const p of tem) if (!p.test(r)) falhas.push(`${texto} → faltou ${p}: ${r.slice(0, 200)}`);
+    for (const p of [...naoTem, /não entendi|Não consegui entender/i]) if (p.test(r)) falhas.push(`${texto} → não devia ter ${p}: ${r.slice(0, 200)}`);
+  };
+  const confere = async (texto, tem, naoTem) => {
+    await send(texto);
+    confereResposta(texto, tem, naoTem);
+  };
+  const PEDIU_CODIGO = /confirmar sua identidade/;
+  const SO_ALUNOS = /rotas próprias da Prefeitura atendem só alunos/;
+  const ABERTA = /linhas da TCCC são o transporte público, abertas a qualquer pessoa/;
+  const botoes = () => lastQuick(conv).map((q) => q.label);
+
+  // escola citada pelo nome
+  await confere('qual ônibus passa perto da escola Agmar dos Santos?', [/E\.M\. Agmar dos Santos/, /^220 /m, /^458 /m, /^459 /m, /^219 /m, /^222 /m, /nahoramaringa/, SO_ALUNOS, ABERTA], [PEDIU_CODIGO]);
+  // "rota" também é a TCCC, e quem tem cadastro tem o botão do transporte escolar
+  await confere('quais rotas de ônibus passam no Agmar dos Santos?', [/E\.M\. Agmar dos Santos/, /^220 /m, SO_ALUNOS, ABERTA], [PEDIU_CODIGO]);
+  if (!botoes().includes('Transporte escolar')) falhas.push(`com cadastro, sem o botão Transporte escolar: ${botoes().join(', ')}`);
+  await confere('quais rotas passam na escola Agmar dos Santos?', [/^220 /m, SO_ALUNOS], [PEDIU_CODIGO]);
+  await confere('que rota vai para o CMEI João XXIII?', [/do CMEI João XXIII/, SO_ALUNOS], [PEDIU_CODIGO]);
+  // pergunta ambígua: TCCC, dizendo que as rotas próprias são só para alunos
+  await confere('ônibus', [/ônibus da TCCC com parada/, SO_ALUNOS], [PEDIU_CODIGO]);
+  await confere('tem transporte para a escola Agmar dos Santos?', [/^220 /m, SO_ALUNOS], [PEDIU_CODIGO]);
+  await confere('que horas o ônibus passa?', [/ônibus da TCCC com parada/, /nahoramaringa/, SO_ALUNOS], [PEDIU_CODIGO]);
+  // código da linha: sim e não
+  await confere('a linha 220 passa no Agmar dos Santos?', [/Sim, a linha 220 para a \d+ m da E\.M\. Agmar dos Santos/, /^458 /m], [PEDIU_CODIGO]);
+  await confere('a linha 999 passa no Agmar dos Santos?', [/A linha 999 não tem parada a até 500 m da E\.M\. Agmar dos Santos/], [PEDIU_CODIGO]);
+  // escola da criança, sem pedir código, citando a criança e sem citar
+  await confere('qual ônibus vai pra escola da Ana?', [/ônibus da TCCC com parada/, /^[0-9A-Z]{3,4} .+, \d+ m/m], [PEDIU_CODIGO]);
+  await confere('qual ônibus vai para a escola?', [/ônibus da TCCC com parada/, /^[0-9A-Z]{3,4} .+, \d+ m/m], [PEDIU_CODIGO]);
+  // criança sem matrícula: diz isso e pergunta a escola
+  await confere('qual ônibus vai pra escola do Davi?', [/Davi ainda não tem matrícula ativa/], [PEDIU_CODIGO]);
+  await confere('agmar dos santos', [/^220 /m], [PEDIU_CODIGO]);
+  // nome inexistente: diz que não encontrou e aceita a resposta seguinte como nome
+  await confere('qual ônibus vai para a escola Zzyzx Inexistente?', [/Não encontrei "zzyzx inexistente"/], [PEDIU_CODIGO]);
+  await confere('agmar dos santos', [/^220 /m], [PEDIU_CODIGO]);
+  // várias unidades: mostra botões, e o botão leva à unidade certa, no masculino quando é CMEI
+  await confere('quais linhas da tccc atendem a escola joao?', [/mais de uma unidade/]);
+  await tap(/João XXIII/);
+  confereResposta('botão CMEI João XXIII', [/do CMEI João XXIII/, /nahoramaringa/], [PEDIU_CODIGO]);
+  await tap('Outra escola');
+  confereResposta('botão Outra escola', [/De qual escola ou CMEI/]);
+  await confere('cmei joão xxiii', [/do CMEI João XXIII/]);
+  await confere('ônibus da tccc para a escola maria', [/várias unidades/]);
+  // outro assunto no meio do passo sai do passo; problema com o ônibus segue no transporte escolar
+  await confere('o ônibus não passou hoje', [PEDIU_CODIGO], [/TCCC/]);
+  await confere('o ônibus da escola atrasou', [PEDIU_CODIGO], [/TCCC/]);
+  await confere('transporte escolar', [PEDIU_CODIGO], [/TCCC/]);
+  await confere('qual a rota da Ana?', [PEDIU_CODIGO], [/TCCC/]);
+  await confere('qual o ônibus da Ana?', [PEDIU_CODIGO], [/TCCC/]);
+  await confere('qual o ônibus do meu filho?', [PEDIU_CODIGO], [/TCCC/]);
+  await confere('qual o motorista da van?', [PEDIU_CODIGO], [/TCCC/]);
+
+  // sem cadastro: mesma resposta da TCCC, sem pedir cadastro nem oferecer rota própria
+  const nova = await req('/session', { persona: 'CIDADAO_NOVO' });
+  const convNova = await req('/rpc/iara_conversation', { new: true }, nova.token);
+  const semCadastro = async (texto) => {
+    console.log(`\n» (sem cadastro) ${texto}`);
+    conv = await req('/iara/message', { conversation_id: convNova.conversation.id, text: texto, action: null }, nova.token);
+    show(conv, Math.max(0, (conv.messages ?? []).map((m) => m.sender_type).lastIndexOf('CIDADAO')));
+  };
+  const CADASTRO = /preciso do cadastro|Fazer meu cadastro/;
+  await semCadastro('quais rotas de ônibus passam no Agmar dos Santos?');
+  confereResposta('sem cadastro, rotas', [/E\.M\. Agmar dos Santos/, /^220 /m, SO_ALUNOS, ABERTA], [PEDIU_CODIGO, CADASTRO]);
+  if (botoes().includes('Transporte escolar')) falhas.push(`sem cadastro, ofereceu Transporte escolar: ${botoes().join(', ')}`);
+  await semCadastro('ônibus');
+  confereResposta('sem cadastro, ônibus', [SO_ALUNOS, /De qual escola ou CMEI/], [PEDIU_CODIGO, CADASTRO]);
+  await semCadastro('agmar dos santos');
+  confereResposta('sem cadastro, resposta do nome', [/^220 /m], [PEDIU_CODIGO, CADASTRO]);
+  await semCadastro('transporte escolar');
+  confereResposta('sem cadastro, transporte escolar', [/atendem só alunos/, /linhas da TCCC/], [PEDIU_CODIGO]);
+
+  console.log(`\nLimpar a família sem cadastro: select iara.demo_purge_session_data(null, array['${nova.me?.id ?? nova.me?.user_id ?? '?'}']::uuid[]);`);
+  if (falhas.length) {
+    console.error('\nFALHAS:\n' + falhas.join('\n'));
+    process.exit(1);
+  }
+  console.log('\n✓ Ônibus, linha e rota respondem com a TCCC; rotas próprias só para alunos.');
 } else if (roteiro === 'reuniao') {
   // registro de reunião da Ana Luísa: o aviso vem antes de qualquer assunto, e a leitura traz os dois botões.
   // Não responde, para não mudar o registro de demonstração.
