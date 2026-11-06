@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { FallingFlowers, FlowerBurst, IaraMascot, IpeFlower } from '@/components/iara';
-import { useSession } from '@/lib/session';
 
 // A abertura é a tela principal: toda chegada ao site passa por ela. Dentro da mesma aba ela não repete, para um recarregar da
 // página (ou a troca de versão do site) não interromper quem já está usando. Sem sessionStorage, vale a memória da página.
@@ -31,15 +30,13 @@ function marcarAberturaVista() {
 /** Abertura (spec §7.1): flores surgem → copa → corpo → IARA acena → saudação → ENTRAR. Pode ser pulada. */
 export default function Splash() {
   const navigate = useNavigate();
-  const { session } = useSession();
   const reduce = useReducedMotion();
-  const depois = (useLocation().state as { depois?: string | null } | null)?.depois;
 
   useEffect(() => { marcarAberturaVista(); }, []);
 
   const go = () => {
     marcarAberturaVista();
-    navigate(depois ?? (session ? '/inicio' : '/entrar'), { replace: true });
+    navigate('/entrar', { replace: true }); // depois da abertura, sempre a escolha de perfis
   };
 
   useEffect(() => {
@@ -47,7 +44,7 @@ export default function Splash() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, depois]);
+  }, []);
 
   const t = (s: number) => (reduce ? 0 : s);
 

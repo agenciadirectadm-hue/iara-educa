@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
-import { createHashRouter, Navigate, useLocation, useRouteError, useSearchParams } from 'react-router';
+import { createHashRouter, Navigate, useRouteError, useSearchParams } from 'react-router';
 import { AppShell } from './app/AppShell';
 import Splash, { aberturaJaVistaNaAba } from './pages/Splash';
 import Entrar from './pages/Entrar';
@@ -100,11 +100,10 @@ function RootGate() {
   return <Navigate to="/abertura" replace />;
 }
 
-/** Quem chega direto numa tela do sistema (aba nova, endereço salvo) também passa antes pela abertura, e depois segue para onde ia.
+/** Quem chega direto numa tela do sistema (aba nova, endereço salvo) também passa antes pela abertura e pela escolha de perfis.
  * O QR code do WhatsApp e os documentos para imprimir ficam de fora, e o que já está aberto nesta aba não repete a abertura. */
 function ChegadaPelaAbertura({ children }: { children: ReactNode }) {
-  const { pathname, search } = useLocation();
-  if (!aberturaJaVistaNaAba()) return <Navigate to="/abertura" replace state={{ depois: pathname === '/entrar' || pathname === '/inicio' ? null : pathname + search }} />;
+  if (!aberturaJaVistaNaAba()) return <Navigate to="/abertura" replace />;
   return <>{children}</>;
 }
 
