@@ -132,7 +132,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}`, grupo: 'escolar' },
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos,
-          I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
+          I.unidades, I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.gestao, I.indicadores, I.auditoria, I.regras, I.suporte, I.ajuda,
         ],
       };
@@ -149,7 +149,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, grupo: 'escolar' },
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.biblioteca, I.eventos, I.verificar,
-          I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
+          I.unidades, I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.suporte, I.ajuda,
         ],
       };
@@ -167,13 +167,13 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola', grupo: 'matricula' },
           { to: '/familia/documentos', label: 'Documentos e fotos', icon: FolderOpen, grupo: 'matricula' },
           { to: '/escola?aba=transporte', label: 'Transporte escolar', icon: Bus, match: '/escola', grupo: 'matricula' },
-          { ...I.vagas, label: 'Consultar vagas' }, { ...I.mapa, label: 'Unidades no mapa', grupo: 'matricula' },
+          { ...I.vagas, label: 'Consultar vagas' }, { ...I.unidades, grupo: 'matricula' }, { ...I.mapa, label: 'Unidades no mapa', grupo: 'matricula' },
           I.regras, I.ajuda],
       };
     case 'PROFESSOR':
       return {
         primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.ocorrencias, I.meuPonto, I.mural],
-        more: [I.reunioes, I.calendario, I.biblioteca, I.eventos, I.regras, I.suporte, I.ajuda],
+        more: [I.reunioes, I.calendario, I.biblioteca, I.eventos, I.unidades, I.regras, I.suporte, I.ajuda],
       };
     case 'NUTRICAO':
       return {
@@ -193,7 +193,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'PROFESSOR_AEE':
       return {
         primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.meuPonto, I.mural, I.calendario],
-        more: [I.reunioes, I.eventos, I.regras, I.suporte, I.ajuda],
+        more: [I.reunioes, I.eventos, I.unidades, I.regras, I.suporte, I.ajuda],
       };
     case 'COMERCIAL':
       return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [] };
