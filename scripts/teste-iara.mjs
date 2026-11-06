@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa|reuniao]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -98,8 +98,11 @@ if (roteiro === 'conversa') {
   if (!/poucas palavras/.test(ultimaIara()?.body ?? '')) falhas.push(`Outro motivo não pediu o texto: ${ultimaIara()?.body}`);
   await send('a família vai se mudar para outra cidade');
   // a oferta não existe: a IARA tenta gravar a recusa com o texto digitado e o banco recusa, sem gravar nada
-  const fim = (conv.messages ?? []).slice(-2).map((m) => m.body).join(' ');
-  if (/poucas palavras/.test(fim) || /Recusa registrada/.test(fim)) falhas.push(`o texto não foi para a recusa: ${fim.slice(0, 160)}`);
+  if (!/Oferta não encontrada/.test(ultimaIara()?.body ?? '')) falhas.push(`o texto não foi para a recusa: ${ultimaIara()?.body?.slice(0, 160)}`);
+  // uma pergunta no meio da recusa não pode virar motivo: recusar libera a vaga
+  await send('Recusar vaga', `decline:${falsa}`);
+  await send('qual o prazo para responder a oferta?');
+  if (/Oferta não encontrada/.test(ultimaIara()?.body ?? '')) falhas.push('a pergunta virou motivo de recusa');
   if (falhas.length) {
     console.error('\nFALHAS:\n' + falhas.join('\n'));
     process.exit(1);
@@ -121,6 +124,14 @@ if (roteiro === 'conversa') {
     process.exit(1);
   }
   console.log('\n✓ O que não tem, diz que não tem.');
+} else if (roteiro === 'reuniao') {
+  // registro de reunião da Ana Luísa: o aviso vem antes de qualquer assunto, e a leitura traz os dois botões.
+  // Não responde, para não mudar o registro de demonstração.
+  await espera('oi', /registro da escola|Antes de continuar|URGENTE/);
+  await tap('Ler e responder');
+  if (lastQuick(conv).some((q) => q.label.startsWith('Confirmar código'))) await tap('Confirmar código');
+  const botoes = lastQuick(conv).map((q) => q.label);
+  if (!botoes.includes('Confirmo o registro') || !botoes.includes('Quero me manifestar')) falhas.push(`sem os botões de resposta: ${botoes.join(', ')}`);
 } else if (roteiro === 'avisos') {
   // avisos: todo aviso com data e hora e ciência; a ciência leva ao histórico. Grava ciências ao vivo; saem com "Limpar depois da apresentação".
   await send('tem algum aviso da escola?');

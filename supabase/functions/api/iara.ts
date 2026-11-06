@@ -146,7 +146,7 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto"]);
+const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto"]);
 /** Motivos da ausência (mensagem de busca ativa): os mesmos do portal. */
 const MOTIVO_AUSENCIA: [string, string][] = [["SAUDE", "Saúde"], ["CONSULTA", "Consulta ou atendimento"], ["TRANSPORTE", "Transporte"],
   ["DIFICULDADE_FAMILIAR", "Dificuldade familiar"], ["RECUSA", "Dificuldade para ir à escola"], ["OUTRO", "Outro motivo"], ["ESTA_NA_ESCOLA", "Estava na escola"]];
@@ -346,7 +346,7 @@ const BOTAO_NEGATIVO = /^(nao|agora nao|nao,|depois)/;
 /** Sem assunto próprio: dentro de um passo da conversa, são a resposta do passo. */
 const SEM_ASSUNTO = new Set(["desconhecido", "saudacao", "confirmacao"]);
 /** Passos de resposta curta: se a pessoa muda de assunto aqui, a conversa acompanha (nos narrativos, o texto é a própria resposta). */
-const PASSOS_CURTOS = new Set(["name", "bairro", "child_name", "adult_name", "city", "phone", "email"]);
+const PASSOS_CURTOS = new Set(["decline_reason", "name", "bairro", "child_name", "adult_name", "city", "phone", "email"]);
 /** Assuntos que a pessoa pode repetir só citando outra criança ("e o Davi?"). */
 const TEMAS_CONTINUAVEIS = new Set(["documentos", "frequencia", "boletim", "fila", "acompanhar", "oferta", "cardapio", "agenda", "ocorrencias", "transporte", "biblioteca", "medidas", "aulas", "aee_plano", "rematricula", "avisos"]);
 const SIGLAS_DA_BASE = new Set(["aee", "cid", "eja", "tea", "tgd", "sus", "pcd"]);
