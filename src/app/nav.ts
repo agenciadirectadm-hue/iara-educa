@@ -1,4 +1,4 @@
-import { Accessibility, Users2, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
+import { HeartHandshake, Shirt, TrendingUp, Accessibility, Users2, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -81,6 +81,11 @@ const I = {
   oraculo: { to: '/oraculo', label: 'Oráculo', icon: Sparkles, grupo: 'gestao' },
   meuPonto: { to: '/ponto', label: 'Meu ponto', icon: Clock, grupo: 'gestao' },
   pontoEquipe: { to: '/ponto/equipe', label: 'Ponto da equipe', icon: Clock, grupo: 'gestao' },
+  // uniformes e kits, apoio interdisciplinar, Ideb e órgãos externos
+  uniformes: { to: '/uniformes', label: 'Uniformes e kits', icon: Shirt, grupo: 'estrutura' },
+  apoio: { to: '/apoio', label: 'Apoio interdisciplinar', icon: HeartHandshake, grupo: 'pedagogico' },
+  ideb: { to: '/ideb', label: 'Ideb das escolas', icon: TrendingUp, grupo: 'gestao' },
+  orgaos: { to: '/orgaos', label: 'Uniformes, kits e Ideb', icon: Scale, grupo: 'controle' },
 } satisfies Record<string, NavItem>;
 
 /** Agrupa os itens na ordem dos grupos, mantendo a ordem de cada grupo. */
@@ -93,7 +98,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
   const unitId = me?.unit?.id;
   switch (role) {
     case 'PREFEITO':
-      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.reunioes, I.recusas, I.oraculo, I.bolsaFamilia, I.publicos, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [I.reunioes, I.recusas, I.oraculo, I.bolsaFamilia, I.publicos, I.uniformes, I.ideb, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
     case 'SECRETARIO':
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
@@ -102,8 +107,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [I.iara, I.whatsapp,
           I.vagas, I.ofertas, ...(role === 'GERENCIA_EI' ? [] : [I.recusas]), I.rematricula, I.alunos, I.responsaveis, I.validacoes,
           I.frequencia, I.presenca, I.bolsaFamilia, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
-          I.desempenho, I.aee, I.biblioteca, I.eventos,
-          I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.manutencao,
+          I.desempenho, I.ideb, I.aee, I.apoio, I.biblioteca, I.eventos,
+          I.ensalamento, I.transporte, I.mapaRotas, I.nutricao, I.materiais, I.uniformes, I.manutencao,
           I.gestao, I.pessoal, I.indicadores,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.auditoria, I.qualidade, I.regras,
@@ -112,10 +117,10 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'CONTROLE_EXTERNO':
       return {
         primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.unidades, I.controleFila, I.controleCaso, I.controleReunioes, I.regras],
-        more: [I.recusas, I.distancias, I.mapa, I.indicadores, I.qualidade, I.ajuda],
+        more: [I.orgaos, I.recusas, I.distancias, I.mapa, I.indicadores, I.qualidade, I.ajuda],
       };
     case 'INOVACAO':
-      return { primary: [I.inicio, I.unidades, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.nutricao, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.unidades, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.nutricao, I.uniformes, I.ideb, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.suporte, I.ajuda] };
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
@@ -135,8 +140,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { ...I.ofertas, label: 'Matrículas e ofertas' }, I.rematricula, I.alunos, I.responsaveis, I.validacoes,
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, match: `/unidades/${unitId}`, grupo: 'escolar' },
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
-          I.desempenho, I.aee, I.biblioteca, I.eventos,
-          I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
+          I.desempenho, I.aee, I.apoio, I.biblioteca, I.eventos,
+          I.ensalamento, I.transporte, I.materiais, I.uniformes, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.gestao, I.indicadores, I.auditoria, I.regras, I.suporte, I.ajuda,
         ],
       };
@@ -153,8 +158,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.atendimentos, I.rematricula, I.responsaveis, I.validacoes, { ...I.fila, to: `/fila?unidade=${unitId}` },
           { to: `/unidades/${unitId}?aba=turmas`, label: 'Turmas', icon: GraduationCap, grupo: 'escolar' },
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
-          I.desempenho, I.aee, I.biblioteca, I.eventos, I.verificar,
-          I.ensalamento, I.transporte, I.materiais, I.cozinha, I.manutencao, I.mapa,
+          I.desempenho, I.aee, I.apoio, I.biblioteca, I.eventos, I.verificar,
+          I.ensalamento, I.transporte, I.materiais, I.uniformes, I.cozinha, I.manutencao, I.mapa,
           I.pessoal, I.pontoEquipe, I.suporte, I.ajuda,
         ],
       };
@@ -167,6 +172,8 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           { to: '/escola?aba=boletim', label: 'Boletim', icon: GraduationCap, match: '/escola', grupo: 'escolar' }, { to: '/escola?aba=historico', label: 'Histórico escolar', icon: GraduationCap, match: '/escola', grupo: 'escolar' },
           { to: '/escola?aba=biblioteca', label: 'Biblioteca', icon: LibraryBig, match: '/escola', grupo: 'escolar' }, { to: '/escola?aba=eventos', label: 'Eventos e certificados', icon: Award, match: '/escola', grupo: 'escolar' },
           { ...I.calendario, to: '/escola?aba=calendario', match: '/escola' },
+          { to: '/escola?aba=uniforme', label: 'Uniforme e kit', icon: Shirt, match: '/escola', grupo: 'escolar' },
+          { to: '/escola?aba=apoio', label: 'Apoio interdisciplinar', icon: HeartHandshake, match: '/escola', grupo: 'escolar' },
           { to: '/minhas-ofertas', label: 'Ofertas de vaga', icon: Handshake, grupo: 'matricula' },
           { to: '/escola?aba=rematricula', label: 'Rematrícula', icon: ArrowRightLeft, match: '/escola', grupo: 'matricula' },
           { to: '/escola?aba=declaracoes', label: 'Declarações', icon: ScrollText, match: '/escola', grupo: 'matricula' },
@@ -193,12 +200,30 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'ALMOXARIFADO':
       return {
         primary: [{ ...I.inicio, label: 'Almoxarifado', icon: Warehouse }, { ...I.materiais, label: 'Estoque' }, I.unidades, I.cozinha, I.mapa],
-        more: [I.calendario, I.eventos, I.suporte, I.ajuda],
+        more: [I.uniformes, I.calendario, I.eventos, I.suporte, I.ajuda],
       };
     case 'PROFESSOR_AEE':
       return {
         primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.unidades, I.meuPonto, I.mural, I.calendario],
-        more: [I.reunioes, I.eventos, I.regras, I.suporte, I.ajuda],
+        more: [I.apoio, I.reunioes, I.eventos, I.regras, I.suporte, I.ajuda],
+      };
+    case 'GERENCIA_APOIO':
+      return {
+        primary: [{ ...I.inicio, label: 'Apoio interdisciplinar', icon: HeartHandshake }, I.unidades, I.aee, I.gestao],
+        more: [I.calendario, I.regras, I.suporte, I.ajuda],
+      };
+    case 'APOIO_INTERDISCIPLINAR':
+      return {
+        primary: [{ ...I.inicio, label: 'Meus casos', icon: HeartHandshake }, I.unidades, I.calendario],
+        more: [I.suporte, I.ajuda],
+      };
+    case 'TRIBUNAL_CONTAS':
+    case 'CONSELHOS':
+    case 'CONSELHO_TUTELAR':
+    case 'CAMARA':
+      return {
+        primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.unidades, I.mapa, I.ideb],
+        more: [I.regras, I.qualidade, I.ajuda],
       };
     case 'COMERCIAL':
       return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [] };

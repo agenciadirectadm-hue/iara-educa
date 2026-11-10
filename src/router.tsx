@@ -58,6 +58,11 @@ const Chamado = lazy(() => import('./pages/Chamado'));
 const Mural = lazy(() => import('./pages/Mural'));
 const Calendario = lazy(() => import('./pages/Calendario'));
 const Escola = lazy(() => import('./pages/Escola'));
+const Uniformes = lazy(() => import('./pages/Uniformes'));
+const Apoio = lazy(() => import('./pages/Apoio'));
+const ApoioCaso = lazy(() => import('./pages/ApoioCaso'));
+const PainelOrgao = lazy(() => import('./pages/orgaos/PainelOrgao'));
+const Ideb = lazy(() => import('./pages/Ideb'));
 const Diario = lazy(() => import('./pages/Diario'));
 const Ocorrencias = lazy(() => import('./pages/Ocorrencias'));
 const Validacoes = lazy(() => import('./pages/Validacoes'));
@@ -210,6 +215,11 @@ export const router = createHashRouter([
       { path: '/validacoes', element: <RequireSession>{S(<Validacoes />)}</RequireSession>, handle: { wide: true } },
       { path: '/familia/documentos', element: <RequireSession>{S(<DocumentosFamilia />)}</RequireSession> },
       { path: '/materiais', element: <RequireSession>{S(<Materiais />)}</RequireSession>, handle: { wide: true } },
+      { path: '/uniformes', element: <RequireSession>{S(<Uniformes />)}</RequireSession>, handle: { wide: true } },
+      { path: '/apoio', element: <RequireSession>{S(<Apoio />)}</RequireSession>, handle: { wide: true } },
+      { path: '/apoio/:id', element: <RequireSession>{S(<ApoioCaso />)}</RequireSession>, handle: { wide: true } },
+      { path: '/orgaos', element: <RequireSession>{S(<PainelOrgao />)}</RequireSession>, handle: { wide: true } },
+      { path: '/ideb', element: S(<Ideb />), handle: { wide: true } },
       { path: '/pessoal', element: <RequireSession>{S(<Pessoal />)}</RequireSession>, handle: { wide: true } },
       { path: '/pessoal/:id', element: <RequireSession>{S(<Servidor />)}</RequireSession>, handle: { wide: true } },
       { path: '/frequencia', element: <RequireSession>{S(<Frequencia />)}</RequireSession>, handle: { wide: true } },

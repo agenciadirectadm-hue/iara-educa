@@ -69,6 +69,8 @@ const ESCOLA_MENU: QuickReply[] = [
   { label: "O que estudou", action: "intent:aulas" },
   { label: "Rematrícula", action: "intent:rematricula" },
   { label: "Eventos e certificados", action: "intent:eventos" },
+  { label: "Uniforme e kit escolar", action: "intent:uniforme" },
+  { label: "Apoio (psicologia, fono…)", action: "intent:apoio" },
 ];
 /** Sprint 2 (pedagógico): rótulos usados no boletim, no AEE e nas declarações. */
 const PORTAL = (Deno.env.get("PORTAL_URL") ?? "https://agenciadirectadm-hue.github.io/iara-educa/").replace(/\/?$/, "/");
@@ -146,7 +148,7 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto", "ob_unidade"]);
+const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto", "ob_unidade", "ut_sup", "ut_inf", "ut_calc", "up_tipo", "up_motivo", "ap_area", "ap_motivo"]);
 /** Motivos da ausência (mensagem de busca ativa): os mesmos do portal. */
 const MOTIVO_AUSENCIA: [string, string][] = [["SAUDE", "Saúde"], ["CONSULTA", "Consulta ou atendimento"], ["TRANSPORTE", "Transporte"],
   ["DIFICULDADE_FAMILIAR", "Dificuldade familiar"], ["RECUSA", "Dificuldade para ir à escola"], ["OUTRO", "Outro motivo"], ["ESTA_NA_ESCOLA", "Estava na escola"]];
@@ -251,6 +253,24 @@ function nomeDeUnidade(t: string): string | null {
   return m ? limparNomeDeUnidade(m[1]) : null;
 }
 
+/** Uniformes e kits: nome do conteúdo. */
+const UK_CONTEUDO: Record<string, string> = { UNIFORME: "Uniforme", KIT: "Kit escolar", ADAPTADO: "Material adaptado" };
+
+/** Apoio interdisciplinar: a área citada na mensagem (pelas palavras de cada área). */
+function areaApoio(t: string, areas: { codigo: string; palavras?: string | null }[]): string | null {
+  const fixas: [RegExp, string][] = [
+    [/(fono|fala|gaguej|troca (as )?letras|nao fala|audic|escuta mal|linguagem)/, "FONOAUDIOLOGIA"],
+    [/(psicopedag|dislex|discalc|disgraf|disortograf|tdah|dda\b|deficit de atencao|dificuldade (de|para|na) (aprend|ler|leitura|escrever|escrita))/, "ACOMPANHAMENTO_PEDAGOGICO"],
+    [/(psicolog|ansiedade|ansios|emocional|luto|tristeza)/, "PSICOLOGIA"],
+    [/(orientac(ao|oes) educacional|orientadora? educacional|conflito|briga)/, "ORIENTACAO_EDUCACIONAL"],
+    [/(altas habilidades|superdot|muito inteligente)/, "ALTAS_HABILIDADES"],
+    [/(cego|cegueira|baixa visao|braille|nao enxerga)/, "DEFICIENCIA_VISUAL"],
+    [/(estimulac|atraso no desenvolvimento|surd|libras)/, "EDUCACAO_ESPECIAL"],
+  ];
+  for (const [re, cod] of fixas) if (re.test(t) && (!areas.length || areas.some((a) => a.codigo === cod))) return cod;
+  return null;
+}
+
 function detectIntent(t: string): string {
   // segurança primeiro: valem em qualquer ponto da conversa
   if (/(quero morrer|me matar|tirar (a )?minha vida|suicid)/.test(t)) return "crise";
@@ -263,8 +283,11 @@ function detectIntent(t: string): string {
   if (/(quem e voce|voce e (um |uma )?(robo|pessoa|ia\b|inteligencia)|e (um )?robo|com quem (eu )?(falo|estou falando)|o que voce (faz|sabe|pode|consegue)|como voce funciona|o que da (pra|para) fazer)/.test(t)) return "sobre_iara";
   if (perguntaOnibusDeLinha(t)) return "onibus_linha";
   if (/(que horas|horario)/.test(t) && sinalTransporteEscolar(t)) return "transporte";
+  // apoio interdisciplinar e uniformes/kits: o que a família vê no portal (Vida escolar)
+  if (/(psicolog|fonoaud|\bfono\b|psicopedag|apoio interdisciplinar|orientac(ao|oes) educacional|orientadora? educacional|altas habilidades|superdota|dislex|discalcul|disgraf|\btdah\b|troca (as )?letras|gaguej|estimulacao essencial|baixa visao|orientac(ao|oes) do apoio)/.test(t)) return "apoio";
+  if (/(uniforme|camiseta|jaqueta|blusa de la|papete|bermuda|shorts?.saia|kit escolar|material escolar|lista de material|codigo (do|de|da) (uniforme|kit|retirada)|retirar (o |a )?(uniforme|kit|material))/.test(t)) return "uniforme";
   // perguntas gerais: respondem pela base oficial, sem pedir identidade
-  if (/(como funciona|quais? (sao )?(os |as )?(criterios?|regras?)|quanto tempo demora|demora quanto|quanto demora|como e a (fila|pontuacao)|como (eu )?(peco|solicito|consigo|faco para (pedir|conseguir)) (uma )?vaga|quem resolve|que etapas|quais etapas|uniforme|material escolar|lista de material|professora? de apoio|mediador|auxiliar de sala)/.test(t)) return "conhecimento";
+  if (/(como funciona|quais? (sao )?(os |as )?(criterios?|regras?)|quanto tempo demora|demora quanto|quanto demora|como e a (fila|pontuacao)|como (eu )?(peco|solicito|consigo|faco para (pedir|conseguir)) (uma )?vaga|quem resolve|que etapas|quais etapas|professora? de apoio|mediador|auxiliar de sala)/.test(t)) return "conhecimento";
   if (/\b(tem|vai ter|ha|teve|vai haver) aula\b|\b(escola|creche|cmei|unidade)\b.{0,20}\b(aberta|aberto|abre|abriu|fechada|fechado|fecha|fechou|funcionando|funciona)\b|\b(e|sera) dia (letivo|de aula)\b/.test(t)) return "tem_aula";
   if (/quando (comeca|comecam|acaba|acabam|termina|terminam|volta|voltam) (as |a |o )?(aula|ferias|ano letivo)/.test(t)) return "calendario";
   if (/(que horas|horario|hora de (entrada|saida)|qual (e )?a turma|qual turma|em (que|qual) (escola|cmei|creche)|qual (e )?a (escola|creche)|onde .{1,20} estuda|quem e a professora|qual (e )?a professora|nome da professora)/.test(t)) return "minha_escola";
@@ -410,7 +433,7 @@ const SEM_ASSUNTO = new Set(["desconhecido", "saudacao", "confirmacao"]);
 /** Passos de resposta curta: se a pessoa muda de assunto aqui, a conversa acompanha (nos narrativos, o texto é a própria resposta). */
 const PASSOS_CURTOS = new Set(["decline_reason", "name", "bairro", "child_name", "adult_name", "city", "phone", "email", "ob_unidade"]);
 /** Assuntos que a pessoa pode repetir só citando outra criança ("e o Davi?"). */
-const TEMAS_CONTINUAVEIS = new Set(["documentos", "frequencia", "boletim", "fila", "acompanhar", "oferta", "cardapio", "agenda", "ocorrencias", "transporte", "onibus_linha", "biblioteca", "medidas", "aulas", "aee_plano", "rematricula", "avisos"]);
+const TEMAS_CONTINUAVEIS = new Set(["documentos", "frequencia", "boletim", "fila", "acompanhar", "oferta", "cardapio", "agenda", "ocorrencias", "transporte", "onibus_linha", "biblioteca", "medidas", "aulas", "aee_plano", "rematricula", "avisos", "uniforme", "apoio"]);
 const SIGLAS_DA_BASE = new Set(["aee", "cid", "eja", "tea", "tgd", "sus", "pcd"]);
 const PALAVRAS_VAZIAS = new Set(["quanto", "quantos", "quantas", "tempo", "quais", "para", "pela", "pelo", "como", "qual", "quais", "quando", "onde", "quero", "preciso", "gostaria", "saber", "minha", "minhas", "meus", "voce", "voces", "esta", "estao", "isso", "essa", "esse", "tenho", "temos", "pode", "posso", "fazer", "aqui", "hoje", "muito", "mais", "ainda", "sobre", "porque", "tambem", "tudo", "crianca", "filho", "filha", "escola"]);
 
@@ -901,6 +924,10 @@ export class Agent {
         return await this.biblioteca();
       case "medidas":
         return await this.medidas();
+      case "uniforme":
+        return await this.uniformes(norm(text));
+      case "apoio":
+        return await this.apoio(norm(text));
       case "aulas":
         return await this.aulasFamilia();
       case "rematricula":
@@ -1144,6 +1171,28 @@ export class Agent {
         return await this.ausenciaResponder(value);
       case "bib_ren":
         return await this.bibliotecaRenovar(value);
+      case "uk_ok":
+        return await this.uniformeCiente(value);
+      case "uk_tam": {
+        if (!this.needGuardian("intent:uniforme") || !this.ensureVerified("intent:uniforme")) return;
+        const [sid, ano] = value.split("|");
+        const r = await this.tool("get_uniforms", "familia_uniformes", {});
+        const f = ((r?.filhos ?? []) as any[]).find((x) => x.student_id === sid);
+        if (!f) return this.say("Não encontrei essa criança na sua família.");
+        return await this.startUkTamanho(r, f, Number(ano));
+      }
+      case "uk_ped": {
+        if (!this.needGuardian("intent:uniforme") || !this.ensureVerified("intent:uniforme")) return;
+        const r = await this.tool("get_uniforms", "familia_uniformes", {});
+        return await this.startUkPedido((r?.filhos ?? []) as any[]);
+      }
+      case "api_ok":
+        return await this.apoioCiente(value);
+      case "api_ped": {
+        if (!this.needGuardian("intent:apoio") || !this.ensureVerified("intent:apoio")) return;
+        const r = await this.tool("get_support", "familia_apoio", {});
+        return await this.startApoioPedido(r, value || null);
+      }
       case "rem_ok":
         return await this.rematriculaResponder(value, "CONFIRMAR", undefined, `rem_ok:${value}`);
       case "rem_motivo":
@@ -1932,6 +1981,9 @@ export class Agent {
     if (flow === "duvida" && step === "question") return await this.knowledge(text);
     if (flow === "justificar") return await this.justificarStep(text);
     if (flow === "restricao") return await this.restricaoStep(text);
+    if (flow === "uk_tam") return await this.ukTamanhoStep(text);
+    if (flow === "uk_ped") return await this.ukPedidoStep(text);
+    if (flow === "api_ped") return await this.apoioPedidoStep(text);
     if (flow === "bilhete") return await this.bilheteStep(text);
     if (flow === "documento" || flow === "foto" || flow === "anexo") return await this.arquivoStep(text);
     if (flow === "alterar_dados") return await this.alterarDadosStep(text);
@@ -2900,6 +2952,248 @@ export class Agent {
     }
     this.say("As medidas feitas na escola:", { cards, notice: "A nutricionista da rede acompanha as medidas; dúvidas sobre a saúde, procure a UBS." });
     this.done("Consultou peso e altura.");
+  }
+
+  // ================================================================== Uniformes e kits escolares (portal: Vida escolar → Uniforme e kit)
+  private async uniformes(t: string): Promise<void> {
+    if (!this.needGuardian("intent:uniforme")) return;
+    if (!this.ensureVerified("intent:uniforme")) return;
+    const r = await this.tool("get_uniforms", "familia_uniformes", {});
+    const filhos = ((r?.filhos ?? []) as any[]);
+    if (!filhos.length) {
+      this.done();
+      return this.say("O uniforme e o kit escolar são entregues aos alunos matriculados na rede municipal. Não encontrei criança matriculada sob sua responsabilidade.", { quick_replies: [MENU[0]] });
+    }
+    if (/(trocar|troca\b|nao serviu|nao serve|apertad|ficou pequen|ficou grande|perdeu|perdi|rasgou|rasgad|estragou|repor|reposic)/.test(t)) return await this.startUkPedido(filhos, t);
+    if (/(tamanho|informar|medida da roupa|numero do (calcado|sapato|tenis))/.test(t)) {
+      const alvo = this.ukPendenteTamanho(r, filhos, t);
+      if (alvo) return await this.startUkTamanho(r, alvo.f, alvo.ano);
+    }
+    const cards: Card[] = [];
+    const quick: QuickReply[] = [];
+    for (const f of filhos) {
+      for (const a of (f.anos ?? []) as any[]) {
+        const camp = ((r.campanhas ?? []) as any[]).find((c) => c.ano === a.ano);
+        const nec = (a.necessidades ?? []) as any[];
+        const lines: string[] = [];
+        if (a.tamanhos) lines.push(`Tamanhos: cima ${a.tamanhos.superior}, baixo ${a.tamanhos.inferior}, calçado ${a.tamanhos.calcado} · ${a.tamanhos.modelo === "SHORTS_SAIA" ? "shorts-saia" : "bermuda"}`);
+        else if (camp?.coleta_aberta && a.etapa && a.etapa !== "EJA") {
+          lines.push(`Falta informar os tamanhos (até ${diaBr(camp.coleta_fim)}).`);
+          quick.push({ label: `Tamanhos de ${f.primeiro_nome}`, action: `uk_tam:${f.student_id}|${a.ano}` });
+        }
+        for (const n of nec) {
+          const nome = `${UK_CONTEUDO[n.conteudo] ?? n.conteudo}${n.tipo !== "ANUAL" ? ` (${String(n.tipo_rotulo).toLowerCase()})` : ""}`;
+          if (n.situacao === "DISPONIVEL") lines.push(`✅ ${nome}: pode retirar no(a) ${n.unidade} até ${diaBr(n.prazo_retirada)}. Código de retirada: *${n.codigo}*`);
+          else if (n.situacao === "RETIRADA" || n.situacao === "PARCIAL") lines.push(`${nome}: retirado em ${dataHoraBr(n.retirada_em)} por ${n.retirada_por}${n.situacao === "PARCIAL" ? " (faltou peça)" : ""}.`);
+          else if (n.situacao === "NEGADA") lines.push(`${nome}: não aprovado. ${n.decisao_motivo ?? ""}`);
+          else lines.push(`${nome}: ${String(n.situacao_rotulo).toLowerCase()}.`);
+        }
+        if (lines.length) cards.push({ title: `${f.primeiro_nome} · ${a.ano}`, subtitle: a.etapa_rotulo ?? undefined, lines, tone: nec.some((n) => n.situacao === "DISPONIVEL") ? "purple" : "blue" });
+      }
+    }
+    for (const a of ((r.avisos ?? []) as any[]).slice(0, 3)) quick.push({ label: `Estou ciente: ${String(a.titulo).slice(0, 20)}`, action: `uk_ok:${a.id}` });
+    quick.push({ label: "Pedir troca ou reposição", action: "uk_ped:" });
+    const avisos = ((r.avisos ?? []) as any[]).length;
+    this.done("Consultou uniforme e kit escolar.");
+    this.say(avisos ? `Uniforme e kit escolar. Você tem ${avisos} aviso(s) aguardando a sua ciência:` : "Uniforme e kit escolar:", {
+      cards: cards.length ? cards : [{ title: "Uniforme e kit", lines: ["Nada pendente por enquanto. Quando o material chegar na escola, eu aviso com o código de retirada."], tone: "blue" }],
+      quick_replies: quick.slice(0, 9),
+      notice: "Pode retirar o responsável ou a pessoa autorizada a buscar a criança. Sem o código, leve documento com foto.",
+    });
+  }
+
+  private ukPendenteTamanho(r: any, filhos: any[], t: string): { f: any; ano: number } | null {
+    const pend: { f: any; ano: number }[] = [];
+    for (const f of filhos) for (const a of (f.anos ?? []) as any[]) {
+      const camp = ((r.campanhas ?? []) as any[]).find((c) => c.ano === a.ano);
+      if (camp?.coleta_aberta && a.etapa && a.etapa !== "EJA") pend.push({ f, ano: a.ano });
+    }
+    return pend.find((p) => temNome(t, p.f.primeiro_nome)) ?? pend.find((p) => !((p.f.anos ?? []) as any[]).find((a) => a.ano === p.ano)?.tamanhos) ?? pend[0] ?? null;
+  }
+
+  private async startUkTamanho(r: any, f: any, ano: number): Promise<void> {
+    const a = ((f.anos ?? []) as any[]).find((x) => x.ano === ano) ?? {};
+    this.ctx = { flow: "uk_tam", step: "ut_modelo", data: { student_id: f.student_id, nome: f.primeiro_nome, ano, grade: r.grade, sug: a.sugestao ?? {} } };
+    this.ask("ut_modelo", `Vamos aos tamanhos do uniforme ${ano} de ${f.primeiro_nome}${a.etapa_rotulo ? ` (${a.etapa_rotulo})` : ""}. São 4 perguntas rápidas. A parte de baixo vai ser shorts-saia ou bermuda?`, {
+      quick_replies: [{ label: "Shorts-saia", action: "ans:SHORTS_SAIA" }, { label: "Bermuda", action: "ans:BERMUDA" }],
+    });
+  }
+
+  private ukOpcoes(lista: string[], sug: string | undefined, n = 7): QuickReply[] {
+    const i = Math.max(0, lista.indexOf(String(sug ?? "")));
+    const ini = Math.max(0, Math.min(i - 2, lista.length - n));
+    return lista.slice(ini, ini + n).map((v) => ({ label: v === String(sug) ? `${v} (comum na idade)` : v, action: `ans:${v}` }));
+  }
+
+  private async ukTamanhoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    const roupa: string[] = d.grade?.ROUPA ?? [];
+    const calc: string[] = d.grade?.CALCADO ?? [];
+    const valorRoupa = () => roupa.find((v) => v.toLowerCase() === t.replace(/^tam(anho)?\s*/, "").trim()) ?? null;
+    if (this.ctx.step === "ut_modelo") {
+      const modelo = /shorts|saia/i.test(text) ? "SHORTS_SAIA" : /bermuda/i.test(text) ? "BERMUDA" : null;
+      if (!modelo) return this.repetirOpcoes("É shorts-saia ou bermuda?");
+      this.ctx.data = { ...d, modelo };
+      return this.ask("ut_sup", `E o tamanho da parte de cima (camisetas, jaqueta e blusa de lã)? Na idade de ${d.nome}, o mais comum é ${d.sug?.superior ?? "6"}.`, { quick_replies: this.ukOpcoes(roupa, d.sug?.superior) });
+    }
+    if (this.ctx.step === "ut_sup") {
+      const v = valorRoupa();
+      if (!v) return this.repetirOpcoes(`Não achei esse tamanho. A grade é: ${roupa.join(", ")}.`);
+      this.ctx.data = { ...d, superior: v };
+      return this.ask("ut_inf", "E a parte de baixo (calça e shorts-saia ou bermuda)?", { quick_replies: this.ukOpcoes(roupa, v) });
+    }
+    if (this.ctx.step === "ut_inf") {
+      const v = valorRoupa();
+      if (!v) return this.repetirOpcoes(`Não achei esse tamanho. A grade é: ${roupa.join(", ")}.`);
+      this.ctx.data = { ...d, inferior: v };
+      return this.ask("ut_calc", "Por último: qual o número do calçado? (Serve para a papete até o Infantil 3 e para as meias a partir do Infantil 4.)", { quick_replies: this.ukOpcoes(calc, String(d.sug?.calcado ?? "")) });
+    }
+    if (this.ctx.step === "ut_calc") {
+      const num = (t.match(/\d{2}/) ?? [])[0];
+      if (!num || !calc.includes(num)) return this.repetirOpcoes(`Me diga o número do calçado, de ${calc[0] ?? 16} a ${calc[calc.length - 1] ?? 36}.`);
+      this.ctx.data = { ...d, calcado: num };
+      return this.ask("ut_ok", `Confere? Uniforme ${d.ano} de ${d.nome}: cima ${d.superior}, baixo ${d.inferior}, calçado ${num}, ${d.modelo === "SHORTS_SAIA" ? "shorts-saia" : "bermuda"}.`, { quick_replies: YES_NO });
+    }
+    if (this.ctx.step === "ut_ok") {
+      if (yesNo(t) === false) {
+        this.done();
+        return this.say("Tudo bem, não registrei. Quando quiser, é só dizer “tamanho do uniforme”.");
+      }
+      const r = await this.tool("inform_uniform_sizes", "familia_uniformes_tamanhos",
+        { student_id: d.student_id, ano: d.ano, modelo: d.modelo, superior: d.superior, inferior: d.inferior, calcado: d.calcado, canal: "WHATSAPP" },
+        `uk_tam:${d.student_id}:${d.ano}:${d.superior}:${d.inferior}:${d.calcado}:${d.modelo}`);
+      this.done(`Informou os tamanhos do uniforme ${d.ano}.`);
+      return this.say(`Registrado ✅ A escola e a SEDUC já têm os tamanhos de ${d.nome}${r?.meia ? ` (meias ${r.meia})` : ""}. Quando o uniforme chegar, eu aviso com o código de retirada.`, { quick_replies: [{ label: "Uniforme e kit", action: "intent:uniforme" }, MENU[9]] });
+    }
+  }
+
+  /** Troca ou reposição já dita na frase ("ficou pequena", "perdeu o kit"): não pergunta de novo. */
+  private ukTipoDaFrase(t: string): string | null {
+    if (/(nao serv|pequen|apertad|ficou grande|grande demais|curt[ao]|troca|trocar)/.test(t)) return "TROCA_TAMANHO";
+    if (/(perd|rasg|estrag|furtad|roubad|sumiu|repor|reposic)/.test(t)) return /\bkit\b|caderno|lapis|mochila|estojo|material escolar/.test(t) ? "REPOSICAO_KIT" : "REPOSICAO_UNIFORME";
+    return null;
+  }
+
+  private async startUkPedido(filhos: any[], t = ""): Promise<void> {
+    this.ctx = { flow: "uk_ped", step: "up_child", data: { kids: filhos.map((f) => ({ id: f.student_id, nome: f.primeiro_nome })), pre: this.ukTipoDaFrase(t) } };
+    const citada = filhos.find((f) => temNome(t, f.primeiro_nome));
+    if (filhos.length === 1 || citada) return await this.ukPedidoStep((citada ?? filhos[0]).student_id);
+    this.ask("up_child", "É para qual criança?", { quick_replies: filhos.map((f) => ({ label: f.primeiro_nome, action: `ans:${f.student_id}` })) });
+  }
+
+  private async ukPedidoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "up_child") {
+      const kid = (d.kids as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("De qual criança você está falando?");
+      this.ctx.data = { ...d, kid };
+      if (d.pre) {
+        this.ctx.step = "up_tipo";
+        return await this.ukPedidoStep(d.pre);
+      }
+      return this.ask("up_tipo", `O que aconteceu com o material de ${kid.nome}?`, {
+        quick_replies: [{ label: "Uniforme não serviu (troca)", action: "ans:TROCA_TAMANHO" }, { label: "Perdeu ou estragou o uniforme", action: "ans:REPOSICAO_UNIFORME" },
+          { label: "Perdeu ou estragou o kit", action: "ans:REPOSICAO_KIT" }],
+      });
+    }
+    if (this.ctx.step === "up_tipo") {
+      const op = text === "TROCA_TAMANHO" || /(troca|nao serv|pequen|grande|apertad)/.test(t) ? "TROCA_TAMANHO"
+        : text === "REPOSICAO_KIT" || /\bkit\b|caderno|lapis|material/.test(t) ? "REPOSICAO_KIT" : text === "REPOSICAO_UNIFORME" || /(perd|estrag|rasg|uniforme)/.test(t) ? "REPOSICAO_UNIFORME" : null;
+      if (!op) return this.repetirOpcoes("É troca de tamanho ou reposição (perda ou dano)?");
+      this.ctx.data = { ...d, tipo: op === "TROCA_TAMANHO" ? "TROCA_TAMANHO" : "REPOSICAO", conteudo: op === "REPOSICAO_KIT" ? "KIT" : "UNIFORME" };
+      return this.ask("up_motivo", op === "TROCA_TAMANHO" ? "Quais peças não serviram e de que tamanho precisa? (ex.: “a jaqueta 6 ficou apertada, precisa da 8”)" : "Me conte em poucas palavras o que aconteceu e quais peças ou materiais.");
+    }
+    if (this.ctx.step === "up_motivo") {
+      if (text.trim().length < 5) return this.say("Me conte um pouco mais, para a escola entender o pedido.");
+      const r = await this.tool("ask_uniform_change", "familia_uniformes_pedir", { student_id: d.kid.id, tipo: d.tipo, conteudo: d.conteudo, motivo: text.trim().slice(0, 600) },
+        `uk_ped:${d.kid.id}:${d.tipo}:${d.conteudo}`);
+      this.done(`Pediu ${d.tipo === "TROCA_TAMANHO" ? "troca de tamanho" : "reposição"} do ${d.conteudo === "KIT" ? "kit" : "uniforme"}.`);
+      return this.say(`${r?.mensagem ?? "Pedido registrado."} ✅`, { quick_replies: [{ label: "Uniforme e kit", action: "intent:uniforme" }, MENU[9]] });
+    }
+  }
+
+  private async uniformeCiente(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`uk_ok:${id}`)) return;
+    await this.tool("confirm_uniform_notice", "familia_uniformes_ciente", { id, canal: "WHATSAPP" }, `uk_ciente:${id}`);
+    this.done("Deu ciência de um aviso de uniforme e kit.");
+    this.say("Ciência confirmada ✅ O aviso foi para o histórico.", { quick_replies: [{ label: "Uniforme e kit", action: "intent:uniforme" }] });
+  }
+
+  // ================================================================== Apoio interdisciplinar (portal: Vida escolar → Apoio)
+  private async apoio(t: string): Promise<void> {
+    if (!this.needGuardian("intent:apoio")) return;
+    if (!this.ensureVerified("intent:apoio")) return;
+    const r = await this.tool("get_support", "familia_apoio", {});
+    const areas = ((r?.areas ?? []) as any[]);
+    const area = areaApoio(t, areas);
+    const casos = ((r?.casos ?? []) as any[]);
+    const pendentes = casos.flatMap((c) => ((c.orientacoes ?? []) as any[]).filter((o) => !o.ciente_em).map((o) => ({ ...o, c })));
+    const quer = /(quero|preciso|pedir|solicitar|marcar|avaliac|encaminh|consulta|atendimento com)/.test(t);
+    if (quer && ((r?.filhos ?? []) as any[]).length) return await this.startApoioPedido(r, area);
+    const cards: Card[] = [];
+    const quick: QuickReply[] = [];
+    for (const o of pendentes.slice(0, 3)) {
+      cards.push({ title: `Orientação · ${o.c.area}`, subtitle: `${o.c.primeiro_nome} · enviada em ${dataHoraBr(o.enviado_em)} · ${o.autor}`, lines: [o.texto], tone: "purple" });
+      quick.push({ label: `Estou ciente (${o.c.primeiro_nome})`, action: `api_ok:${o.id}` });
+    }
+    for (const c of casos.filter((x) => !["CONCLUIDO", "NAO_ACEITO"].includes(x.situacao)).slice(0, 3)) {
+      cards.push({ title: `${c.area} · ${c.primeiro_nome}`, subtitle: `Protocolo ${c.numero}`, lines: [`${c.situacao_rotulo}${c.profissional ? ` · ${c.profissional} (${String(c.profissional_funcao).toLowerCase()})` : ""}`], tone: "blue" });
+    }
+    if (!cards.length) {
+      const mostrar = area ? areas.filter((a) => a.codigo === area) : areas.filter((a) => a.pode_pedir).slice(0, 4);
+      for (const a of mostrar) cards.push({ title: a.nome, lines: [a.resumo], tone: "blue" });
+    }
+    if (((r?.filhos ?? []) as any[]).length) quick.push({ label: "Pedir avaliação", action: `api_ped:${area ?? ""}` });
+    this.done("Consultou o apoio interdisciplinar.");
+    this.say(pendentes.length ? `Há ${pendentes.length} orientação(ões) do apoio interdisciplinar esperando a sua ciência:`
+      : casos.length ? "O andamento do apoio interdisciplinar:"
+        : "O apoio interdisciplinar da SEDUC (psicologia, fonoaudiologia, psicopedagogia, orientação educacional e mais) atende os alunos da rede. A escola encaminha, e você também pode pedir:", {
+      cards, quick_replies: quick.slice(0, 9),
+      notice: `Gerência: ${r?.contato?.telefone ?? "(44) 3221-6936"} · ${r?.contato?.email ?? ""}. O registro técnico dos profissionais é sigiloso; você recebe o andamento e as orientações.`,
+    });
+  }
+
+  private async startApoioPedido(r: any, area: string | null): Promise<void> {
+    const kids = ((r?.filhos ?? []) as any[]).map((f) => ({ id: f.student_id, nome: f.primeiro_nome }));
+    const areas = ((r?.areas ?? []) as any[]).filter((a) => a.pode_pedir).map((a) => ({ codigo: a.codigo, nome: a.nome }));
+    this.ctx = { flow: "api_ped", step: "ap_child", data: { kids, areas, area } };
+    if (kids.length === 1) return await this.apoioPedidoStep(kids[0].id);
+    this.ask("ap_child", "É para qual criança?", { quick_replies: kids.map((k) => ({ label: k.nome, action: `ans:${k.id}` })) });
+  }
+
+  private async apoioPedidoStep(text: string): Promise<void> {
+    const d = this.ctx.data ?? {};
+    const t = norm(text);
+    if (this.ctx.step === "ap_child") {
+      const kid = (d.kids as any[]).find((k) => k.id === text || temNome(t, k.nome));
+      if (!kid) return this.repetirOpcoes("De qual criança você está falando?");
+      this.ctx.data = { ...d, kid };
+      if (d.area) return this.ask("ap_motivo", `Conte com suas palavras o que você tem percebido em ${kid.nome}. A escola lê e analisa com você.`);
+      return this.ask("ap_area", "Com que área você quer a avaliação?", { quick_replies: (d.areas as any[]).slice(0, 9).map((a) => ({ label: String(a.nome).slice(0, 24), action: `ans:${a.codigo}` })) });
+    }
+    if (this.ctx.step === "ap_area") {
+      const area = (d.areas as any[]).find((a) => a.codigo === text)?.codigo ?? areaApoio(t, d.areas);
+      if (!area) return this.repetirOpcoes("Escolha uma das áreas:");
+      this.ctx.data = { ...d, area };
+      return this.ask("ap_motivo", `Conte com suas palavras o que você tem percebido em ${d.kid.nome}. A escola lê e analisa com você.`);
+    }
+    if (this.ctx.step === "ap_motivo") {
+      if (text.trim().length < 10) return this.say("Me conte um pouco mais (pelo menos uma frase), para a escola entender.");
+      const r = await this.tool("ask_support_evaluation", "familia_apoio_pedir", { student_id: d.kid.id, area: d.area, motivo: text.trim().slice(0, 1500) }, `api_ped:${d.kid.id}:${d.area}`);
+      this.done("Pediu avaliação ao apoio interdisciplinar.");
+      return this.say(`${r?.mensagem ?? "Pedido registrado."} ✅`, { quick_replies: [{ label: "Apoio interdisciplinar", action: "intent:apoio" }, MENU[9]] });
+    }
+  }
+
+  private async apoioCiente(id: string): Promise<void> {
+    if (!this.needGuardian()) return;
+    if (!this.ensureVerified(`api_ok:${id}`)) return;
+    await this.tool("confirm_support_guidance", "familia_apoio_ciente", { id, canal: "WHATSAPP" }, `api_ciente:${id}`);
+    this.done("Deu ciência de uma orientação do apoio interdisciplinar.");
+    this.say("Ciência confirmada ✅ A orientação foi para o histórico.", { quick_replies: [{ label: "Apoio interdisciplinar", action: "intent:apoio" }] });
   }
 
   // ================================================================== Sprint 5: conteúdo das aulas, rematrícula e certificados

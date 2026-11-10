@@ -16,6 +16,8 @@ const Aee = lazy(() => import('./Aee'));
 const Transporte = lazy(() => import('./Transporte'));
 const Materiais = lazy(() => import('./Materiais'));
 const SimuladorPrecos = lazy(() => import('./SimuladorPrecos'));
+const Apoio = lazy(() => import('./Apoio'));
+const PainelOrgao = lazy(() => import('./orgaos/PainelOrgao'));
 
 /** A mesma base gera visões diferentes por perfil (spec §6) — cada início responde à pergunta do perfil. */
 export default function Home() {
@@ -36,6 +38,8 @@ export default function Home() {
                 : role === 'TRANSPORTE' ? <Transporte />
                 : role === 'ALMOXARIFADO' ? <Materiais />
                 : role === 'COMERCIAL' ? <SimuladorPrecos />
+                : role === 'GERENCIA_APOIO' || role === 'APOIO_INTERDISCIPLINAR' ? <Apoio />
+                : role === 'TRIBUNAL_CONTAS' || role === 'CONSELHOS' || role === 'CONSELHO_TUTELAR' || role === 'CAMARA' ? <PainelOrgao />
                 : <HomeSecretario />;
   return <Suspense fallback={<SkeletonList rows={5} />}>{el}</Suspense>;
 }

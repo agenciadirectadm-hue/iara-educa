@@ -151,6 +151,7 @@ function SetorSheet({ setor, setores, podeEditar, onClose }: { setor: any | null
             <Field label="E-mail do setor"><input value={f.email} disabled={!podeEditar} onChange={(e) => setF({ ...f, email: e.target.value })} className={inputCls} /></Field>
             <Field label="Telefone"><input value={f.telefone} disabled={!podeEditar} onChange={(e) => setF({ ...f, telefone: e.target.value })} className={inputCls} /></Field>
           </div>
+          {!novo && <FuncoesSetor setor={setor} podeEditar={podeEditar} salvar={salvar} busy={busy} fechar={fechar} />}
           {!novo && (
             <div className="space-y-2">
               <h3 className="font-semibold">Pessoas vinculadas</h3>
@@ -177,7 +178,8 @@ function SetorSheet({ setor, setores, podeEditar, onClose }: { setor: any | null
                       {q.trim().length >= 3 && <button type="button" onClick={() => setPessoa({ nome: q.trim() })} className="text-[13px] font-semibold text-blue-800 underline">Usar “{q.trim()}” (sem cadastro de servidor)</button>}
                     </>
                   )}
-                  <input value={funcao} onChange={(e) => setFuncao(e.target.value)} placeholder="Função no setor (ex.: gerente, assessora)" className={inputCls} />
+                  <input value={funcao} onChange={(e) => setFuncao(e.target.value)} placeholder="Função no setor (ex.: gerente, assessora)" className={inputCls} list={`funcoes-${setor.id}`} />
+                  <datalist id={`funcoes-${setor.id}`}>{((setor.funcoes ?? []) as any[]).map((fn) => <option key={fn.id} value={fn.nome} />)}</datalist>
                   <label className="flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={chefia} onChange={(e) => setChefia(e.target.checked)} className="size-5 accent-purple-700" />É a chefia do setor</label>
                   <Button icon={UserPlus} loading={busy} disabled={!pessoa || funcao.trim().length < 3}
                     onClick={() => salvar('org_vincular', { setor_id: setor.id, staff_id: pessoa?.id ?? null, nome: pessoa?.nome, funcao, chefia }, 'Pessoa vinculada', fechar)}>Vincular</Button>
@@ -188,6 +190,46 @@ function SetorSheet({ setor, setores, podeEditar, onClose }: { setor: any | null
         </div>
       )}
     </Sheet>
+  );
+}
+
+const QUEBRA = String.fromCharCode(10);
+
+/** Funções estabelecidas do setor, com as atribuições (fonte oficial ou a validar) e quantas pessoas ocupam cada uma. */
+function FuncoesSetor({ setor, podeEditar, salvar, busy, fechar }: { setor: any; podeEditar: boolean; salvar: (fn: string, args: any, ok: string, depois?: () => void) => void; busy: boolean; fechar: () => void }) {
+  const [nova, setNova] = useState<{ id?: string; nome: string; formacao: string; atribuicoes: string } | null>(null);
+  const funcoes = (setor.funcoes ?? []) as any[];
+  return (
+    <div className="space-y-2">
+      <h3 className="font-semibold">Funções estabelecidas</h3>
+      {!funcoes.length && <p className="text-[13px] text-muted">Nenhuma função cadastrada.</p>}
+      {funcoes.map((fn) => (
+        <div key={fn.id} className="rounded-2xl bg-white p-3 text-[13.5px] ring-1 ring-line">
+          <div className="flex flex-wrap items-center gap-2">
+            <b className="min-w-0 flex-1">{fn.nome}</b>
+            <Badge tone={fn.fonte === 'OFICIAL' ? 'green' : 'amber'}>{fn.fonte === 'OFICIAL' ? 'oficial' : 'a validar'}</Badge>
+            <span className="text-[12px] text-muted">{fn.pessoas ? `${fn.pessoas} pessoa(s)` : 'a preencher'}</span>
+            {podeEditar && <button type="button" className="text-[12px] font-semibold text-blue-800 underline" onClick={() => setNova({ id: fn.id, nome: fn.nome, formacao: fn.formacao ?? '', atribuicoes: (fn.atribuicoes ?? []).join(QUEBRA) })}>editar</button>}
+          </div>
+          {fn.formacao && <div className="mt-0.5 text-[12.5px] text-muted">Formação: {fn.formacao}</div>}
+          {(fn.atribuicoes ?? []).length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px]">{(fn.atribuicoes as string[]).map((a, i) => <li key={i}>{a}</li>)}</ul>}
+        </div>
+      ))}
+      {podeEditar && !nova && <Button size="sm" variant="secondary" onClick={() => setNova({ nome: '', formacao: '', atribuicoes: '' })}>Nova função</Button>}
+      {podeEditar && nova && (
+        <div className="space-y-2 rounded-3xl bg-slate-50 p-3 ring-1 ring-line">
+          <input value={nova.nome} onChange={(e) => setNova({ ...nova, nome: e.target.value })} placeholder="Nome da função" className={inputCls} />
+          <input value={nova.formacao} onChange={(e) => setNova({ ...nova, formacao: e.target.value })} placeholder="Formação exigida (opcional)" className={inputCls} />
+          <textarea value={nova.atribuicoes} onChange={(e) => setNova({ ...nova, atribuicoes: e.target.value })} rows={4} placeholder="Atribuições, uma por linha" className={`${inputCls} h-auto py-3`} />
+          <div className="flex gap-2">
+            {nova.id && <Button size="sm" variant="secondary" icon={Trash2} loading={busy} onClick={() => salvar('org_funcao_excluir', { id: nova.id }, 'Função desativada', fechar)}>Desativar</Button>}
+            <Button size="sm" variant="ghost" onClick={() => setNova(null)}>Cancelar</Button>
+            <Button size="sm" loading={busy} disabled={nova.nome.trim().length < 3}
+              onClick={() => salvar('org_funcao_salvar', { id: nova.id ?? null, setor_id: setor.id, nome: nova.nome, formacao: nova.formacao, atribuicoes: nova.atribuicoes.split(QUEBRA) }, 'Função salva', fechar)}>Salvar função</Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

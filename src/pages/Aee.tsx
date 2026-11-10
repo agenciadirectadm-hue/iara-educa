@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { Accessibility, AlarmClock, CalendarCheck, Check, FilePenLine, X } from 'lucide-react';
+import { Accessibility, AlarmClock, CalendarCheck, Check, FilePenLine, HeartHandshake, X } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
@@ -52,7 +52,10 @@ export default function Aee() {
         <PageHeader eyebrow={rede ? 'SEDUC · educação especial' : me?.unit?.name}
           title={<span className="inline-flex items-center gap-2">Atendimento educacional especializado<Simulado detail="Planos e atendimentos fictícios." /></span>}
           subtitle="Plano de AEE de cada aluno, quem atende, onde e quando, e a presença nos atendimentos. Diagnóstico só para quem tem permissão."
-          actions={rede ? <UnitSelect value={unit} onChange={setUnit} /> : undefined} />
+          actions={<div className="flex flex-wrap items-center gap-2">
+            {rede && <UnitSelect value={unit} onChange={setUnit} />}
+            <Link to="/apoio" className="inline-flex h-10 items-center gap-1.5 rounded-2xl bg-white px-3 text-[14px] font-semibold ring-1 ring-line hover:ring-purple-200"><HeartHandshake className="size-4 text-purple-700" />Apoio interdisciplinar</Link>
+          </div>} />
       )}
 
       {prof && lista.data && <Hoje itens={lista.data.hoje ?? []} dia={lista.data.dia} />}

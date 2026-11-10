@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
-import { Accessibility, Apple, Baby, BarChart3, BookOpen, Bus, Warehouse, Building2, Calculator, ChevronRight, Crown, Database, Headset, Landmark, MapPin, Plane, Scale, Search, ShieldCheck, Sparkles, UserRound, Users, Wrench } from 'lucide-react';
+import { Accessibility, Apple, Baby, BarChart3, BookOpen, Bus, Warehouse, Building2, Calculator, ChevronRight, Crown, Database, Gavel, HandHeart, HeartHandshake, Headset, Landmark, MapPin, Plane, Scale, Search, ShieldAlert, ShieldCheck, Sparkles, UserRound, Users, Users2, Wrench } from 'lucide-react';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import type { Bootstrap, Persona, Role } from '@/lib/types';
@@ -18,6 +18,7 @@ const ICON: Record<Role, typeof Crown> = {
   DIRETOR_UNIDADE: Building2, SECRETARIA_ESCOLAR: Users, ATENDIMENTO: Headset, INOVACAO: Database, CIDADAO: UserRound, CIDADAO_NOVO: Plane,
   CONTROLE_EXTERNO: Scale, PROFESSOR: BookOpen, NUTRICAO: Apple, MANUTENCAO: Wrench, PROFESSOR_AEE: Accessibility,
   TRANSPORTE: Bus, ALMOXARIFADO: Warehouse, COMERCIAL: Calculator,
+  GERENCIA_APOIO: HeartHandshake, APOIO_INTERDISCIPLINAR: HandHeart, TRIBUNAL_CONTAS: Gavel, CONSELHOS: Users2, CONSELHO_TUTELAR: ShieldAlert, CAMARA: Landmark,
 };
 const GRAD: Record<Role, string> = {
   PREFEITO: 'from-blue-700 to-blue-900', SECRETARIO: 'from-purple-500 to-purple-800', SUPERINTENDENCIA: 'from-indigo-500 to-blue-800',
@@ -27,6 +28,8 @@ const GRAD: Record<Role, string> = {
   PROFESSOR: 'from-emerald-500 to-teal-700', NUTRICAO: 'from-lime-500 to-green-700', MANUTENCAO: 'from-amber-500 to-orange-700',
   PROFESSOR_AEE: 'from-violet-500 to-indigo-700', TRANSPORTE: 'from-yellow-400 to-amber-600', ALMOXARIFADO: 'from-stone-400 to-stone-700',
   COMERCIAL: 'from-amber-500 to-purple-800',
+  GERENCIA_APOIO: 'from-rose-400 to-purple-700', APOIO_INTERDISCIPLINAR: 'from-pink-400 to-rose-600', TRIBUNAL_CONTAS: 'from-slate-600 to-slate-900',
+  CONSELHOS: 'from-cyan-600 to-blue-800', CONSELHO_TUTELAR: 'from-red-500 to-rose-800', CAMARA: 'from-emerald-600 to-teal-800',
 };
 const SCOPE: Record<string, string> = { AGGREGATE: 'Visão agregada', NETWORK: 'Rede inteira', UNIT: 'Uma unidade', GUARDIAN: 'Minha família' };
 const FEATURED: Role[] = ['CIDADAO', 'CIDADAO_NOVO', 'PREFEITO', 'SECRETARIO', 'CONTROLE_EXTERNO', 'ANALISTA_CENTRAL', 'DIRETOR_UNIDADE', 'SECRETARIA_ESCOLAR', 'PROFESSOR'];

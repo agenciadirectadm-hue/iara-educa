@@ -1,5 +1,5 @@
 // Teste de conversa com a IARA pelo gateway (simula o WhatsApp), sem chaves: usa sessões de demonstração.
-// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa|reuniao|onibus]
+// Uso: node scripts/teste-iara.mjs [nova|maria|escola|conversa|recado|avisos|sem-dado|recusa|reuniao|onibus|uniforme]
 // "conversa" não grava nada além das próprias mensagens e confere as respostas: sai com erro se a IARA voltar a não entender.
 const API = process.env.API_URL || 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 const roteiro = process.argv[2] || 'nova';
@@ -268,6 +268,35 @@ if (roteiro === 'conversa') {
     process.exit(1);
   }
   console.log('\n✓ Avisos: tudo certo.');
+} else if (roteiro === 'uniforme') {
+  // uniforme e kit (código, tamanhos pela conversa) e apoio interdisciplinar (ciência e pedido): o mesmo do portal.
+  // Grava ao vivo; sai com "Limpar depois da apresentação".
+  const ultimaIara = () => [...(conv.messages ?? [])].reverse().find((m) => m.sender_type === 'IARA');
+  await send('qual o código para retirar o uniforme da Ana?');
+  if (lastQuick(conv).some((q) => q.label.startsWith('Confirmar código'))) await tap('Confirmar código');
+  const cartoes = JSON.stringify(ultimaIara()?.payload?.cards ?? []);
+  if (!/482 913/.test(cartoes)) falhas.push(`sem o código de retirada: ${cartoes.slice(0, 200)}`);
+  await tap('Tamanhos de Ana');
+  await tap('Shorts-saia');
+  await tap('6');
+  await tap('8');
+  await send('29');
+  await tap('Sim');
+  if (!/Registrado/.test(ultimaIara()?.body ?? '')) falhas.push(`tamanho → ${(ultimaIara()?.body ?? '').slice(0, 160)}`);
+  await send('tem orientação da fonoaudióloga?');
+  const ok = lastQuick(conv).find((q) => (q.action ?? '').startsWith('api_ok:'));
+  if (!ok) falhas.push('apoio sem o botão de ciência');
+  else {
+    await send(ok.label, ok.action);
+    if (!/Ciência confirmada/.test(ultimaIara()?.body ?? '')) falhas.push(`ciência do apoio → ${(ultimaIara()?.body ?? '').slice(0, 120)}`);
+  }
+  await send('quero pedir uma avaliação com a psicóloga para a Ana');
+  await send('Ela chora muito na chegada desde que o irmão nasceu.');
+  if (!/Pedido API-\d{4}-\d+ registrado/.test(ultimaIara()?.body ?? '')) falhas.push(`pedido de apoio → ${(ultimaIara()?.body ?? '').slice(0, 160)}`);
+  await send('a jaqueta ficou pequena, quero trocar');
+  await send('A jaqueta 8 ficou apertada; precisa da 10.');
+  if (!/Pedido de troca de tamanho registrado/.test(ultimaIara()?.body ?? '')) falhas.push(`troca → ${(ultimaIara()?.body ?? '').slice(0, 160)}`);
+  console.log(falhas.length ? `\nFALHAS:\n- ${falhas.join('\n- ')}` : '\nUniforme e apoio pela IARA: tudo certo.');
 } else if (roteiro === 'recado') {
   // recado à professora: criança sem turma, o que vem junto do "sim", correção do texto, e o que a professora da turma vê.
   // Grava bilhetes com a marca "teste-recado"; depois: delete from iara.agenda_escolar where texto like '%teste-recado%';

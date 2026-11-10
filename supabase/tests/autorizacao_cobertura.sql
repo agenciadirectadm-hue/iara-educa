@@ -50,7 +50,9 @@ begin
   where n.nspname = 'api' and has_function_privilege('anon', p.oid, 'execute')
     and p.proname not in ('bootstrap', 'units_map', 'geo_layers', 'geo_setores', 'mapa_recorte', 'units_list', 'unit_detail', 'territory_detail', 'network_kpis',
                           'grade_for_birthdate', 'search_vacancies', 'geo_search', 'knowledge_search', 'service_catalog', 'rules_list',
-                          'data_quality', 'persona_units', 'declaracao_verificar');
+                          'data_quality', 'persona_units', 'declaracao_verificar',
+                          -- dado público do INEP (Ideb) e as áreas do apoio interdisciplinar (texto do portal da Prefeitura)
+                          'ideb_unidade', 'ideb_rede', 'ideb_mapa', 'apoio_areas');
   v_out := v_out || jsonb_build_object('passo', 'E3. Visitante sem login só chama as funções públicas', 'ok', v_lista = '[]', 'lista', v_lista);
 
   -- leitura pelo visitante só nas tabelas de referência pública aprovadas (usadas pelas funções públicas); escrita, nenhuma.

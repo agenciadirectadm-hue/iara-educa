@@ -14,11 +14,12 @@ import {
   Avatar, Badge, Card, DataPair, EmptyState, ErrorState, Kpi, ListRow, OccupancyBar, PageHeader, Section, SeloVagasTurma, SkeletonList, SourceChip, Tabs, inputCls,
 } from '@/components/ui';
 import { Crumbs } from '@/components/Crumbs';
+import { IdebUnidade } from '@/components/ideb';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 // o mapa pesa mais que a ficha inteira: ela abre primeiro, e ele chega depois
 const MapView = lazy(() => import('@/components/map/MapView'));
 
-type Tab = 'geral' | 'turmas' | 'alunos' | 'fila' | 'equipe' | 'atendimentos' | 'fontes' | 'historico';
+type Tab = 'geral' | 'turmas' | 'alunos' | 'fila' | 'equipe' | 'atendimentos' | 'fontes' | 'historico' | 'ideb';
 
 export default function UnitPage() {
   const { id } = useParams();
@@ -48,6 +49,7 @@ export default function UnitPage() {
     ...(authed && can('queue.read') && inScope ? [{ value: 'fila' as Tab, label: 'Fila', count: d.ops.queue }] : []),
     ...(authed && can('classes.read') && inScope ? [{ value: 'equipe' as Tab, label: 'Equipe' }] : []),
     ...(authed && can('cases.read') && inScope ? [{ value: 'atendimentos' as Tab, label: 'Atendimentos' }] : []),
+    ...(u.type === 'ESCOLA' ? [{ value: 'ideb' as Tab, label: 'Ideb' }] : []),
     { value: 'fontes', label: 'Dados e fontes' },
     ...(authed && can('audit.read') && inScope ? [{ value: 'historico' as Tab, label: 'Histórico' }] : []),
   ];
@@ -75,6 +77,7 @@ export default function UnitPage() {
         {tab === 'equipe' && <StaffTab unitId={unitId} census={u.census.teachers} />}
         {tab === 'atendimentos' && <CasesTab unitId={unitId} />}
         {tab === 'fontes' && <SourcesTab d={d} />}
+        {tab === 'ideb' && <IdebUnidade unitId={unitId} />}
         {tab === 'historico' && <HistoryTab unitId={unitId} />}
       </div>
     </div>

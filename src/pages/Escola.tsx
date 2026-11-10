@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Apple, BellRing, CalendarCheck, CalendarDays, Check, ChevronRight, MessageCircle, NotebookPen, Plus, Send, ShieldAlert, Vote } from 'lucide-react';
+import { Shirt, Apple, BellRing, CalendarCheck, CalendarDays, Check, ChevronRight, MessageCircle, NotebookPen, Plus, Send, ShieldAlert, Vote } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
@@ -21,8 +21,10 @@ import { HistoricoFamilia } from '@/components/conselho';
 import { AntropometriaFamilia, BibliotecaFamilia } from '@/components/sprint4';
 import { AulasFamilia, EventosFamilia, RematriculaFamilia } from '@/components/sprint5';
 import { ReunioesFamilia } from '@/components/reunioes';
+import { UniformesFamilia } from '@/components/uniformes';
+import { ApoioFamilia } from '@/components/apoio';
 
-type Aba = 'reunioes' | 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas' | 'aulas' | 'rematricula' | 'eventos';
+type Aba = 'uniforme' | 'apoio' | 'reunioes' | 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas' | 'aulas' | 'rematricula' | 'eventos';
 
 /** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
 export default function Escola() {
@@ -35,6 +37,8 @@ export default function Escola() {
   const reun = useRpc<any>('familia_reunioes', {}, { enabled: !!me?.guardian });
   const aee = useRpc<any[]>('familia_aee', {}, { enabled: !!me?.guardian });
   const rem = useRpc<any[]>('familia_rematricula', {}, { enabled: !!me?.guardian });
+  const uni = useRpc<any>('familia_uniformes', {}, { enabled: !!me?.guardian });
+  const apoio = useRpc<any>('familia_apoio', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
   const pend = avisos.data?.pendentes_confirmacao ?? 0;
@@ -49,6 +53,8 @@ export default function Escola() {
         { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
         { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
         { value: 'reunioes', label: 'Reuniões', count: reun.data?.aguardando || null },
+        { value: 'uniforme', label: 'Uniforme e kit', count: ((uni.data?.pendentes_ciencia ?? 0) + (uni.data?.pendentes_tamanho ?? 0)) || null },
+        { value: 'apoio', label: 'Apoio', count: apoio.data?.pendentes_ciencia || null },
         { value: 'aulas', label: 'O que estudou' },
         { value: 'rematricula', label: 'Rematrícula', count: rem.data?.filter((r) => r.situacao === 'PENDENTE').length || null },
         { value: 'boletim', label: 'Boletim' },
@@ -72,6 +78,8 @@ export default function Escola() {
         {aba === 'boletim' && <BoletimFamilia />}
         {aba === 'historico' && <HistoricoFamilia />}
         {aba === 'aulas' && <AulasFamilia />}
+        {aba === 'uniforme' && <UniformesFamilia />}
+        {aba === 'apoio' && <ApoioFamilia />}
         {aba === 'rematricula' && <RematriculaFamilia />}
         {aba === 'eventos' && <EventosFamilia />}
         {aba === 'biblioteca' && <BibliotecaFamilia />}
@@ -109,7 +117,10 @@ export function VidaEscolarResumo() {
   const ocorr = useRpc<any>('familia_ocorrencias', {});
   const avisos = useRpc<any>('familia_avisos', {});
   const freq = useRpc<any[]>('familia_frequencia', {});
+  const uni = useRpc<any>('familia_uniformes', {}, { retry: false });
   const a = avisos.data;
+  const u = uni.data;
+  const uPend = (u?.pendentes_ciencia ?? 0) + (u?.pendentes_tamanho ?? 0);
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Link to="/escola?aba=avisos" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
@@ -122,6 +133,18 @@ export function VidaEscolarResumo() {
         </span>
         <ChevronRight className="size-5 text-subtle" />
       </Link>
+      {u && (u.filhos as any[]).length > 0 && (
+        <Link to="/escola?aba=uniforme" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
+          <span className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-700 text-white"><Shirt className="size-5" />
+            {uPend > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold ring-2 ring-white">{uPend}</span>}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Uniforme e kit escolar</span>
+            <span className="block truncate text-[12.5px] text-muted">{(u.pode_retirar as any[]).length ? 'Pode retirar: veja o código' : u.pendentes_tamanho ? `Informe o tamanho de ${fmtInt(u.pendentes_tamanho)} criança(s)` : uPend ? `${fmtInt(uPend)} aviso(s) aguardando ciência` : 'Tudo em dia'}</span>
+          </span>
+          <ChevronRight className="size-5 text-subtle" />
+        </Link>
+      )}
       {(freq.data ?? []).map((c) => (
         <Link key={c.student_id} to="/escola?aba=frequencia" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
           <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white"><CalendarCheck className="size-5" /></span>

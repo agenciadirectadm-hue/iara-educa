@@ -2,7 +2,7 @@
  * — áreas de ponderação do IBGE — ou as 793 microrregiões — setores censitários). Toda medida usa a mesma regra de cores
  * (semaforo.ts): vermelho = agir primeiro, amarelo = intermediário, verde = melhor, cinza = sem dado.
  * Pontos vêm das unidades (rede) ou de api.mapa_calor; regiões e microrregiões, de api.mapa_recorte. */
-import { Baby, Bus, CalendarCheck, Contact, GraduationCap, Handshake, NotebookPen, School, type LucideIcon } from 'lucide-react';
+import { Baby, Bus, CalendarCheck, Contact, GraduationCap, Handshake, NotebookPen, School, Shirt, TrendingUp, type LucideIcon } from 'lucide-react';
 import type { HeatMode } from '@/components/map/MapView';
 import type { Pior } from '@/components/map/semaforo';
 
@@ -117,6 +117,22 @@ export const TEMAS: Tema[] = [
     ],
   },
   {
+    value: 'ideb', label: 'Ideb (INEP)', icon: TrendingUp, publico: true, quesitos: [
+      { value: 'ideb', label: 'Ideb das escolas', pergunta: 'Qual o Ideb de cada escola?', recortes: ['pontos'], pontos: 'calor', rpc: 'ideb_mapa', fonte: 'oficial',
+        pior: 'menor', palavras: { pior: 'Ideb mais baixo', melhor: 'Ideb mais alto' } },
+    ],
+  },
+  {
+    value: 'uniformes', label: 'Uniformes e kits', icon: Shirt, publico: false, quesitos: [
+      { value: 'uk_retirada', label: 'Retirada', pergunta: 'Onde as famílias já retiraram uniforme e kit?', recortes: ['pontos'], pontos: 'calor', rpc: 'uk_mapa', fonte: 'demo',
+        perm: 'uk.estatisticas', pior: 'menor', palavras: { pior: 'Retirou pouco', melhor: 'Retirou muito' } },
+      { value: 'uk_tamanhos', label: 'Tamanhos informados', pergunta: 'Onde as famílias já informaram o tamanho do uniforme?', recortes: ['pontos'], pontos: 'calor', rpc: 'uk_mapa', fonte: 'demo',
+        perm: 'uk.estatisticas', pior: 'menor', palavras: { pior: 'Poucos informaram', melhor: 'Quase todos' } },
+      { value: 'uk_vencidas', label: 'Prazo vencido', pergunta: 'Onde há uniforme e kit esperando retirada com prazo vencido?', recortes: ['pontos'], pontos: 'calor', rpc: 'uk_mapa', fonte: 'demo',
+        perm: 'uk.estatisticas', pior: 'maior', palavras: MAIS('vencidos') },
+    ],
+  },
+  {
     value: 'formacao', label: 'Professores', icon: GraduationCap, publico: false, quesitos: [
       { value: 'formacao', label: 'Pós-graduação', pergunta: 'Onde há menos professores com pós-graduação?', recortes: ['pontos', 'area', 'setor'],
         pontos: 'calor', fonte: 'demo', pior: 'menor', palavras: MENOS('pós-graduados') },
@@ -127,8 +143,8 @@ export const TEMAS: Tema[] = [
 /** Temas e quesitos que a pessoa pode ver: o público vê rede e Censo; a visão da rede (kpi.network) vê tudo. */
 export function temasVisiveis(can: (perm: string) => boolean): Tema[] {
   const rede = can('kpi.network');
-  return TEMAS.filter((t) => t.publico || rede)
-    .map((t) => ({ ...t, quesitos: t.quesitos.filter((q) => !q.perm || can(q.perm)) }))
+  // sem a visão da rede, um tema restrito aparece só com os quesitos da permissão própria (ex.: órgãos externos e uniformes)
+  return TEMAS.map((t) => ({ ...t, quesitos: t.quesitos.filter((q) => (t.publico || rede || !!q.perm) && (!q.perm || can(q.perm))) }))
     .filter((t) => t.quesitos.length > 0);
 }
 

@@ -27,9 +27,11 @@ import { Foto, TrocarFoto } from '@/components/arquivos';
 import { DocumentosAluno, ExcluirCadastro } from '@/components/documentos';
 import { BoletimView, DeclaracoesAluno } from '@/components/pedagogico';
 import { ReunioesAluno, reuniaoUrgente, useReunioesAluno } from '@/components/reunioes';
+import { UniformesAluno } from '@/components/uniformes';
+import { ApoioAluno } from '@/components/apoio';
 
 type Tab = 'reunioes' | 'resumo' | 'responsaveis' | 'matriculas' | 'documentos' | 'atendimentos' | 'fila' | 'aee' | 'auditoria' | 'frequencia'
-  | 'alimentacao' | 'ocorrencias' | 'agenda' | 'boletim' | 'declaracoes' | 'historico' | 'medidas';
+  | 'alimentacao' | 'ocorrencias' | 'agenda' | 'boletim' | 'declaracoes' | 'historico' | 'medidas' | 'uniforme';
 
 export default function StudentPage() {
   const { id } = useParams();
@@ -62,6 +64,7 @@ export default function StudentPage() {
     ...(can('reunioes.read') ? [{ value: 'reunioes' as Tab, label: 'Reuniões', count: ((reunioes.data?.itens ?? []) as any[]).length || null }] : []),
     ...(d.school && can('notas.read') ? [{ value: 'boletim' as Tab, label: 'Boletim' }, { value: 'historico' as Tab, label: 'Histórico escolar' }] : []),
     ...(d.school && can('antropometria.read') ? [{ value: 'medidas' as Tab, label: 'Peso e altura' }] : []),
+    ...(d.school && can('uk.read') ? [{ value: 'uniforme' as Tab, label: 'Uniforme e kit' }] : []),
     ...(!['PROFESSOR', 'PROFESSOR_AEE'].includes(me?.role ?? '') ? [{ value: 'declaracoes' as Tab, label: 'Declarações' }] : []),
     { value: 'aee', label: 'AEE/Inclusão' },
     ...(d.audit ? [{ value: 'auditoria' as Tab, label: 'Auditoria' }] : []),
@@ -118,10 +121,11 @@ export default function StudentPage() {
         {tab === 'documentos' && <DocumentosAluno studentId={s.id} />}
         {tab === 'atendimentos' && <Cases d={d} canCreate={can('cases.write')} />}
         {tab === 'fila' && <QueueOffers d={d} />}
-        {tab === 'aee' && <Aee d={d} />}
+        {tab === 'aee' && <><Aee d={d} />{can('apoio.read') && <div className="mt-6"><ApoioAluno studentId={s.id} /></div>}</>}
         {tab === 'boletim' && <BoletimAluno id={s.id} />}
         {tab === 'historico' && <HistoricoAluno studentId={s.id} />}
         {tab === 'medidas' && <AntropometriaAluno studentId={s.id} />}
+        {tab === 'uniforme' && <UniformesAluno studentId={s.id} />}
         {tab === 'declaracoes' && <DeclaracoesAluno studentId={s.id} />}
         {tab === 'frequencia' && <FrequenciaAluno id={s.id} />}
         {tab === 'alimentacao' && ve.data && <AlimentacaoAluno v={ve.data} studentId={s.id} />}
