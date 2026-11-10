@@ -25,8 +25,9 @@ function Pedir([string]$rotulo) {
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
 }
 
-$token = $env:SUPABASE_ACCESS_TOKEN
-if (-not $token) { $token = [Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN', 'User') }
+# a variável do Windows vem antes: um terminal aberto antes da troca do token ainda guarda o antigo
+$token = [Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN', 'User')
+if (-not $token) { $token = $env:SUPABASE_ACCESS_TOKEN }
 if (-not $token) { Write-Host "Falta a variavel SUPABASE_ACCESS_TOKEN do Windows. Nada foi alterado." -ForegroundColor Red; exit 1 }
 $cab = @{ Authorization = "Bearer $token" }
 
@@ -68,7 +69,11 @@ $corpo = ConvertTo-Json -InputObject @(@{ name = 'IARA_ACESSO'; value = $valor }
 try {
   Invoke-RestMethod -Method Post -Uri "$api/secrets" -Headers $cab -ContentType 'application/json' -Body $corpo | Out-Null
 } catch {
-  Write-Host "Nao consegui gravar a senha: $($_.Exception.Message)" -ForegroundColor Red
+  if ("$($_.Exception.Message)" -match '401') {
+    Write-Host "O Supabase recusou o token (SUPABASE_ACCESS_TOKEN). Confira a variavel do Windows ou gere um token novo. Nada foi alterado." -ForegroundColor Red
+  } else {
+    Write-Host "Nao consegui gravar a senha: $($_.Exception.Message). Nada foi alterado." -ForegroundColor Red
+  }
   exit 1
 } finally { $valor = $null; $corpo = $null }
 
