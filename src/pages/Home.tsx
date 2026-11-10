@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { useSession } from '@/lib/session';
 import { SkeletonList } from '@/components/ui';
+import { PendenciasCartao } from '@/components/pendencias';
 
 const HomePrefeito = lazy(() => import('./home/HomePrefeito'));
 const HomeSecretario = lazy(() => import('./home/HomeSecretario'));
@@ -21,7 +22,7 @@ const PainelOrgao = lazy(() => import('./orgaos/PainelOrgao'));
 
 /** A mesma base gera visões diferentes por perfil (spec §6) — cada início responde à pergunta do perfil. */
 export default function Home() {
-  const { me } = useSession();
+  const { me, can } = useSession();
   const role = me?.role;
   const el =
     role === 'PREFEITO' ? <HomePrefeito />
@@ -41,5 +42,10 @@ export default function Home() {
                 : role === 'GERENCIA_APOIO' || role === 'APOIO_INTERDISCIPLINAR' ? <Apoio />
                 : role === 'TRIBUNAL_CONTAS' || role === 'CONSELHOS' || role === 'CONSELHO_TUTELAR' || role === 'CAMARA' ? <PainelOrgao />
                 : <HomeSecretario />;
-  return <Suspense fallback={<SkeletonList rows={5} />}>{el}</Suspense>;
+  return (
+    <>
+      {can('pend.read') && <PendenciasCartao />}
+      <Suspense fallback={<SkeletonList rows={5} />}>{el}</Suspense>
+    </>
+  );
 }

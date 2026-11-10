@@ -18,7 +18,7 @@ const TOPICOS = ["visao_geral", "matriculas", "fila", "vagas", "creche", "freque
   "alfabetizacao", "busca_ativa", "unidades", "cadastros", "bolsa_familia",
   // temas do catálogo (ver indicadores_disponiveis)
   "rede", "atendimento", "ofertas", "rematricula", "ausencias", "ocorrencias_tipo", "protecao", "desempenho", "aee", "ponto", "transporte_det",
-  "nutricao", "almoxarifado", "manutencao", "biblioteca", "comunicacao", "qualidade", "territorio", "base", "uniformes", "apoio", "ideb"];
+  "nutricao", "almoxarifado", "manutencao", "biblioteca", "comunicacao", "qualidade", "territorio", "base", "uniformes", "apoio", "ideb", "pendencias"];
 
 export const FERRAMENTAS = [
   {

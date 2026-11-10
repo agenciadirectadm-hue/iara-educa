@@ -2,7 +2,7 @@
  * — áreas de ponderação do IBGE — ou as 793 microrregiões — setores censitários). Toda medida usa a mesma regra de cores
  * (semaforo.ts): vermelho = agir primeiro, amarelo = intermediário, verde = melhor, cinza = sem dado.
  * Pontos vêm das unidades (rede) ou de api.mapa_calor; regiões e microrregiões, de api.mapa_recorte. */
-import { Baby, Bus, CalendarCheck, Contact, GraduationCap, Handshake, NotebookPen, School, Shirt, TrendingUp, type LucideIcon } from 'lucide-react';
+import { ListTodo, Baby, Bus, CalendarCheck, Contact, GraduationCap, Handshake, NotebookPen, School, Shirt, TrendingUp, type LucideIcon } from 'lucide-react';
 import type { HeatMode } from '@/components/map/MapView';
 import type { Pior } from '@/components/map/semaforo';
 
@@ -130,6 +130,14 @@ export const TEMAS: Tema[] = [
         perm: 'uk.estatisticas', pior: 'menor', palavras: { pior: 'Poucos informaram', melhor: 'Quase todos' } },
       { value: 'uk_vencidas', label: 'Prazo vencido', pergunta: 'Onde há uniforme e kit esperando retirada com prazo vencido?', recortes: ['pontos'], pontos: 'calor', rpc: 'uk_mapa', fonte: 'demo',
         perm: 'uk.estatisticas', pior: 'maior', palavras: MAIS('vencidos') },
+    ],
+  },
+  {
+    value: 'pendencias', label: 'Pendências dos servidores', icon: ListTodo, publico: false, quesitos: [
+      { value: 'pend_atrasadas', label: 'Pendências atrasadas', pergunta: 'Onde há mais pendências atrasadas nas unidades?', recortes: ['pontos'], pontos: 'calor', rpc: 'pend_mapa', fonte: 'demo',
+        perm: 'pend.estatisticas', pior: 'maior', palavras: MAIS('atrasadas') },
+      { value: 'pend_prazo', label: 'Cumprimento do prazo', pergunta: 'Onde as unidades cumprem menos o prazo das pendências?', recortes: ['pontos'], pontos: 'calor', rpc: 'pend_mapa', fonte: 'demo',
+        perm: 'pend.estatisticas', pior: 'menor', palavras: { pior: 'Cumpre pouco o prazo', melhor: 'Cumpre o prazo' } },
     ],
   },
   {

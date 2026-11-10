@@ -63,6 +63,7 @@ const Apoio = lazy(() => import('./pages/Apoio'));
 const ApoioCaso = lazy(() => import('./pages/ApoioCaso'));
 const PainelOrgao = lazy(() => import('./pages/orgaos/PainelOrgao'));
 const Ideb = lazy(() => import('./pages/Ideb'));
+const Pendencias = lazy(() => import('./pages/Pendencias'));
 const Diario = lazy(() => import('./pages/Diario'));
 const Ocorrencias = lazy(() => import('./pages/Ocorrencias'));
 const Validacoes = lazy(() => import('./pages/Validacoes'));
@@ -220,6 +221,7 @@ export const router = createHashRouter([
       { path: '/apoio/:id', element: <RequireSession>{S(<ApoioCaso />)}</RequireSession>, handle: { wide: true } },
       { path: '/orgaos', element: <RequireSession>{S(<PainelOrgao />)}</RequireSession>, handle: { wide: true } },
       { path: '/ideb', element: S(<Ideb />), handle: { wide: true } },
+      { path: '/pendencias', element: <RequireSession>{S(<Pendencias />)}</RequireSession>, handle: { wide: true } },
       { path: '/pessoal', element: <RequireSession>{S(<Pessoal />)}</RequireSession>, handle: { wide: true } },
       { path: '/pessoal/:id', element: <RequireSession>{S(<Servidor />)}</RequireSession>, handle: { wide: true } },
       { path: '/frequencia', element: <RequireSession>{S(<Frequencia />)}</RequireSession>, handle: { wide: true } },

@@ -13,6 +13,7 @@ import { NA_BARRA, agrupar, navFor, type Grupo, type NavItem } from './nav';
 import { Avatar, Badge, Spinner } from '@/components/ui';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { IaraAvatar } from '@/components/iara';
+import { ContadorNav } from '@/components/pendencias';
 
 function isActive(item: NavItem, pathname: string, search: string) {
   const target = item.match ?? item.to.split('?')[0];
@@ -131,6 +132,7 @@ function RailLink({ item, active, compacto }: { item: NavItem; active: boolean; 
       {active && <motion.span layoutId="rail-active" className="absolute inset-0 rounded-2xl bg-purple-100" transition={{ type: 'spring', stiffness: 420, damping: 36 }} />}
       <item.icon className={clsx('relative', compacto ? 'size-[18px]' : 'size-5')} />
       <span className="relative truncate">{item.label}</span>
+      {item.to === '/pendencias' && <ContadorNav />}
     </NavLink>
   );
 }
@@ -202,7 +204,7 @@ function BottomNav({ nav, onMore }: { nav: { primary: NavItem[]; more: NavItem[]
           return (
             <NavLink key={item.to + item.label} to={item.to} className="relative flex flex-col items-center justify-center gap-1" aria-current={active ? 'page' : undefined}>
               {active && <motion.span layoutId="bottom-active" className="absolute top-1.5 h-8 w-14 rounded-full bg-purple-100" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
-              <item.icon className={clsx('relative size-[22px]', active ? 'text-purple-800' : 'text-ink-2')} />
+              <span className="relative"><item.icon className={clsx('relative size-[22px]', active ? 'text-purple-800' : 'text-ink-2')} />{item.to === '/pendencias' && <ContadorNav mini />}</span>
               <span className={clsx('relative text-[11px] font-semibold leading-none', active ? 'text-purple-800' : 'text-muted')}>{item.label}</span>
             </NavLink>
           );
