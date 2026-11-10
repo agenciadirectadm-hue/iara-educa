@@ -2,6 +2,20 @@
 export const API_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 
+// passe da senha de acesso: guardado no aparelho depois que a pessoa digita a senha (o servidor confere a assinatura)
+const CHAVE_PASSE = 'iara-acesso';
+export const EVENTO_SENHA = 'iara-acesso-necessario';
+export function passeDeAcesso(): string | null {
+  try { return localStorage.getItem(CHAVE_PASSE); } catch { return null; }
+}
+export function guardarPasse(p: string | null) {
+  try { if (p) localStorage.setItem(CHAVE_PASSE, p); else localStorage.removeItem(CHAVE_PASSE); } catch { /* sem armazenamento: pede a senha de novo */ }
+}
+function pedirSenhaDeAcesso() {
+  guardarPasse(null);
+  window.dispatchEvent(new Event(EVENTO_SENHA));
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -28,10 +42,11 @@ export function onSessionExpired(cb: () => void) {
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
   let res: Response;
+  const passe = passeDeAcesso();
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', ...(token ? { 'x-iara-session': token } : {}), ...(init.headers ?? {}) },
+      headers: { 'content-type': 'application/json', ...(token ? { 'x-iara-session': token } : {}), ...(passe ? { 'x-iara-acesso': passe } : {}), ...(init.headers ?? {}) },
     });
   } catch {
     throw new ApiError('Sem conexão com o servidor. Verifique a internet e tente novamente.', 0, 'OFFLINE');
@@ -39,9 +54,18 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && (data as { code?: string })?.code === 'SESSION_EXPIRED') expiredHandler?.();
+    if (res.status === 401 && (data as { code?: string })?.code === 'ACESSO_NECESSARIO') pedirSenhaDeAcesso();
     throw new ApiError((data as { error?: string })?.error ?? 'Falha de comunicação.', res.status, (data as { code?: string })?.code);
   }
   return data as T;
+}
+
+/** Senha de acesso ao portal: diz se está ligada e troca a senha pelo passe deste aparelho. */
+export function acessoSituacao() {
+  return request<{ ativo: boolean }>('/acesso', { method: 'GET' });
+}
+export function acessoEntrar(senha: string) {
+  return request<{ ok: boolean; ativo: boolean; passe: string | null }>('/acesso', { method: 'POST', body: JSON.stringify({ senha }) });
 }
 
 export function rpc<T = any>(fn: string, args: object = {}): Promise<T> {

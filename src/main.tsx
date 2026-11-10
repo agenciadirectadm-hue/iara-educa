@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MotionConfig } from 'motion/react';
 import { RouterProvider } from 'react-router/dom';
+import { PortaoAcesso } from './components/PortaoAcesso';
 import { registerSW } from 'virtual:pwa-register';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/nunito';
@@ -38,9 +39,11 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <MotionConfig reducedMotion="user">
         <OverlayProvider>
-          <SessionProvider>
-            <RouterProvider router={router} />
-          </SessionProvider>
+          <PortaoAcesso>
+            <SessionProvider>
+              <RouterProvider router={router} />
+            </SessionProvider>
+          </PortaoAcesso>
         </OverlayProvider>
       </MotionConfig>
     </QueryClientProvider>

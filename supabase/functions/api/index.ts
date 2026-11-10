@@ -24,6 +24,11 @@ import { ARQUIVO_MAX_BYTES, descartarArquivos, guardarArquivo, lerArquivo } from
 import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
 import { claudeDisponivel, mcp, perguntarOraculo, statusOraculo } from "./oraculo.ts";
 import { pontoBiometria } from "./ponto.ts";
+import { acessoAtivo, emitirPasse, passeValido, senhaConfere } from "./acesso.ts";
+
+/** Sem sessão, com a senha de acesso ligada: só a verificação pública de declarações e certificados (QR code) e os números da entrada. */
+const RPC_SEM_SENHA = new Set(["declaracao_verificar", "declaracao_ver", "certificado_ver", "bootstrap"]);
+const semPasse = (req: Request) => passeValido(req.headers.get("x-iara-acesso"));
 
 // CORS restrito (SEC-AT-03): só o portal publicado, o ambiente local e os domínios de CORS_ORIGINS (produção).
 // A ponte do WhatsApp fala de servidor para servidor (sem Origin) e não depende disto.
@@ -35,7 +40,7 @@ function cors(req: Request): Record<string, string> {
   return {
     ...(o && (ORIGENS.has(o) || LOCAL.test(o)) ? { "Access-Control-Allow-Origin": o } : {}),
     "Vary": "Origin",
-    "Access-Control-Allow-Headers": "content-type, x-iara-session, x-request-id, authorization, mcp-protocol-version",
+    "Access-Control-Allow-Headers": "content-type, x-iara-session, x-iara-acesso, x-request-id, authorization, mcp-protocol-version",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Max-Age": "86400",
   };
@@ -58,6 +63,8 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   l.push([`ip:${ip}`, 3000, 300]);
   if (token) l.push([`sessao:${token.slice(0, 16)}`, 900, 60]);
   if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
+  // senha de acesso: poucas tentativas por IP
+  if (path === "/acesso") l.push([`acesso:${ip}`, 10, 600]);
   if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
   if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
   // o Oráculo chama o Claude (custo por pergunta): poucas por minuto
@@ -194,7 +201,21 @@ Deno.serve(async (req: Request) => {
     rotasPendentes(meta);
     if (hk && path.startsWith("/rpc/dashboard")) await hk;
 
+    // senha de acesso ao portal: GET diz se está ligada; POST confere a senha e devolve o passe do aparelho
+    if (path === "/acesso" && req.method === "GET") return json({ ativo: acessoAtivo() });
+    if (path === "/acesso" && req.method === "POST") {
+      if (!acessoAtivo()) return json({ ok: true, ativo: false, passe: null });
+      const body = await req.json().catch(() => ({}));
+      const senha = String(body?.senha ?? "").slice(0, 200);
+      if (!senha || !(await senhaConfere(senha))) {
+        await new Promise((r) => setTimeout(r, 700));
+        return json({ error: "Senha incorreta.", code: "ACESSO_NEGADO" }, 401);
+      }
+      return json({ ok: true, ativo: true, passe: await emitirPasse() });
+    }
+
     if (path === "/session" && req.method === "POST") {
+      if (!(await semPasse(req))) return json({ error: "Este portal pede a senha de acesso.", code: "ACESSO_NECESSARIO" }, 401);
       const body = await req.json().catch(() => ({}));
       const persona = String(body?.persona ?? "");
       const unitId = body?.unit_id != null ? Number(body.unit_id) : null;
@@ -242,6 +263,9 @@ Deno.serve(async (req: Request) => {
       const fn = path.slice(5);
       const { userId, expired } = await resolveUser(req);
       if (expired) return json({ error: "Sua sessão expirou. Escolha um perfil novamente.", code: "SESSION_EXPIRED" }, 401);
+      if (!userId && !RPC_SEM_SENHA.has(fn) && !(await semPasse(req))) {
+        return json({ error: "Este portal pede a senha de acesso.", code: "ACESSO_NECESSARIO" }, 401);
+      }
       const args = argsRpc !== undefined ? argsRpc : await req.json().catch(() => ({}));
       const result = await callApi(userId, meta, fn, args);
       return json(result ?? {});
