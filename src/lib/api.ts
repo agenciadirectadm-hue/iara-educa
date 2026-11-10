@@ -2,14 +2,17 @@
 export const API_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://fqpjbyhewzngutbyydig.supabase.co/functions/v1/api';
 
-// passe da senha de acesso: guardado no aparelho depois que a pessoa digita a senha (o servidor confere a assinatura)
+// passe da senha de acesso: vale só para esta aba aberta (sessionStorage). Fechou a aba ou o navegador, a senha é pedida de novo;
+// o servidor confere a assinatura e o prazo do passe.
 const CHAVE_PASSE = 'iara-acesso';
 export const EVENTO_SENHA = 'iara-acesso-necessario';
+// o passe de 30 dias guardado pela primeira versão deixa de valer: a senha passa a ser pedida a cada acesso
+try { localStorage.removeItem(CHAVE_PASSE); } catch { /* sem armazenamento */ }
 export function passeDeAcesso(): string | null {
-  try { return localStorage.getItem(CHAVE_PASSE); } catch { return null; }
+  try { return sessionStorage.getItem(CHAVE_PASSE); } catch { return null; }
 }
 export function guardarPasse(p: string | null) {
-  try { if (p) localStorage.setItem(CHAVE_PASSE, p); else localStorage.removeItem(CHAVE_PASSE); } catch { /* sem armazenamento: pede a senha de novo */ }
+  try { if (p) sessionStorage.setItem(CHAVE_PASSE, p); else sessionStorage.removeItem(CHAVE_PASSE); } catch { /* sem armazenamento: pede a senha de novo */ }
 }
 function pedirSenhaDeAcesso() {
   guardarPasse(null);

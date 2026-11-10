@@ -32,9 +32,9 @@ async function assinatura(dados: string): Promise<string> {
   return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(dados))));
 }
 
-/** Passe do aparelho: vale 30 dias e cai quando a senha muda. */
-export async function emitirPasse(dias = 30): Promise<string> {
-  const corpo = `v1.${Math.floor(Date.now() / 1000) + dias * 86400}.${b64url(crypto.getRandomValues(new Uint8Array(9)))}`;
+/** Passe da aba aberta: o site o perde ao fechar a aba; aqui ele vale no máximo 12 horas e cai quando a senha muda. */
+export async function emitirPasse(horas = 12): Promise<string> {
+  const corpo = `v1.${Math.floor(Date.now() / 1000) + horas * 3600}.${b64url(crypto.getRandomValues(new Uint8Array(9)))}`;
   return `${corpo}.${await assinatura(corpo)}`;
 }
 

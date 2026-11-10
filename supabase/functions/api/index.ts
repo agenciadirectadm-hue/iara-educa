@@ -63,8 +63,6 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   l.push([`ip:${ip}`, 3000, 300]);
   if (token) l.push([`sessao:${token.slice(0, 16)}`, 900, 60]);
   if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
-  // senha de acesso: poucas tentativas por IP
-  if (path === "/acesso") l.push([`acesso:${ip}`, 10, 600]);
   if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
   if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
   // o Oráculo chama o Claude (custo por pergunta): poucas por minuto
@@ -205,6 +203,10 @@ Deno.serve(async (req: Request) => {
     if (path === "/acesso" && req.method === "GET") return json({ ativo: acessoAtivo() });
     if (path === "/acesso" && req.method === "POST") {
       if (!acessoAtivo()) return json({ ok: true, ativo: false, passe: null });
+      // só as tentativas de senha contam: a senha é pedida a cada abertura, e uma repartição inteira pode sair pelo mesmo IP
+      if (await excedeu([[`acesso:${meta.ip}`, 30, 600]])) {
+        return json({ error: "Muitas tentativas. Aguarde alguns minutos e tente de novo.", code: "RATE_LIMIT" }, 429, { "retry-after": "60" });
+      }
       const body = await req.json().catch(() => ({}));
       const senha = String(body?.senha ?? "").slice(0, 200);
       if (!senha || !(await senhaConfere(senha))) {

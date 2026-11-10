@@ -22,7 +22,7 @@ export function PortaoAcesso({ children }: { children: ReactNode }) {
     if (!passeDeAcesso()) {
       acessoSituacao()
         .then((r) => setEstado(r.ativo ? 'pedir' : 'livre'))
-        .catch(() => setEstado('livre')); // sem conexão: o próprio portal mostra o aviso; o servidor continua barrando
+        .catch(() => setEstado('pedir')); // sem resposta: na dúvida, pede a senha (com ela desligada, qualquer texto passa)
     }
     return () => {
       window.removeEventListener('hashchange', mudouRota);
@@ -78,7 +78,7 @@ function TelaSenha({ onEntrou }: { onEntrou: () => void }) {
           {erro && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-[13px] font-semibold text-red-800">{erro}</p>}
           <Button type="submit" block loading={enviando} disabled={!senha}>Entrar</Button>
         </form>
-        <p className="mt-4 text-[12px] text-subtle">Neste aparelho, a senha vale por 30 dias.</p>
+        <p className="mt-4 text-[12px] text-subtle">A senha é pedida sempre que o portal é aberto.</p>
       </Card>
     </div>
   );
