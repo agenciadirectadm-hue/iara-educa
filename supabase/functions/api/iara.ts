@@ -17,10 +17,16 @@ export type ConvSnapshot = {
   state: string;
   context: Ctx | null;
   identity_verified: boolean;
+  /** 0 ninguém identificado · 1 número do cadastro oficial · 2 número vinculado na escola pelo QR (migração 099.13). */
+  identity_level?: number;
   guardian_id: string | null;
   active_student_id: string | null;
   active_case_id: string | null;
 };
+
+/** Assuntos que exigem o número vinculado na escola (nível 2): dados sensíveis e cadastrais. O resto pede o nível 1. */
+const NIVEL_2 = /^(intent:(aee_plano|ocorrencias|reuniao_registro|transporte|transporte_aviso|declaracao|apoio|medidas|restricao|alterar_dados)|aee_ok:|oc_ok:|oc_rev:|re_ok:|re_man:|api_ok:|fam:atualizar)/;
+export const nivelExigido = (pending: string): 1 | 2 => (NIVEL_2.test(pending ?? "") ? 2 : 1);
 export type Patch = {
   context?: Ctx;
   intent?: string;
@@ -148,7 +154,7 @@ const SERVICE_KB: Record<string, string> = {
 const ENROLLED_ONLY = new Set(["TROCA_TURNO", "DOCUMENTO", "INTEGRAL", "ALIMENTACAO"]);
 const NEEDS_CHILD = new Set(["TROCA_TURNO", "INTEGRAL", "TRANSPORTE", "ALIMENTACAO", "AEE", "DOCUMENTO", "ALTERACAO_RESPONSAVEL", "RECURSO"]);
 /** Passos que esperam texto livre: o que a pessoa digita não deve ser confundido com outro assunto. */
-const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto", "ob_unidade", "ut_sup", "ut_inf", "ut_calc", "up_tipo", "up_motivo", "ap_area", "ap_motivo"]);
+const FREE_TEXT_STEPS = new Set(["decline_reason", "name", "bairro", "street", "child_name", "adult_name", "city", "school", "phone", "email", "description", "question", "rs_tipo", "ad_valor", "aus_texto", "oc_rev_texto", "re_man_texto", "ob_unidade", "ut_sup", "ut_inf", "ut_calc", "up_tipo", "up_motivo", "ap_area", "ap_motivo", "tr_cpf", "tr_codigo"]);
 /** Motivos da ausência (mensagem de busca ativa): os mesmos do portal. */
 const MOTIVO_AUSENCIA: [string, string][] = [["SAUDE", "Saúde"], ["CONSULTA", "Consulta ou atendimento"], ["TRANSPORTE", "Transporte"],
   ["DIFICULDADE_FAMILIAR", "Dificuldade familiar"], ["RECUSA", "Dificuldade para ir à escola"], ["OUTRO", "Outro motivo"], ["ESTA_NA_ESCOLA", "Estava na escola"]];
@@ -273,6 +279,7 @@ function areaApoio(t: string, areas: { codigo: string; palavras?: string | null 
 
 function detectIntent(t: string): string {
   // segurança primeiro: valem em qualquer ponto da conversa
+  if (/^nao fui eu\b/.test(t)) return "nao_fui_eu";
   if (/(quero morrer|me matar|tirar (a )?minha vida|suicid)/.test(t)) return "crise";
   if (/(abus(o|ou|aram|ando|ada|ado)\b|assedi|violencia (em casa|sexual|domestica|fisica|psicologica|contra)|espanc|(pai|mae|padrasto|madrasta|marido|companheiro|namorado|ex) .{0,25}(bate|bateu|agride|agrediu|ameaca|ameacou)|maltrat|estupr|molest|tocou (nela|nele|nas partes)|me bate\b|bate (nela|nele|nos meus|na minha|no meu)|ameaca de morte)/.test(t)) return "protecao";
   if (/(desmaiou|convuls|nao (esta |ta )?respira|parou de respirar|engasg|sangrando|inconsciente|ambulancia|\bsamu\b|emergencia)/.test(t)) return "emergencia";
@@ -310,8 +317,10 @@ function detectIntent(t: string): string {
   if (/(biblioteca|\blivros?\b|emprestimo de livro|sacola literaria)/.test(t)) return "biblioteca";
   if (/(\bpeso\b|altura|\bimc\b|quanto (ela|ele) (pesa|mede)|esta (magr|acima do peso|gordinh))/.test(t)) return "medidas";
   if (/((declaracao|atestado|comprovante) (escolar|de (matricula|frequencia|escolaridade|inscricao)|da (matricula|frequencia|fila)|para o bolsa|do bolsa|que (ele|ela) estuda)|declaracao (para|pro|pra) (o |a )?(bolsa|trabalho|empresa|beneficio|inss|cras))/.test(t)) return "declaracao";
-  if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(telefone|numero|celular|whatsapp|e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
-  if (/(troquei|mudei|novo|nova|outro) (de |o |meu |minha )?(telefone|numero|celular|whatsapp|e-?mail)/.test(t)) return "atualizar";
+  // troca do WhatsApp do cadastro: confirmada pelo número antigo ou na escola (099.13)
+  if (/((troquei|mudei) (de |o |meu |minha )?(telefone|numero|celular|whatsapp|zap)|(telefone|numero|celular|whatsapp|zap) (novo|nova)|(novo|outro) (telefone|numero|celular|whatsapp|zap)|(trocar|mudar|atualizar|alterar) (o |meu |de )?(telefone|numero|celular|whatsapp|zap))/.test(t)) return "trocar_numero";
+  if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
+  if (/(troquei|mudei|novo|nova|outro) (de |o |meu |minha )?(e-?mail)/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
   // vida escolar (Sprint 1)
   if (/(vida escolar|coisas da escola)/.test(t)) return "vida_escolar";
@@ -643,24 +652,51 @@ export class Agent {
     return !!(this.conv.identity_verified || this.patch.identity_verified);
   }
 
+  /** Família que acabou de se cadastrar por este número, neste mesmo turno (o banco confirma o nível 1 ao fim do turno). */
+  private nivelLocal = 0;
+
+  /** Nível de identidade da conversa: na demonstração, a verificação simulada vale tudo; em produção, vem do banco (099.13). */
+  private nivel(): number {
+    if (this.opts.demo) return this.verified() ? 2 : 0;
+    return Math.max(Number(this.conv.identity_level ?? 0), this.nivelLocal);
+  }
+
   /** Sem cadastro: a IARA oferece fazer o cadastro ali mesmo e depois retoma o pedido. */
   private needGuardian(next?: string): boolean {
     if (this.conv.guardian_id) return true;
+    if (!this.opts.demo) {
+      // produção: o número pode ser de quem já tem cadastro e trocou de celular — não duplicar a família
+      this.say("Não encontrei este número no cadastro de nenhuma criança da rede.\n\nSe você já tem cadastro e trocou de número, faço a troca por aqui (com confirmação pelo número antigo). Se é uma família nova, faço o cadastro agora, em cerca de 1 minuto.", {
+        quick_replies: [{ label: "Troquei de número", action: "intent:trocar_numero" }, { label: "Família nova: fazer cadastro", action: `fam:cadastro${next ? "|" + next : ""}` },
+                        { label: "Falar com atendente", action: "handoff" }],
+      });
+      return false;
+    }
     this.say("Para isso preciso do cadastro da família — faço por aqui mesmo, em cerca de 1 minuto. 😊", {
       quick_replies: [{ label: "Fazer meu cadastro", action: `fam:cadastro${next ? "|" + next : ""}` }, { label: "Agora não", action: "nothing" }],
     });
     return false;
   }
 
-  /** Dados pessoais exigem identidade + vínculo verificados (cap. 74.5). */
+  /** Dados pessoais exigem identidade + vínculo verificados (cap. 74.5), no nível que o assunto pede (099.13). */
   private ensureVerified(pending: string): boolean {
-    if (this.verified()) return true;
+    const exige = nivelExigido(pending);
+    if (this.opts.demo ? this.verified() : this.nivel() >= exige) return true;
     if (!this.opts.demo) {
-      // produção: a verificação é por mecanismo aprovado (gov.br no portal + código de uso único); nada é presumido aqui
-      this.say(
-        "Para consultar ou mudar dados pessoais por aqui, sua identidade e seu vínculo com a criança precisam estar confirmados. Entre no portal da família com a sua conta gov.br para vincular este número. Enquanto isso, posso ajudar com informações gerais.",
-        { quick_replies: [{ label: "Falar com atendente", action: "handoff" }, { label: "Voltar ao início", action: "intent:saudacao" }] },
-      );
+      // produção: nível 1 = número do cadastro oficial; nível 2 = número vinculado na escola pelo QR. Nada é presumido.
+      this.ctx.pending = null;
+      if (this.nivel() === 0) {
+        this.say(
+          "Para assuntos da criança por aqui, preciso reconhecer o responsável, e este número não está no cadastro de nenhuma criança da rede.\n\nSe você trocou de número, faço a troca por aqui, com confirmação pelo número antigo. Ou a secretaria da escola liga o seu WhatsApp em 1 minuto, com um documento com foto.",
+          { quick_replies: [{ label: "Troquei de número", action: "intent:trocar_numero" }, { label: "Falar com atendente", action: "handoff" },
+                            { label: "Voltar ao início", action: "intent:saudacao" }] },
+        );
+      } else {
+        this.say(
+          "Este assunto é protegido: por aqui, só com o WhatsApp confirmado na escola. Leva 1 minuto: leve um documento com foto à secretaria, ela mostra um QR e você aponta a câmera do celular.\n\nPelo número do cadastro, já posso ajudar com frequência, avisos, agenda, boletim, cardápio, ofertas e fila.",
+          { quick_replies: [{ label: "Vida escolar", action: "intent:vida_escolar" }, { label: "Voltar ao início", action: "intent:saudacao" }] },
+        );
+      }
       return false;
     }
     this.ctx.pending = pending;
@@ -873,6 +909,10 @@ export class Agent {
         return await this.startWithdraw();
       case "atualizar":
         return await this.startUpdate(norm(text));
+      case "trocar_numero":
+        return await this.startTroca();
+      case "nao_fui_eu":
+        return await this.naoFuiEu();
       case "servicos":
         return this.servicesMenu();
       case "vida_escolar":
@@ -1306,6 +1346,7 @@ export class Agent {
         if (!res?.ok) throw new Error("o cadastro não foi confirmado.");
         this.conv.guardian_id = res.guardian_id;
         if (this.opts.demo) this.patch.identity_verified = true; // produção: identidade só por mecanismo aprovado
+        else this.nivelLocal = 1; // produção: o cadastro é desta família, feito por este número (o banco confirma ao fim do turno)
         this.resetCache();
         const carry = d.carry ?? {};
         const next = d.next ?? null;
@@ -1529,13 +1570,67 @@ export class Agent {
   }
 
   // ================================================================== atualização de dados e declarações
+  /**
+   * Troca do WhatsApp do cadastro (099.13). Pedida pelo número NOVO: a pessoa informa o CPF e o código vai para o número
+   * ANTIGO do cadastro; vale depois de 48 h, com aviso ao número antigo e aos outros responsáveis. A resposta é a mesma
+   * com CPF conhecido ou não (ninguém descobre por aqui quem está no cadastro). Na escola, o QR troca na hora.
+   */
+  private async startTroca(): Promise<void> {
+    // demonstração: segue a atualização do telefone pela conversa, como sempre foi apresentada
+    if (this.opts.demo) return await this.startUpdate("telefone");
+    if (this.nivel() > 0) {
+      return this.say("Este número já está no cadastro. Para trocar pelo número novo, mande uma mensagem para a IARA *a partir do número novo* e diga \"troquei de número\": o código de confirmação chega aqui, neste número. Ou vá à secretaria da escola com um documento com foto: lá a troca é na hora.");
+    }
+    this.ctx = { flow: "troca", step: "tr_cpf", data: { tentativas: 0 } };
+    this.say("Vamos trocar o WhatsApp do seu cadastro. Qual é o CPF do responsável (só os números)?\n\nVou mandar um código de confirmação para o número antigo. Se você não tem mais o número antigo, a secretaria da escola faz a troca na hora, com um documento com foto.", {
+      quick_replies: [{ label: "Não tenho o número antigo", action: "intent:saudacao" }],
+    });
+  }
+
+  private async trocaStep(text: string): Promise<void> {
+    const digits = text.replace(/\D/g, "");
+    const d = this.ctx.data ?? {};
+    if (this.ctx.step === "tr_cpf") {
+      if (digits.length !== 11) {
+        d.tentativas = (d.tentativas ?? 0) + 1;
+        if (d.tentativas >= 3) { this.done(); return this.say("Sem o CPF não consigo seguir por aqui. A secretaria da escola faz a troca na hora, com um documento com foto."); }
+        return this.say("O CPF tem 11 números. Pode digitar de novo?");
+      }
+      const r = await this.tool<{ ok?: boolean; mensagem?: string }>("familia_troca_pedir", "familia_troca_pedir", { cpf: digits }).catch((e) => ({ ok: false, mensagem: (e as Error).message }));
+      this.say(r?.mensagem ?? "Não consegui pedir a troca agora. Tente de novo em instantes.");
+      if (!r?.ok) return this.done();
+      this.ctx = { flow: "troca", step: "tr_codigo", data: {} };
+      return;
+    }
+    if (this.ctx.step === "tr_codigo") {
+      if (digits.length !== 6) return this.say("O código tem 6 números e chegou no número antigo. Pode digitar?", { quick_replies: [{ label: "Desistir da troca", action: "intent:saudacao" }] });
+      const r = await this.tool<{ ok?: boolean; motivo?: string; mensagem?: string }>("familia_troca_confirmar", "familia_troca_confirmar", { codigo: digits })
+        .catch((e) => ({ ok: false, motivo: "ERRO", mensagem: (e as Error).message }));
+      this.say(r?.mensagem ?? "Não consegui confirmar agora. Tente de novo em instantes.");
+      if (r?.ok || r?.motivo !== "ERRADO") this.done(r?.ok ? "Troca do WhatsApp do cadastro confirmada; vale em 48 h." : undefined);
+      return;
+    }
+    this.done();
+  }
+
+  /** "NÃO FUI EU" no número do cadastro: cancela a troca pedida por outro número. */
+  private async naoFuiEu(): Promise<void> {
+    if (this.opts.demo) return this.say("Entendido. Na demonstração não há troca de número em andamento.");
+    const r = await this.tool<{ canceladas?: number; mensagem?: string }>("familia_troca_contestar", "familia_troca_contestar", {}).catch(() => null);
+    this.say(r?.mensagem ?? "Não consegui registrar agora. Por segurança, avise a escola.");
+    if ((r?.canceladas ?? 0) > 0) this.done("Troca de número contestada pelo número do cadastro.");
+  }
+
   private async startUpdate(hint: string): Promise<void> {
     if (!this.needGuardian("fam:atualizar")) return;
     if (!this.ensureVerified("fam:atualizar")) return;
     this.ctx = { flow: "atualizar", step: "what", data: {} };
     if (hint === "ms" || /mae solo|crio sozinha/.test(hint)) return this.updateStep("ms");
     if (hint === "cad" || /cadunico|bolsa familia/.test(hint)) return this.updateStep("cad");
-    if (/telefone|numero|celular|whatsapp/.test(hint)) return this.updateStep("tel");
+    if (/telefone|numero|celular|whatsapp/.test(hint)) {
+      if (!this.opts.demo) return await this.startTroca();
+      return this.updateStep("tel");
+    }
     if (/e-?mail/.test(hint)) return this.updateStep("email");
     this.say("O que você quer atualizar?", {
       quick_replies: [
@@ -1549,6 +1644,8 @@ export class Agent {
     const t = norm(text);
     const step = this.ctx.step;
     if (step === "what") {
+      // produção: o WhatsApp do cadastro só troca com confirmação do número antigo ou na escola (099.13)
+      if (/tel|fone|whats|cel/.test(t) && !this.opts.demo) return await this.startTroca();
       if (/tel|fone|whats|cel/.test(t)) return this.ask("phone", "Qual o novo número com DDD? (ex.: 44 99999-1234)");
       if (/mail/.test(t)) return this.ask("email", "Qual o novo e-mail?");
       if (/cad/.test(t)) return this.ask("cad", "A família está inscrita no CadÚnico agora?", { quick_replies: YES_NO });
@@ -1998,6 +2095,7 @@ export class Agent {
     if (flow === "novo_membro") return await this.newMemberStep(text);
     if (flow === "mudanca") return await this.moveStep(text);
     if (flow === "atualizar") return await this.updateStep(text);
+    if (flow === "troca") return await this.trocaStep(text);
     if (flow === "outra_cidade") {
       if (step === "pick_child") {
         const fam = await this.family();
@@ -3863,7 +3961,7 @@ function minimize(args: Record<string, unknown>) {
     if (["lat", "lng"].includes(k) && typeof v === "number") out[k] = Math.round(v * 100) / 100; // localização aproximada no log
     else if (["full_name", "child_full_name", "adult_name"].includes(k) && typeof v === "string") out[k] = v.split(" ")[0] + " …";
     else if (k === "address" && v && typeof v === "object") out[k] = { neighborhood: (v as any).neighborhood ?? null };
-    else if (["phone", "email"].includes(k)) out[k] = "•••";
+    else if (["phone", "email", "cpf", "codigo"].includes(k)) out[k] = "•••";
     else out[k] = v;
   }
   return out;

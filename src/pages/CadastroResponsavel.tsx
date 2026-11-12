@@ -15,6 +15,7 @@ import { Crumbs } from '@/components/Crumbs';
 import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { Alternar, AvisoRestrito, BarraSalvar, Campo, Escolha, Secao, Selecao, Texto } from '@/components/cadastro';
 import EnderecoEditor from '@/components/EnderecoEditor';
+import { VinculoWhatsApp } from '@/components/VinculoWhatsApp';
 import { BuscarPessoaSheet, EncerrarVinculoSheet, LinhaVinculo, TabelaVinculos, VinculoSheet, useRecarregarCadastros, type Vinculo } from '@/components/Vinculos';
 import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 
@@ -243,6 +244,8 @@ function FormularioResponsavel({ cad, crianca }: { cad: any | null; crianca: any
             </Campo>
           </div>
         </Secao>
+
+        {!novo && <VinculoWhatsApp responsavelId={cad.responsavel.id} />}
 
         <Secao id="renda" icon={Briefcase} titulo="Trabalho, renda e programas sociais" descricao="Usados nos critérios da fila (CadÚnico, mãe solo) e nos indicadores de vulnerabilidade.">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

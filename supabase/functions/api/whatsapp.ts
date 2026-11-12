@@ -153,6 +153,24 @@ async function entrada(canal: Canal, body: Record<string, unknown>, meta: Reques
   if (!convId) throw new Error("Conversa não encontrada para o contato.");
   const vinc = (await asSystem(userId, meta, (tx) => tx`select iara.whatsapp_vincular(${contato.contact_id}::uuid, ${convId}::uuid) as r`))[0]?.r as { nova: boolean };
 
+  // QR da secretaria (099.13): o responsável aponta a câmera e o WhatsApp manda "VINCULAR <código>" — vale até no 1º contato.
+  // O código é de uso único e fica mascarado no histórico da conversa.
+  const qr = tipo === "texto" ? /^\s*vincular\s+([a-z0-9]{6,12})\s*$/i.exec(texto) : null;
+  if (qr) {
+    await callApi(userId, meta, "iara_send", { conversation_id: convId, body: "VINCULAR ••••••••", payload: { canal: "whatsapp", wa_id: waId, vinculo_qr: true } });
+    const r = (await asSystem(userId, meta, (tx) => tx`select iara.familia_vinculo_qr_usar(${contato.contact_id}::uuid, ${qr[1]}) as r`))[0]?.r as
+      { ok: boolean; nome?: string; valido_ate?: string; mensagem?: string } | undefined;
+    const ate = String(r?.valido_ate ?? "").split("-").reverse().join("/");
+    const resposta: Reply[] = r?.ok
+      ? [{ body: `Pronto, ${r.nome}! ✅ Este WhatsApp está confirmado na escola. Por aqui você acompanha tudo das suas crianças, inclusive os assuntos protegidos, até ${ate}. A IARA nunca pede código nem senha por mensagem.`,
+           payload: { quick_replies: [{ label: "Vida escolar", action: "intent:vida_escolar" }, { label: "Minha família", action: "intent:familia" }] } }]
+      : [{ body: r?.mensagem ?? "Não consegui confirmar agora. Peça ajuda à secretaria da escola." }];
+    await asSystem(userId, meta, (tx) =>
+      tx`select iara.agent_reply(${convId}::uuid, ${sql.json(resposta as never)}::jsonb, ${sql.json({} as never)}::jsonb, ${sql.json([] as never)}::jsonb) as r`);
+    await guardarOpcoes(contato.contact_id, userId, meta, resposta);
+    return json({ ativo: true, respostas: renderWhatsApp(resposta) });
+  }
+
   // áudio: a IARA ouve (transcrição) e responde ao que foi dito; o texto ouvido fica na conversa para a equipe
   const ouvido = tipo === "audio" ? await transcrever(String(body.audio_base64 ?? ""), String(body.audio_tipo ?? "audio/ogg")) : null;
   const extra = tipo === "audio" ? { audio: true, transcricao: ouvido, segundos: Number(body.audio_segundos ?? 0) || null } : {};

@@ -25,20 +25,23 @@ begin
   end;
   v_out := v_out || jsonb_build_object('passo', '1. Entrada por perfil sem login (deve negar)', 'ok', v_err = '42501', 'codigo', v_err);
 
-  -- 2. WhatsApp: número ligado a uma família NÃO vira identidade verificada
+  -- 2. WhatsApp: número ligado a uma família NÃO vira identidade verificada (só o número do cadastro oficial identifica,
+  --    migração 099.13; este número fica fora do padrão (44) 9000X-XXXX dos telefones fictícios do cadastro da demonstração)
   select id into v_guardian from iara.guardians limit 1;
   insert into iara.conversations (tenant_id, channel, contact_label, state, identity_verified, is_demo)
   values (1, 'WHATSAPP', 'Teste saída da demonstração', 'BOT_ACTIVE', false, true) returning id into v_conv;
   insert into iara.whatsapp_contacts (channel_id, telefone_e164, guardian_id)
-  select id, '+5544900009999', v_guardian from iara.whatsapp_channels order by created_at limit 1
+  select id, '+5544911119999', v_guardian from iara.whatsapp_channels order by created_at limit 1
   returning id into v_contact;
   perform iara.whatsapp_vincular(v_contact, v_conv);
-  select identity_verified into v_ok from iara.conversations where id = v_conv;
-  v_out := v_out || jsonb_build_object('passo', '2. Número vinculado não presume identidade', 'ok', v_ok = false);
+  select not identity_verified and identity_level = 0 into v_ok from iara.conversations where id = v_conv;
+  v_out := v_out || jsonb_build_object('passo', '2. Número vinculado não presume identidade', 'ok', v_ok);
 
   -- 3. o mesmo cenário COM o interruptor ligado presume (comportamento atual da demonstração, preservado)
   update iara.tenants set settings = settings || '{"demo_mode": true}'::jsonb where id = 1;
   update iara.conversations set identity_verified = false where id = v_conv;
+  -- em produção o vínculo do contato fora do cadastro foi desfeito (099.13); a demonstração parte do contato ligado
+  update iara.whatsapp_contacts set guardian_id = v_guardian where id = v_contact;
   perform iara.whatsapp_vincular(v_contact, v_conv);
   select identity_verified into v_ok from iara.conversations where id = v_conv;
   v_out := v_out || jsonb_build_object('passo', '3. Na demonstração o comportamento continua igual', 'ok', v_ok = true);
