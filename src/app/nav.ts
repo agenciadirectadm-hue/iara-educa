@@ -1,4 +1,4 @@
-import { ListTodo, HeartHandshake, Shirt, TrendingUp, Accessibility, Users2, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
+import { Clapperboard, MonitorPlay, ListTodo, HeartHandshake, Shirt, TrendingUp, Accessibility, Users2, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -88,6 +88,10 @@ const I = {
   orgaos: { to: '/orgaos', label: 'Uniformes, kits e Ideb', icon: Scale, grupo: 'controle' },
   // central de pendências (todo servidor; Prefeito só as estatísticas)
   pendencias: { to: '/pendencias', label: 'Pendências', icon: ListTodo, grupo: 'gestao' },
+  // IARAFLIX: o treinamento em vídeo (todo servidor; a família não)
+  iaraflix: { to: '/iaraflix', label: 'IARAFLIX', icon: Clapperboard, grupo: 'ajuda' },
+  // vídeos da SEDUC para as famílias (públicos)
+  videos: { to: '/videos', label: 'Vídeos da SEDUC', icon: MonitorPlay, grupo: 'ajuda' },
 } satisfies Record<string, NavItem>;
 
 /** Agrupa os itens na ordem dos grupos, mantendo a ordem de cada grupo. */
@@ -100,7 +104,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
   const unitId = me?.unit?.id;
   switch (role) {
     case 'PREFEITO':
-      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [{ ...I.pendencias, label: 'Pendências da rede' }, I.reunioes, I.recusas, I.oraculo, I.bolsaFamilia, I.publicos, I.uniformes, I.ideb, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.mapa, I.indicadores, I.unidades], more: [{ ...I.pendencias, label: 'Pendências da rede' }, I.reunioes, I.recusas, I.oraculo, I.bolsaFamilia, I.publicos, I.uniformes, I.ideb, I.gestao, I.nutricao, I.manutencao, I.qualidade, I.regras, I.iaraflix, I.suporte, I.ajuda] };
     case 'SECRETARIO':
     case 'SUPERINTENDENCIA':
     case 'GERENCIA_EI':
@@ -114,20 +118,20 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.gestao, I.pessoal, I.indicadores,
           // o que o Ministério Público e a Defensoria veem (Secretaria e Superintendência)
           ...(role === 'GERENCIA_EI' ? [] : [I.controle]), I.auditoria, I.qualidade, I.regras,
-          I.suporte, I.ajuda],
+          I.iaraflix, I.suporte, I.ajuda],
       };
     case 'CONTROLE_EXTERNO':
       return {
         primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.unidades, I.controleFila, I.controleCaso, I.controleReunioes, I.regras],
-        more: [I.orgaos, I.recusas, I.distancias, I.mapa, I.indicadores, I.qualidade, I.ajuda],
+        more: [I.orgaos, I.recusas, I.distancias, I.mapa, I.indicadores, I.qualidade, I.iaraflix, I.ajuda],
       };
     case 'INOVACAO':
-      return { primary: [I.inicio, I.unidades, I.pendencias, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.nutricao, I.uniformes, I.ideb, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.unidades, I.pendencias, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.nutricao, I.uniformes, I.ideb, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.iaraflix, I.suporte, I.ajuda] };
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
         primary: [I.inicio, I.pendencias, I.unidades, I.iara, I.atendimentos, { ...I.vagas, label: 'Vagas' }],
-        more: [I.whatsapp, I.fila, I.ofertas, ...(role === 'ANALISTA_CENTRAL' ? [I.recusas] : []), I.rematricula, I.validacoes, I.alunos, I.responsaveis, I.verificar, I.mapa, I.ensalamento, I.auditoria, I.regras, I.suporte, I.ajuda],
+        more: [I.whatsapp, I.fila, I.ofertas, ...(role === 'ANALISTA_CENTRAL' ? [I.recusas] : []), I.rematricula, I.validacoes, I.alunos, I.responsaveis, I.verificar, I.mapa, I.ensalamento, I.auditoria, I.regras, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'DIRETOR_UNIDADE':
       return {
@@ -145,7 +149,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.apoio, I.biblioteca, I.eventos,
           I.ensalamento, I.transporte, I.materiais, I.uniformes, I.cozinha, I.manutencao, I.mapa,
-          I.pessoal, I.pontoEquipe, I.gestao, I.indicadores, I.auditoria, I.regras, I.suporte, I.ajuda,
+          I.pessoal, I.pontoEquipe, I.gestao, I.indicadores, I.auditoria, I.regras, I.iaraflix, I.suporte, I.ajuda,
         ],
       };
     case 'SECRETARIA_ESCOLAR':
@@ -164,13 +168,14 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
           I.frequencia, I.presenca, I.ocorrencias, I.reunioes, I.buscaAtiva, I.guarda, I.mural, I.calendario,
           I.desempenho, I.aee, I.apoio, I.biblioteca, I.eventos, I.verificar,
           I.ensalamento, I.transporte, I.materiais, I.uniformes, I.cozinha, I.manutencao, I.mapa,
-          I.pessoal, I.pontoEquipe, I.suporte, I.ajuda,
+          I.pessoal, I.pontoEquipe, I.iaraflix, I.suporte, I.ajuda,
         ],
       };
     case 'CIDADAO':
     case 'CIDADAO_NOVO':
       return {
-        primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, I.unidades, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList, grupo: 'matricula' }],
+        primary: [I.inicio, { to: '/iara', label: 'IARA', icon: MessageCircle }, { to: '/familia', label: 'Família', icon: Users }, I.unidades, { to: '/protocolos', label: 'Protocolos', icon: ClipboardList, grupo: 'matricula' },
+          { ...I.videos, label: 'Vídeos' }],
         more: [
           { to: '/escola', label: 'Vida escolar', icon: School, grupo: 'escolar' }, { to: '/escola?aba=aulas', label: 'O que estudou', icon: NotebookPen, match: '/escola', grupo: 'escolar' },
           { to: '/escola?aba=boletim', label: 'Boletim', icon: GraduationCap, match: '/escola', grupo: 'escolar' }, { to: '/escola?aba=historico', label: 'Histórico escolar', icon: GraduationCap, match: '/escola', grupo: 'escolar' },
@@ -189,37 +194,37 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'PROFESSOR':
       return {
         primary: [{ ...I.inicio, label: 'Minhas turmas', icon: BookOpen }, I.pendencias, I.unidades, I.ocorrencias, I.meuPonto, I.mural],
-        more: [I.reunioes, I.calendario, I.biblioteca, I.eventos, I.regras, I.suporte, I.ajuda],
+        more: [I.reunioes, I.calendario, I.biblioteca, I.eventos, I.regras, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'NUTRICAO':
       return {
         primary: [I.inicio, I.pendencias, { ...I.nutricao, label: 'Cardápios' }, I.unidades, I.cozinha, I.mural],
-        more: [{ ...I.almoxarifado, label: 'Alimentos e pedidos', to: '/materiais?aba=alimentos' }, I.materiais, I.mapa, I.calendario, I.eventos, I.suporte, I.ajuda],
+        more: [{ ...I.almoxarifado, label: 'Alimentos e pedidos', to: '/materiais?aba=alimentos' }, I.materiais, I.mapa, I.calendario, I.eventos, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'TRANSPORTE':
       return {
         primary: [{ ...I.inicio, label: 'Transporte hoje', icon: Bus }, I.pendencias, I.unidades, I.mapaRotas, I.mapa, I.mural],
-        more: [I.calendario, I.eventos, I.suporte, I.ajuda],
+        more: [I.calendario, I.eventos, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'ALMOXARIFADO':
       return {
         primary: [{ ...I.inicio, label: 'Almoxarifado', icon: Warehouse }, I.pendencias, I.unidades, { ...I.materiais, label: 'Estoque' }, I.cozinha, I.mapa],
-        more: [I.uniformes, I.calendario, I.eventos, I.suporte, I.ajuda],
+        more: [I.uniformes, I.calendario, I.eventos, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'PROFESSOR_AEE':
       return {
         primary: [{ ...I.inicio, label: 'Meus alunos', icon: Accessibility }, I.pendencias, I.unidades, I.meuPonto, I.mural, I.calendario],
-        more: [I.apoio, I.reunioes, I.eventos, I.regras, I.suporte, I.ajuda],
+        more: [I.apoio, I.reunioes, I.eventos, I.regras, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'GERENCIA_APOIO':
       return {
         primary: [{ ...I.inicio, label: 'Apoio interdisciplinar', icon: HeartHandshake }, I.pendencias, I.unidades, I.aee, I.gestao],
-        more: [I.calendario, I.regras, I.suporte, I.ajuda],
+        more: [I.calendario, I.regras, I.iaraflix, I.suporte, I.ajuda],
       };
     case 'APOIO_INTERDISCIPLINAR':
       return {
         primary: [{ ...I.inicio, label: 'Meus casos', icon: HeartHandshake }, I.pendencias, I.unidades, I.calendario],
-        more: [I.suporte, I.ajuda],
+        more: [I.iaraflix, I.suporte, I.ajuda],
       };
     case 'TRIBUNAL_CONTAS':
     case 'CONSELHOS':
@@ -227,16 +232,16 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
     case 'CAMARA':
       return {
         primary: [{ ...I.inicio, label: 'Painel', icon: Scale }, I.unidades, I.mapa, I.ideb],
-        more: [I.regras, I.qualidade, I.ajuda],
+        more: [I.regras, I.qualidade, I.iaraflix, I.ajuda],
       };
     case 'COMERCIAL':
-      return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [] };
+      return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [I.iaraflix] };
     case 'MANUTENCAO':
       return {
         primary: [I.inicio, I.pendencias, I.unidades, { ...I.manutencao, label: 'Chamados' }, I.materiais, I.mapa],
-        more: [I.calendario, I.suporte, I.ajuda],
+        more: [I.calendario, I.iaraflix, I.suporte, I.ajuda],
       };
     default:
-      return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.verificar, I.regras, I.qualidade] };
+      return { primary: [I.mapa, I.unidades, I.vagas, I.ajuda], more: [I.videos, I.verificar, I.regras, I.qualidade] };
   }
 }

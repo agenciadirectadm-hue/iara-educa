@@ -80,6 +80,9 @@ const ESCOLA_MENU: QuickReply[] = [
 ];
 /** Sprint 2 (pedagógico): rótulos usados no boletim, no AEE e nas declarações. */
 const PORTAL = (Deno.env.get("PORTAL_URL") ?? "https://agenciadirectadm-hue.github.io/iara-educa/").replace(/\/?$/, "/");
+const CATEGORIA_VIDEO: Record<string, string> = {
+  TUTORIAL: "Aprenda a usar o portal e a IARA", MATRICULA: "Vagas e matrícula", VIDA_ESCOLAR: "Vida escolar", AVISOS: "Avisos e campanhas da SEDUC", OUTROS: "Vídeo da SEDUC",
+};
 const NIVEL_ALFA: Record<string, string> = {
   PRE_SILABICO: "pré-silábico", SILABICO_SEM_VALOR: "silábico sem valor sonoro", SILABICO_COM_VALOR: "silábico com valor sonoro",
   SILABICO_ALFABETICO: "silábico-alfabético", ALFABETICO: "alfabético",
@@ -293,6 +296,8 @@ function detectIntent(t: string): string {
   // apoio interdisciplinar e uniformes/kits: o que a família vê no portal (Vida escolar)
   if (/(psicolog|fonoaud|\bfono\b|psicopedag|apoio interdisciplinar|orientac(ao|oes) educacional|orientadora? educacional|altas habilidades|superdota|dislex|discalcul|disgraf|\btdah\b|troca (as )?letras|gaguej|estimulacao essencial|baixa visao|orientac(ao|oes) do apoio)/.test(t)) return "apoio";
   if (/(uniforme|camiseta|jaqueta|blusa de la|papete|bermuda|shorts?.saia|kit escolar|material escolar|lista de material|codigo (do|de|da) (uniforme|kit|retirada)|retirar (o |a )?(uniforme|kit|material))/.test(t)) return "uniforme";
+  // vídeos da SEDUC para as famílias (públicos: não pedem identidade)
+  if (/\b(videos?|tutoria(l|is)|videoaulas?|video ?aulas?)\b/.test(t)) return "videos";
   // perguntas gerais: respondem pela base oficial, sem pedir identidade
   if (/(como funciona|quais? (sao )?(os |as )?(criterios?|regras?)|quanto tempo demora|demora quanto|quanto demora|como e a (fila|pontuacao)|como (eu )?(peco|solicito|consigo|faco para (pedir|conseguir)) (uma )?vaga|quem resolve|que etapas|quais etapas|professora? de apoio|mediador|auxiliar de sala)/.test(t)) return "conhecimento";
   if (/\b(tem|vai ter|ha|teve|vai haver) aula\b|\b(escola|creche|cmei|unidade)\b.{0,20}\b(aberta|aberto|abre|abriu|fechada|fechado|fecha|fechou|funcionando|funciona)\b|\b(e|sera) dia (letivo|de aula)\b/.test(t)) return "tem_aula";
@@ -974,6 +979,8 @@ export class Agent {
         return await this.rematricula();
       case "eventos":
         return await this.eventosFamilia();
+      case "videos":
+        return await this.videosFamilia(text);
       case "historico":
         return await this.startDeclaracao("historico escolar");
       case "transporte_aviso":
@@ -3357,6 +3364,26 @@ export class Agent {
     const r = await this.tool("answer_reenrollment", "rematricula_responder", { id, acao, motivo, canal: "IARA" }, `rem:${id}:${acao}`);
     this.done(acao === "CONFIRMAR" ? "Confirmou a rematrícula." : "Informou que não vai renovar a matrícula.");
     this.say(`${acao === "CONFIRMAR" ? "✅ " : ""}${r.mensagem}`, { quick_replies: [ESCOLA_MENU[16], MENU[0]] });
+  }
+
+  /** Vídeos que a SEDUC publicou para as famílias: os que mais combinam com o pedido primeiro, com o link do portal. */
+  private async videosFamilia(text: string): Promise<void> {
+    const r = (await this.tool("list_family_videos", "videos_familia_lista", { q: text })) as { videos?: any[] } | null;
+    const vids = (r?.videos ?? []) as any[];
+    this.done("Consultou os vídeos da SEDUC.");
+    if (!vids.length) {
+      return this.say("A SEDUC ainda não publicou vídeos para as famílias. Quando publicar, eles aparecem aqui e no portal, em Vídeos. Posso ajudar com outra coisa?",
+        { quick_replies: [MENU[0]] });
+    }
+    const dur = (s: number | null) => (s ? (s < 60 ? `${s} s` : `${Math.round(s / 60)} min`) : null);
+    const cards: Card[] = vids.slice(0, 4).map((v) => ({
+      title: v.titulo,
+      subtitle: [CATEGORIA_VIDEO[v.categoria] ?? "Vídeo da SEDUC", dur(v.duracao_s)].filter(Boolean).join(" · "),
+      lines: [v.descricao, `Assistir: ${PORTAL}#/videos/${v.id}`].filter(Boolean),
+      tone: "purple",
+    }));
+    this.say(vids.length > 4 ? "Separei os vídeos da SEDUC que mais combinam com o que você pediu:" : "Vídeos da SEDUC para as famílias:",
+      { cards, notice: `Todos os vídeos ficam no portal, em Vídeos: ${PORTAL}#/videos` });
   }
 
   private async eventosFamilia(): Promise<void> {

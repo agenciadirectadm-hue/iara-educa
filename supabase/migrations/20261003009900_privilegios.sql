@@ -37,7 +37,9 @@ grant execute on function
   api.bootstrap(jsonb), api.units_map(jsonb), api.geo_layers(jsonb), api.geo_setores(jsonb), api.mapa_recorte(jsonb), api.units_list(jsonb), api.unit_detail(jsonb), api.territory_detail(jsonb),
   api.network_kpis(jsonb), api.grade_for_birthdate(jsonb), api.search_vacancies(jsonb), api.geo_search(jsonb), api.knowledge_search(jsonb),
   api.service_catalog(jsonb), api.rules_list(jsonb), api.data_quality(jsonb), api.persona_units(jsonb), api.declaracao_verificar(jsonb),
-  api.ideb_unidade(jsonb), api.ideb_rede(jsonb), api.ideb_mapa(jsonb), api.apoio_areas(jsonb)
+  api.ideb_unidade(jsonb), api.ideb_rede(jsonb), api.ideb_mapa(jsonb), api.apoio_areas(jsonb),
+  -- vídeos da SEDUC para as famílias (conteúdo público)
+  api.videos_familia_lista(jsonb), api.videos_familia_ver(jsonb), api.videos_familia_assistiu(jsonb), api.videos_familia_acesso(jsonb)
   to anon, authenticated;
 
 -- API autenticada (permissão e escopo verificados dentro de cada função / pela RLS)

@@ -64,6 +64,12 @@ const ApoioCaso = lazy(() => import('./pages/ApoioCaso'));
 const PainelOrgao = lazy(() => import('./pages/orgaos/PainelOrgao'));
 const Ideb = lazy(() => import('./pages/Ideb'));
 const Pendencias = lazy(() => import('./pages/Pendencias'));
+const Iaraflix = lazy(() => import('./pages/Iaraflix'));
+const IaraflixTrilha = lazy(() => import('./pages/Iaraflix').then((m) => ({ default: m.IaraflixTrilha })));
+const IaraflixAula = lazy(() => import('./pages/IaraflixAula'));
+const IaraflixGestao = lazy(() => import('./pages/IaraflixGestao'));
+const Videos = lazy(() => import('./pages/Videos'));
+const VideoFamiliaPagina = lazy(() => import('./pages/Videos').then((m) => ({ default: m.VideoFamiliaPagina })));
 const Diario = lazy(() => import('./pages/Diario'));
 const Ocorrencias = lazy(() => import('./pages/Ocorrencias'));
 const Validacoes = lazy(() => import('./pages/Validacoes'));
@@ -222,6 +228,14 @@ export const router = createHashRouter([
       { path: '/orgaos', element: <RequireSession>{S(<PainelOrgao />)}</RequireSession>, handle: { wide: true } },
       { path: '/ideb', element: S(<Ideb />), handle: { wide: true } },
       { path: '/pendencias', element: <RequireSession>{S(<Pendencias />)}</RequireSession>, handle: { wide: true } },
+      // IARAFLIX: treinamento em vídeo (trilha por perfil, player, gestão e adesão)
+      { path: '/iaraflix', element: <RequireSession>{S(<Iaraflix />)}</RequireSession>, handle: { wide: true } },
+      { path: '/iaraflix/trilha/:id', element: <RequireSession>{S(<IaraflixTrilha />)}</RequireSession>, handle: { wide: true } },
+      { path: '/iaraflix/aula/:id', element: <RequireSession>{S(<IaraflixAula />)}</RequireSession>, handle: { wide: true } },
+      { path: '/iaraflix/gestao', element: <RequireSession>{S(<IaraflixGestao />)}</RequireSession>, handle: { wide: true } },
+      // vídeos da SEDUC para as famílias: públicos (sem login), no portal e pela IARA
+      { path: '/videos', element: S(<Videos />), handle: { wide: true } },
+      { path: '/videos/:id', element: S(<VideoFamiliaPagina />), handle: { wide: true } },
       { path: '/pessoal', element: <RequireSession>{S(<Pessoal />)}</RequireSession>, handle: { wide: true } },
       { path: '/pessoal/:id', element: <RequireSession>{S(<Servidor />)}</RequireSession>, handle: { wide: true } },
       { path: '/frequencia', element: <RequireSession>{S(<Frequencia />)}</RequireSession>, handle: { wide: true } },

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, X, FolderOpen,
+  Bell, Check, CheckCircle2, ChevronRight, Circle, ClipboardList, FilePen, MapPin, MessageCircle, Route, School, Search, ShieldCheck, Sparkles, X, FolderOpen, MonitorPlay,
 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
@@ -22,6 +22,7 @@ import { PontosCriterio } from '@/components/PontosCriterio';
 import { AVISO_FAMILIA_FICTICIA } from '@/lib/avisos';
 import { VidaEscolarResumo } from '@/pages/Escola';
 import { FaixaReuniaoFamilia } from '@/components/reunioes';
+import { FaixaVideos } from '@/pages/Videos';
 
 // o quadro tem mapa: só carrega quando a família abre "ver o caminho"
 const QuadroDistancias = lazy(() => import('@/components/QuadroDistancias'));
@@ -50,6 +51,7 @@ function CitizenHome() {
     { icon: MapPin, label: 'Unidades próximas', to: '/mapa?perto=1', tone: 'from-sky-500 to-blue-700' },
     { icon: FilePen, label: 'Minha família', to: '/familia', tone: 'from-orange-400 to-rose-500' },
     { icon: FolderOpen, label: 'Documentos e fotos', to: '/familia/documentos', tone: 'from-emerald-500 to-teal-700' },
+    { icon: MonitorPlay, label: 'Vídeos da SEDUC', to: '/videos', tone: 'from-violet-500 to-fuchsia-600' },
   ];
 
   return (
@@ -68,7 +70,7 @@ function CitizenHome() {
       {d.guardian && <FaixaReuniaoFamilia />}
       {pendingOffer && <OfferHero offer={pendingOffer} now={now} />}
 
-      <div className="mt-4 grid grid-cols-3 gap-2.5 sm:grid-cols-7">
+      <div className="mt-4 grid grid-cols-4 gap-2.5 lg:grid-cols-8">
         {actions.map((a) => (
           <motion.div key={a.label} whileTap={{ scale: 0.95 }}>
             <Link
@@ -102,6 +104,8 @@ function CitizenHome() {
         action={<Link to="/escola" className="text-sm font-semibold text-purple-700">Abrir</Link>}>
         <VidaEscolarResumo />
       </Section>
+
+      <FaixaVideos />
 
       <Section title="Protocolos" action={<Link to="/protocolos" className="text-sm font-semibold text-purple-700">Ver todos</Link>}>
         <Card className="divide-y divide-line">

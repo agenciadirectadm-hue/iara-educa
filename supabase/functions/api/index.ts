@@ -21,6 +21,10 @@ import { Agent, type ConvSnapshot } from "./iara.ts";
 import { audioDisponivel, handleWhatsApp } from "./whatsapp.ts";
 import { localizarEndereco } from "./geo.ts";
 import { ARQUIVO_MAX_BYTES, descartarArquivos, guardarArquivo, lerArquivo } from "./arquivos.ts";
+import {
+  assistir as iaraflixAssistir, assistirFamilia as videosAssistir, autorizarEnvio as iaraflixAutorizarEnvio, autorizarEnvioFamilia as videosAutorizarEnvio,
+  confirmarEnvio as iaraflixConfirmarEnvio, confirmarEnvioFamilia as videosConfirmarEnvio,
+} from "./iaraflix.ts";
 import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
 import { claudeDisponivel, mcp, perguntarOraculo, statusOraculo } from "./oraculo.ts";
 import { pontoBiometria } from "./ponto.ts";
@@ -65,6 +69,9 @@ function limitesPara(path: string, ip: string, token: string | null): [string, n
   if (path === "/session") l.push([`nova-sessao:${ip}`, 40, 600]);
   if (path === "/iara/message") l.push([`iara:${ip}`, 120, 60]);
   if (path === "/arquivo") l.push([`envio:${ip}`, 60, 600]);
+  if (path === "/iaraflix/assistir") l.push([`iaraflix:${ip}`, 240, 60]);
+  if (path.startsWith("/iaraflix/envio") || path.startsWith("/videos/envio")) l.push([`iaraflix-envio:${ip}`, 60, 600]);
+  if (path === "/videos/assistir") l.push([`videos:${ip}`, 240, 60]);
   // o Oráculo chama o Claude (custo por pergunta): poucas por minuto
   if (path === "/oraculo") l.push([`oraculo:${ip}`, 20, 60]);
   if (path.startsWith("/mcp")) l.push([`mcp:${ip}`, 120, 60]);
@@ -248,6 +255,30 @@ Deno.serve(async (req: Request) => {
       });
       return json(r);
     }
+    // IARAFLIX: link curto do vídeo da aula (o banco confere a trilha do perfil) e envio direto ao Storage pela gestão
+    if (path.startsWith("/iaraflix/") && req.method === "POST") {
+      const { userId, expired } = await resolveUser(req);
+      if (!userId || expired) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      const corpo = await req.json().catch(() => ({})) as Record<string, unknown>;
+      if (path === "/iaraflix/assistir") return json(await iaraflixAssistir(userId, meta, String(corpo.aula_id ?? "")));
+      if (path === "/iaraflix/envio") return json(await iaraflixAutorizarEnvio(userId, meta, corpo));
+      if (path === "/iaraflix/envio/confirmar") return json(await iaraflixConfirmarEnvio(userId, meta, corpo));
+    }
+
+    // vídeos da SEDUC para as famílias: assistir vale sem login (conteúdo público; com a senha do portal ligada, pede o passe); enviar é da gestão
+    if (path.startsWith("/videos/") && req.method === "POST") {
+      const { userId, expired } = await resolveUser(req);
+      if (expired) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      const corpo = await req.json().catch(() => ({})) as Record<string, unknown>;
+      if (path === "/videos/assistir") {
+        if (!userId && !(await semPasse(req))) return json({ error: "Este portal pede a senha de acesso.", code: "ACESSO_NECESSARIO" }, 401);
+        return json(await videosAssistir(userId, meta, String(corpo.id ?? "")));
+      }
+      if (!userId) return json({ error: "Sua sessão expirou. Entre novamente.", code: "SESSION_EXPIRED" }, 401);
+      if (path === "/videos/envio") return json(await videosAutorizarEnvio(userId, meta, corpo));
+      if (path === "/videos/envio/confirmar") return json(await videosConfirmarEnvio(userId, meta, corpo));
+    }
+
     const arq = path.match(/^\/arquivo\/([0-9a-f-]{36})$/);
     if (arq && req.method === "GET") {
       const { userId, expired } = await resolveUser(req);
