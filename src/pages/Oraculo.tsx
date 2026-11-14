@@ -259,12 +259,42 @@ function Mcp() {
   const copiar = async (o: string, v: string) => {
     try { await navigator.clipboard.writeText(v); setCopiado(o); setTimeout(() => setCopiado(null), 2000); } catch { /* sem permissão */ }
   };
+  const [outra, setOutra] = useState(false);
   const ativas = (lista.data ?? []).filter((c) => !c.revogada_em);
+  // já ligado: a seção mostra a conexão que vale e só abre o formulário de outra a pedido (antes parecia pedir conexão a cada visita)
+  const ligado = ativas.length > 0;
   return (
     <Section title="Conexão permanente (MCP)">
       <Card className="space-y-3 p-3 text-[13px] text-ink-2">
         <p className="flex items-start gap-1.5"><PlugZap className="mt-0.5 size-4 shrink-0 text-purple-700" />
-          Ligue o seu assistente (Claude no celular, no computador ou no navegador) às consultas do Oráculo. A conexão não cai com a sessão: vale até você revogar.</p>
+          {ligado
+            ? 'O seu assistente já está ligado às consultas do Oráculo. A conexão é permanente: não cai com a sessão nem pede para conectar de novo, vale até você revogar.'
+            : 'Ligue o seu assistente (Claude no celular, no computador ou no navegador) às consultas do Oráculo. A conexão não cai com a sessão: vale até você revogar.'}</p>
+
+        {ligado && (
+          <ul className="divide-y divide-line rounded-xl ring-1 ring-line">
+            {ativas.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 px-3 py-2">
+                <KeyRound className="size-4 shrink-0 text-purple-700" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 font-semibold text-ink">
+                    {c.rotulo} <span className="font-normal text-muted">· {c.prefixo}…</span>
+                    {c.ultimo_uso_em ? <Badge tone="green" dot>Ligada</Badge> : <Badge tone="amber" dot>Ainda não usada</Badge>}
+                  </div>
+                  <div className="text-[12px] text-muted">
+                    {c.ultimo_uso_em
+                      ? `Último uso ${fmtDateTime(c.ultimo_uso_em)} · ${fmtInt(c.usos)} consultas · criada em ${fmtDateTime(c.criada_em)}`
+                      : `Criada em ${fmtDateTime(c.criada_em)}. Se o endereço não foi colado em nenhum Claude, revogue.`}
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" icon={Trash2} loading={revogar.isPending} aria-label={`Revogar ${c.rotulo}`}
+                  onClick={() => { if (confirm(`Revogar a conexão “${c.rotulo}”? O assistente deixa de acessar o Oráculo na hora.`)) revogar.mutate({ id: c.id }); }}>
+                  <span className="sr-only">Revogar</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {nova ? (
           <div className="space-y-2 rounded-xl bg-purple-50 p-3 ring-1 ring-purple-200">
@@ -281,33 +311,20 @@ function Mcp() {
               <button type="button" className="ml-1 font-semibold text-purple-700" onClick={() => copiar('chave', `Bearer ${nova.chave}`)}>{copiado === 'chave' ? 'copiado' : 'copiar valor'}</button>.</p>
             <Button size="sm" variant="secondary" onClick={() => setNova(null)}>Pronto, já copiei</Button>
           </div>
-        ) : (
-          <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); criar.mutate({ rotulo }, { onSuccess: (r) => setNova({ rotulo: r.rotulo, chave: r.chave }) }); }}>
+        ) : !ligado || outra ? (
+          <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); criar.mutate({ rotulo }, { onSuccess: (r) => { setNova({ rotulo: r.rotulo, chave: r.chave }); setOutra(false); } }); }}>
             <div className="flex-1"><Field label="Nome da conexão"><input value={rotulo} onChange={(e) => setRotulo(e.target.value)} maxLength={60} className={inputCls} /></Field></div>
             <Button type="submit" size="sm" icon={KeyRound} loading={criar.isPending} disabled={rotulo.trim().length < 3}>Criar conexão</Button>
+            {outra && <Button type="button" size="sm" variant="ghost" onClick={() => setOutra(false)}>Cancelar</Button>}
           </form>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" icon={PlugZap} onClick={() => setOutra(true)}>Ligar outro assistente</Button>
+            <span className="text-[12px] text-muted">Só para outra conta do Claude. Este mesmo Claude já está ligado no celular, no computador e no navegador.</span>
+          </div>
         )}
         {criar.error && <p role="alert" className="font-semibold text-red-700">{criar.error.message}</p>}
 
-        {ativas.length > 0 && (
-          <ul className="divide-y divide-line rounded-xl ring-1 ring-line">
-            {ativas.map((c) => (
-              <li key={c.id} className="flex items-center gap-2 px-3 py-2">
-                <KeyRound className="size-4 shrink-0 text-purple-700" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-ink">{c.rotulo} <span className="font-normal text-muted">· {c.prefixo}…</span></div>
-                  <div className="text-[12px] text-muted">
-                    Criada em {fmtDateTime(c.criada_em)} · {c.ultimo_uso_em ? `último uso ${fmtDateTime(c.ultimo_uso_em)} (${fmtInt(c.usos)} consultas)` : 'ainda não usada'}
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" icon={Trash2} loading={revogar.isPending} aria-label={`Revogar ${c.rotulo}`}
-                  onClick={() => { if (confirm(`Revogar a conexão “${c.rotulo}”? O assistente deixa de acessar o Oráculo na hora.`)) revogar.mutate({ id: c.id }); }}>
-                  <span className="sr-only">Revogar</span>
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
         <p className="text-[12px] text-muted">A conexão só lê números agregados (nenhum dado de pessoa) e cada consulta fica registrada.</p>
       </Card>
     </Section>
