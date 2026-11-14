@@ -188,12 +188,55 @@ export const FERRAMENTAS = [
       required: ["sql", "finalidade"],
     },
   },
+  {
+    name: "demandar_area",
+    description: "Envia um pedido do Prefeito à área responsável, para atendimento com prioridade: vira uma demanda na Central de pendências da área, " +
+      "com prazo de 2 dias úteis, e a resposta volta para o Oráculo. Use quando o IARA não tem a informação pedida (depois de procurar no catálogo) " +
+      "ou quando o Prefeito pede uma providência. Áreas: SECRETARIO (assuntos gerais, pessoal, contatos de servidores e o que não tem área própria), " +
+      "SUPERINTENDENCIA (diretorias, quadro de servidores e lotação), EDUCACAO_INFANTIL (CMEIs, creche e pré-escola), EDUCACAO_ESPECIAL (AEE e inclusão), " +
+      "CENTRAL_DE_VAGAS (fila, vagas, matrículas e transferências), ATENDIMENTO (protocolos das famílias), INOVACAO (sistemas e dados do IARA), " +
+      "MERENDA (merenda, cardápio e refeições), TRANSPORTE (transporte escolar), ALMOXARIFADO (materiais, uniformes e kits), MANUTENCAO (prédios e reformas), " +
+      "DIRECAO_DA_UNIDADE (o que é de uma escola ou CMEI: informe a unidade). Devolve o número, a área e o prazo; se o mesmo pedido já estiver aberto, devolve o existente (ja_existia).",
+    input_schema: {
+      type: "object",
+      properties: {
+        area: { type: "string", enum: ["SECRETARIO", "SUPERINTENDENCIA", "EDUCACAO_INFANTIL", "EDUCACAO_ESPECIAL", "CENTRAL_DE_VAGAS", "ATENDIMENTO", "INOVACAO",
+          "MERENDA", "TRANSPORTE", "ALMOXARIFADO", "MANUTENCAO", "DIRECAO_DA_UNIDADE"], description: "A área responsável pelo assunto." },
+        pedido: { type: "string", description: "O que o Prefeito quer, em uma ou duas frases, nas palavras dele." },
+        o_que_falta: { type: "string", description: "O que o IARA não tem (ou o que já se sabe e o que falta)." },
+        pergunta: { type: "string", description: "A pergunta feita ao Oráculo, como veio." },
+        unidade: { type: "string", description: "A escola ou CMEI do assunto (obrigatória para DIRECAO_DA_UNIDADE)." },
+      },
+      required: ["area", "pedido"],
+    },
+  },
+  {
+    name: "demandas_do_prefeito",
+    description: "As demandas que o Prefeito enviou às áreas pelo Oráculo: o que está em aberto (com prazo e atraso) e o que já foi respondido (com a resposta, quem respondeu e quando).",
+    input_schema: {
+      type: "object",
+      properties: { situacao: { type: "string", enum: ["ABERTAS", "RESPONDIDAS", "TODAS"], description: "Padrão: TODAS." } },
+    },
+  },
+  {
+    name: "cobrar_demanda",
+    description: "Cobra uma demanda em aberto, com um recado do Prefeito: aparece em destaque para a área na Central de pendências.",
+    input_schema: {
+      type: "object",
+      properties: {
+        numero: { type: "string", description: "O número da demanda (8 caracteres)." },
+        texto: { type: "string", description: "O recado do Prefeito." },
+      },
+      required: ["numero"],
+    },
+  },
 ];
 const FUNCAO: Record<string, string> = {
   leitura_executiva: "oraculo_leitura", numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades", indicadores_disponiveis: "oraculo_indicadores",
   situacoes_pontuais: "oraculo_situacoes", comparar_unidades: "oraculo_ranking", contar_por_nome: "oraculo_nomes",
   detalhar: "oraculo_detalhar", numero_no_periodo: "oraculo_periodo", cardapio_do_dia: "oraculo_cardapio", calendario_da_rede: "oraculo_calendario",
   catalogo_da_base: "oraculo_catalogo", consulta_livre: "oraculo_consulta",
+  demandar_area: "oraculo_demandar", demandas_do_prefeito: "oraculo_demandas", cobrar_demanda: "oraculo_demanda_cobrar",
 };
 
 const SISTEMA = `Você é o Oráculo do Prefeito no IARA Educa, a plataforma da Secretaria Municipal de Educação de Maringá (PR).
@@ -232,6 +275,12 @@ controle que a Prefeitura tem da rede: a resposta precisa ser imediata, precisa 
   não está no IARA (fica com a gestão de pessoas da Prefeitura) e ofereça o telefone da unidade, se houver.
 - Impacto e causa: ao relacionar números (ausência de servidores, frequência dos alunos, Ideb), mostre a comparação com a rede e diga o que é
   relação observada e o que é causa provável. Não afirme causa que os dados não mostram.
+- Demandas: quando o Prefeito pedir uma informação que o IARA não tem (depois de procurar no catálogo) ou uma providência que depende de uma área,
+  envie com demandar_area à área responsável, com o pedido nas palavras dele, o que falta no IARA e a pergunta original. Não pergunte se deve
+  enviar: envie, uma demanda por assunto. Na resposta, traga primeiro o que o IARA tem e termine dizendo que pediu à área, com prioridade, o
+  número e o prazo. Se a demanda já existia, diga que já está com a área e o prazo. Não envie demanda de conversa ou pergunta vaga.
+- Quando ele perguntar pelas demandas ("e aquela demanda?", "já responderam?"), use demandas_do_prefeito e traga a resposta da área, quem
+  respondeu e quando. Para reforçar um pedido, use cobrar_demanda com o número.
 - Responda em português do Brasil, como para ser lido no celular ou ouvido em voz alta: frases curtas, sem tabelas nem markdown. Pode usar "•" numa lista curta.
   Números no padrão brasileiro (1.234; 93,4%).
 - Nomes de pessoas: só quando o Prefeito perguntar por alguém ou pedir os nomes. Em panoramas e listas gerais, prefira números.
@@ -262,7 +311,16 @@ function conversaRecente(historico: unknown): Troca[] {
     .map((h) => ({ pergunta: String(h.pergunta).slice(0, 1000), resposta: String(h.resposta).slice(0, 4000) }));
 }
 
-async function comClaude(api: Api, pergunta: string, anteriores: Troca[]): Promise<{ resposta: string; consultas: Consulta[]; ferramentas: unknown[] }> {
+// o tratamento vem do cadastro do usuário (app_users.genero) ou, sem ele, da configuração do município (api.oraculo_tratamento)
+type Tratamento = { genero?: string | null } | null;
+export function linhaTratamento(t: Tratamento): string {
+  if (t?.genero === "FEMININO") return "- Tratamento: quem pergunta é a Prefeita. Dirija-se a ela por \"a senhora\" e \"Prefeita\", sempre no feminino.";
+  if (t?.genero === "MASCULINO") return "- Tratamento: quem pergunta é o Prefeito. Dirija-se a ele por \"o senhor\" e \"Prefeito\", sempre no masculino.";
+  return "- Tratamento: o cadastro não informa o gênero de quem pergunta. Não use \"o senhor\", \"a senhora\", \"Prefeito\" nem \"Prefeita\" para se " +
+    "dirigir a quem pergunta: fale de forma direta e neutra.";
+}
+
+async function comClaude(api: Api, pergunta: string, anteriores: Troca[], tratamento: Tratamento): Promise<{ resposta: string; consultas: Consulta[]; ferramentas: unknown[] }> {
   // carregado só quando há chave: sem ela o pacote nem entra na memória da função
   const { default: Anthropic } = await import("npm:@anthropic-ai/sdk@0.137.0");
   const client = new Anthropic({ apiKey: CHAVE, timeout: 60_000, maxRetries: 1 });
@@ -275,12 +333,13 @@ async function comClaude(api: Api, pergunta: string, anteriores: Troca[]): Promi
   ];
   const consultas: Consulta[] = [];
   const ferramentas: unknown[] = [];
+  const sistema = SISTEMA + "\n" + linhaTratamento(tratamento);
   // com a base inteira, uma pergunta pode pedir catálogo, consulta e correção: até 10 voltas
   for (let volta = 0; volta < 10; volta++) {
     // fallbacks "default": se o modelo recusar, a própria API refaz o pedido no modelo indicado pela Anthropic.
     // cache_control: as instruções, as ferramentas e a conversa já enviadas são reaproveitadas de uma volta para a outra (mais rápido e mais barato)
     const r = (await client.beta.messages.create({
-      model: MODELO, max_tokens: 8000, system: SISTEMA, tools: FERRAMENTAS, messages,
+      model: MODELO, max_tokens: 8000, system: sistema, tools: FERRAMENTAS, messages,
       cache_control: { type: "ephemeral" },
       betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
     } as never)) as unknown as { stop_reason: string; content: Bloco[] };
@@ -311,7 +370,7 @@ async function comClaude(api: Api, pergunta: string, anteriores: Troca[]): Promi
 /** POST /oraculo { pergunta } ou { audio_base64, audio_tipo } */
 export async function perguntarOraculo(api: Api, corpo: Record<string, unknown>): Promise<Record<string, unknown>> {
   // a permissão é conferida no banco antes de qualquer custo (transcrição, Claude); o histórico também dá a conversa recente
-  const historico = await api("oraculo_historico", {});
+  const [historico, tratamento] = await Promise.all([api("oraculo_historico", {}), api("oraculo_tratamento", {}) as Promise<Tratamento>]);
   let pergunta = String(corpo.pergunta ?? "").trim().slice(0, 1000);
   let canal = "TEXTO";
   let transcricao: string | null = null;
@@ -328,7 +387,7 @@ export async function perguntarOraculo(api: Api, corpo: Record<string, unknown>)
   let aviso: string | null = null;
   if (claudeDisponivel()) {
     try {
-      const c = await comClaude(api, pergunta, conversaRecente(historico));
+      const c = await comClaude(api, pergunta, conversaRecente(historico), tratamento);
       await api("oraculo_registrar", { pergunta, canal, resposta: c.resposta, ferramentas: c.ferramentas });
       return { pergunta, canal, transcricao, modo: "CLAUDE", modelo: MODELO, resposta: c.resposta, consultas: c.consultas };
     } catch (e) {
@@ -343,8 +402,8 @@ export async function perguntarOraculo(api: Api, corpo: Record<string, unknown>)
 
 /** GET /oraculo: modo disponível e últimas perguntas do próprio Prefeito */
 export async function statusOraculo(api: Api): Promise<Record<string, unknown>> {
-  const historico = await api("oraculo_historico", {});
-  return { claude: claudeDisponivel(), modelo: claudeDisponivel() ? MODELO : null, audio: audioDisponivel(), historico };
+  const [historico, tratamento] = await Promise.all([api("oraculo_historico", {}), api("oraculo_tratamento", {})]);
+  return { claude: claudeDisponivel(), modelo: claudeDisponivel() ? MODELO : null, audio: audioDisponivel(), historico, tratamento };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -358,6 +417,7 @@ const TITULO: Record<string, string> = {
   situacoes_pontuais: "Situações que pedem atenção", comparar_unidades: "Comparar unidades e regiões", contar_por_nome: "Contar pessoas por nome",
   detalhar: "Motivos, tipos e perfil de um assunto", numero_no_periodo: "Número em um dia ou período", cardapio_do_dia: "Cardápio do dia", calendario_da_rede: "Calendário da rede",
   catalogo_da_base: "Mapa da base do IARA", consulta_livre: "Consulta livre à base do IARA",
+  demandar_area: "Pedir à área responsável", demandas_do_prefeito: "Demandas enviadas às áreas", cobrar_demanda: "Cobrar uma demanda",
 };
 
 async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
@@ -369,10 +429,12 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
   switch (m.method) {
     case "initialize": {
       const pedida = String(m.params?.protocolVersion ?? "");
+      // o tratamento de quem usa a conexão (cadastro do usuário ou configuração do município)
+      const tratamento = (await api("oraculo_tratamento", {}).catch(() => null)) as Tratamento;
       return ok({
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.5.0" },
+        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.6.0" },
         instructions: "Oráculo do Prefeito de Maringá (IARA Educa): toda a operação da rede municipal de educação em números — matrículas, " +
           "fila, vagas, frequência, ocorrências, profissionais e ponto, transporte, merenda, almoxarifado, manutenção, biblioteca, desempenho, AEE, " +
           "proteção, atendimento, Bolsa Família e mais — na cidade, numa unidade ou numa região. Para qualquer pergunta sobre a educação no " +
@@ -385,7 +447,9 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
           "A base inteira do IARA está ao alcance: o que as ferramentas prontas não trazem (endereço e diretor(a) de uma escola, quem é quem, o cruzamento " +
           "de um assunto com outro, a ficha de uma pessoa), procure em catalogo_da_base e responda com consulta_livre; nunca diga que o IARA não tem uma " +
           "informação sem procurar no catálogo. Nomes de pessoas só quando o Prefeito perguntar por alguém. Fora do alcance: saúde, deficiência, laudos, " +
-          "casos de proteção, documentos e contatos das famílias; o IARA não guarda telefone pessoal de servidores (só o das unidades e dos setores).",
+          "casos de proteção, documentos e contatos das famílias; o IARA não guarda telefone pessoal de servidores (só o das unidades e dos setores). " +
+          "O que o IARA não tiver, ou uma providência, envie à área responsável com demandar_area (prioridade, 2 dias úteis, a resposta volta por " +
+          "demandas_do_prefeito); diga o número e o prazo.\n" + linhaTratamento(tratamento).replace(/^- /, ""),
       });
     }
     case "ping":

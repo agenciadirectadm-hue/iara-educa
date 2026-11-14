@@ -43,8 +43,12 @@ export function PrazoPend({ p }: { p: Pendencia }) {
   return <span>até {fmtDate(p.prazo)}</span>;
 }
 
-function OrigemBadge({ o }: { o: Pendencia['origem'] }) {
-  return <Badge tone={ORIGEM[o].tone}>{ORIGEM[o].label}</Badge>;
+/** Demanda que o Prefeito enviou pelo Oráculo: prioridade, e a resposta volta para ele. */
+const doPrefeito = (p: Pendencia) => p.tipo === 'DEMANDA_PREFEITO';
+
+function OrigemBadge({ p }: { p: Pendencia }) {
+  if (doPrefeito(p)) return <Badge tone="red" solid>{p.titulo.startsWith('Demanda da Prefeita') ? 'da Prefeita' : 'do Prefeito'} · prioridade</Badge>;
+  return <Badge tone={ORIGEM[p.origem].tone}>{ORIGEM[p.origem].label}</Badge>;
 }
 
 /** Lista de pendências, uma por linha; atrasada fica em vermelho. */
@@ -72,7 +76,7 @@ export function ListaPendencias({ itens, mostrarResponsavel, onAbrir, vazio }: {
             </span>
           </TCelula>
           <TCelula>{p.modulo}</TCelula>
-          <TCelula livre><OrigemBadge o={p.origem} /></TCelula>
+          <TCelula livre><OrigemBadge p={p} /></TCelula>
           {mostrarResponsavel && <TCelula titulo={p.responsavel}>{p.responsavel}</TCelula>}
           <TCelula>
             {mostrarResponsavel
@@ -109,7 +113,9 @@ export function PendenciaSheet({ id, onClose }: { id: string | null; onClose: ()
     setBusy(true);
     try {
       await rpc('pend_concluir', { id, nota });
-      toast({ title: 'Pendência concluída', description: 'A chefia vê a conclusão com data e hora.', tone: 'success' });
+      toast(p && doPrefeito(p)
+        ? { title: 'Resposta enviada', description: 'A resposta já aparece no Oráculo, com o seu nome, a data e a hora.', tone: 'success' }
+        : { title: 'Pendência concluída', description: 'A chefia vê a conclusão com data e hora.', tone: 'success' });
       atualizar(); onClose();
     } catch (e) { toast({ title: 'Não concluída', description: (e as Error).message, tone: 'error' }); } finally { setBusy(false); }
   };
@@ -124,12 +130,14 @@ export function PendenciaSheet({ id, onClose }: { id: string | null; onClose: ()
     } catch (e) { toast({ title: 'Não registrado', description: (e as Error).message, tone: 'error' }); } finally { setBusy(false); }
   };
   const faltam = (p?.checklist ?? []).filter((i) => !i.feito).length;
+  // a demanda do Prefeito só se conclui com a resposta, que volta para o Oráculo
+  const semResposta = !!p && doPrefeito(p) && nota.trim().length < 10;
   return (
     <Sheet open={!!id} onClose={onClose} size="lg" title={p?.titulo ?? 'Pendência'}
       subtitle={p ? `${p.modulo} · ${p.responsavel}${p.unidade ? ' · ' + p.unidade : p.setor ? ' · ' + p.setor : ''}` : undefined}
       footer={p?.pode_concluir ? (
-        <Button block icon={CheckCircle2} loading={busy} disabled={faltam > 0} onClick={concluir}>
-          {faltam > 0 ? `Marque os ${plural(faltam, 'item', 'itens')} da lista` : 'Concluir'}
+        <Button block icon={CheckCircle2} loading={busy} disabled={faltam > 0 || semResposta} onClick={concluir}>
+          {faltam > 0 ? `Marque os ${plural(faltam, 'item', 'itens')} da lista` : semResposta ? 'Escreva a resposta para concluir' : doPrefeito(p!) ? 'Responder e concluir' : 'Concluir'}
         </Button>
       ) : p?.situacao === 'ABERTA' && p.origem === 'AUTOMATICA' && p.rota && p.minha ? (
         <Link to={p.rota} onClick={onClose} className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-purple-700 font-semibold text-white">
@@ -139,7 +147,7 @@ export function PendenciaSheet({ id, onClose }: { id: string | null; onClose: ()
       {res.isLoading ? <SkeletonList rows={4} /> : res.error ? <ErrorState error={res.error} onRetry={() => res.refetch()} /> : p ? (
         <div className="space-y-4 text-[14px]">
           <div className="flex flex-wrap items-center gap-2">
-            <PrazoPend p={p} /><OrigemBadge o={p.origem} />{p.simulado && <MarcaSimulado />}
+            <PrazoPend p={p} /><OrigemBadge p={p} />{p.simulado && <MarcaSimulado />}
             {p.prazo && <span className="text-muted">Prazo: {fmtDateTime(p.prazo)}</span>}
           </div>
           {p.detalhe && <p>{p.detalhe}</p>}
@@ -174,7 +182,9 @@ export function PendenciaSheet({ id, onClose }: { id: string | null; onClose: ()
             </div>
           )}
           {p.pode_concluir && (
-            <Field label="Nota da conclusão (opcional)"><textarea className={inputCls + ' min-h-20 py-2'} value={nota} onChange={(e) => setNota(e.target.value)} maxLength={1000} /></Field>
+            <Field label={doPrefeito(p) ? 'Resposta ao Prefeito (obrigatória: volta para o Oráculo)' : 'Nota da conclusão (opcional)'}>
+              <textarea className={inputCls + (doPrefeito(p) ? ' min-h-28 py-2' : ' min-h-20 py-2')} value={nota} onChange={(e) => setNota(e.target.value)} maxLength={1000} />
+            </Field>
           )}
           {p.situacao !== 'ABERTA' && (
             <div className="rounded-2xl bg-slate-50 p-3">

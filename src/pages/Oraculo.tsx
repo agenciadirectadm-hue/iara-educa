@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, KeyRound, Mic, PlugZap, Send, Sparkles, Square, Trash2, Volume2 } from 'lucide-react';
-import { API_URL, oraculoPerguntar, oraculoStatus, type OraculoNumero, type OraculoResposta } from '@/lib/api';
-import { fmt1, fmtDateTime, fmtInt } from '@/lib/format';
+import { AlarmClock, CheckCircle2, Copy, KeyRound, Megaphone, Mic, PlugZap, Send, Sparkles, Square, Trash2, Volume2 } from 'lucide-react';
+import { API_URL, oraculoPerguntar, oraculoStatus, rpc, type OraculoDemanda, type OraculoNumero, type OraculoResposta, type OraculoTratamento } from '@/lib/api';
+import { fmt1, fmtDate, fmtDateTime, fmtInt } from '@/lib/format';
 import { useRpc, useRpcMutation } from '@/lib/hooks';
 import { Badge, Button, Card, ErrorState, Field, PageHeader, Section, SkeletonList, inputCls } from '@/components/ui';
+import { useToast } from '@/components/overlays';
 
 const SUGESTOES = [
   'O que pede a minha decisão hoje?',
@@ -52,8 +53,10 @@ function Resposta({ texto }: { texto: string }) {
   );
 }
 
-/** Oráculo do Prefeito: pergunta por texto ou por áudio sobre qualquer número consolidado do município. As respostas vêm só
- * de números agregados (nenhum dado de pessoa); com a chave da Anthropic, o Claude Opus 5.5 combina as consultas. */
+/** Oráculo do Prefeito: pergunta por texto ou por áudio sobre a rede. Com a chave da Anthropic, o Claude Opus 5.5 cruza a base inteira do
+ * IARA (sem saúde, proteção e contatos das famílias), trata quem pergunta pelo gênero do cadastro e, o que o IARA não tiver, pede à área
+ * responsável (demanda com prioridade na Central de pendências, cuja resposta volta para cá). A caixa de pergunta fica no alto e a resposta
+ * mais nova logo abaixo dela. */
 export default function Oraculo() {
   const qc = useQueryClient();
   const st = useQuery({ queryKey: ['oraculo_status'], queryFn: oraculoStatus, staleTime: 60_000 });
@@ -63,10 +66,8 @@ export default function Oraculo() {
   const [segundos, setSegundos] = useState(0);
   const [erroMic, setErroMic] = useState<string | null>(null);
   const gravador = useRef<MediaRecorder | null>(null);
-  const fim = useRef<HTMLDivElement>(null);
   const seq = useRef(0);
 
-  useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [trocas]);
   useEffect(() => {
     if (!gravando) return;
     const t = setInterval(() => setSegundos((s) => {
@@ -85,6 +86,7 @@ export default function Oraculo() {
       const r = await oraculoPerguntar(corpo);
       setTrocas((l) => l.map((t) => (t.id === id ? { ...t, pergunta: r.pergunta, carregando: false, r } : t)));
       qc.invalidateQueries({ queryKey: ['oraculo_status'] });
+      qc.invalidateQueries({ queryKey: ['oraculo_demandas'] }); // a resposta pode ter enviado uma demanda a uma área
     } catch (e) {
       setTrocas((l) => l.map((t) => (t.id === id ? { ...t, carregando: false, erro: (e as Error).message } : t)));
     }
@@ -125,42 +127,27 @@ export default function Oraculo() {
   if (st.isLoading) return <SkeletonList rows={5} />;
   if (st.error) return <ErrorState error={st.error as Error} onRetry={() => st.refetch()} />;
   const s = st.data!;
+  const feminino = s.tratamento?.genero === 'FEMININO';
 
   return (
     <div>
-      <PageHeader eyebrow="Gabinete do Prefeito"
-        title={<span className="inline-flex items-center gap-2"><Sparkles className="size-6 text-purple-700" />Oráculo do Prefeito</span>}
-        subtitle="Pergunte como a um assessor, por texto ou por áudio. O Oráculo responde com a informação tratada: o que aconteceu, comparado com o quê, por quê, onde e o que fazer. Na cidade, numa unidade ou numa região, sem expor pessoas." />
+      <PageHeader eyebrow={feminino ? 'Gabinete da Prefeita' : 'Gabinete do Prefeito'}
+        title={<span className="inline-flex items-center gap-2"><Sparkles className="size-6 text-purple-700" />{feminino ? 'Oráculo da Prefeita' : 'Oráculo do Prefeito'}</span>}
+        subtitle="Pergunte como a um assessor, por texto ou por áudio. O Oráculo cruza tudo o que o IARA tem e responde com a informação tratada: o que aconteceu, comparado com o quê, por quê, onde e o que fazer. O que o IARA não tiver, ele pede à área responsável, com prioridade." />
 
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         {s.claude
           ? <Badge tone="purple" icon={Sparkles}>Respostas do Claude Opus 5.5</Badge>
           : <Badge tone="gray">Respostas pelas regras do IARA</Badge>}
         <Badge tone={s.audio ? 'green' : 'gray'} icon={Mic}>{s.audio ? 'Pergunta por áudio' : 'Áudio ainda não ligado'}</Badge>
+        <TratamentoEscolha t={s.tratamento} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <Card className="flex min-h-[420px] flex-col p-3 sm:p-4">
-          <div className="flex-1 space-y-3 overflow-y-auto" aria-live="polite">
-            {trocas.length === 0 && (
-              <div className="py-6 text-center">
-                <p className="text-[14px] text-ink-2">Experimente uma destas perguntas:</p>
-                <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {SUGESTOES.map((q) => (
-                    <button key={q} type="button" onClick={() => enviar(q)}
-                      className="rounded-full bg-purple-50 px-3 py-1.5 text-[13px] font-semibold text-purple-800 ring-1 ring-purple-200 hover:bg-purple-100">
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {trocas.map((t) => <Conversa key={t.id} t={t} />)}
-            <div ref={fim} />
-          </div>
-
-          <form className="mt-3 flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); enviar(); }}>
-            <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} maxLength={1000} disabled={gravando}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <Card className="space-y-3 p-3 sm:p-4">
+          {/* a caixa de pergunta no alto; a resposta mais nova logo abaixo dela */}
+          <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); enviar(); }}>
+            <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} maxLength={1000} disabled={gravando} autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
               placeholder={gravando ? `Gravando… ${segundos}s (toque no quadrado para enviar)` : 'Pergunte ao Oráculo'}
               aria-label="Pergunta ao Oráculo" className={clsx(inputCls, 'min-h-[48px] flex-1 resize-none')} />
@@ -174,10 +161,28 @@ export default function Oraculo() {
               <span className="sr-only">Enviar</span>
             </Button>
           </form>
-          {erroMic && <p role="alert" className="mt-2 text-[13px] font-semibold text-red-700">{erroMic}</p>}
+          {erroMic && <p role="alert" className="text-[13px] font-semibold text-red-700">{erroMic}</p>}
+
+          {trocas.length === 0 && (
+            <div>
+              <p className="text-[13px] text-ink-2">Experimente uma destas perguntas:</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {SUGESTOES.map((q) => (
+                  <button key={q} type="button" onClick={() => enviar(q)}
+                    className="rounded-full bg-purple-50 px-3 py-1.5 text-[13px] font-semibold text-purple-800 ring-1 ring-purple-200 hover:bg-purple-100">
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="space-y-4" aria-live="polite">
+            {[...trocas].reverse().map((t) => <Conversa key={t.id} t={t} />)}
+          </div>
         </Card>
 
         <div className="space-y-4">
+          <Demandas />
           <Section title="Perguntas anteriores">
             {s.historico.length === 0 ? (
               <p className="text-[13px] text-muted">As perguntas feitas ao Oráculo ficam aqui (só você vê).</p>
@@ -242,6 +247,107 @@ function Conversa({ t }: { t: Troca }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Como o Oráculo trata quem pergunta. Grava no cadastro do usuário e na configuração do município (as próximas sessões e a conexão do
+ * assistente seguem o mesmo tratamento). Sem escolha, o Oráculo fala de forma neutra. */
+function TratamentoEscolha({ t }: { t?: OraculoTratamento }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const escolher = async (genero: 'FEMININO' | 'MASCULINO') => {
+    setBusy(true);
+    try {
+      await rpc('oraculo_tratamento', { genero });
+      await qc.invalidateQueries({ queryKey: ['oraculo_status'] });
+    } catch (e) {
+      toast({ title: 'Tratamento não gravado', description: (e as Error).message, tone: 'error' });
+    } finally { setBusy(false); }
+  };
+  const opcao = (genero: 'FEMININO' | 'MASCULINO', rotulo: string) => (
+    <button type="button" disabled={busy} onClick={() => escolher(genero)} aria-pressed={t?.genero === genero}
+      className={clsx('rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 disabled:opacity-60',
+        t?.genero === genero ? 'bg-purple-700 text-white ring-purple-700' : 'bg-white text-ink-2 ring-line hover:ring-purple-300')}>
+      {rotulo}
+    </button>
+  );
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted">
+      {t?.genero ? 'Tratamento:' : 'Como o Oráculo deve tratar você?'}
+      {opcao('MASCULINO', 'o senhor')}{opcao('FEMININO', 'a senhora')}
+    </span>
+  );
+}
+
+function SituacaoDemanda({ d }: { d: OraculoDemanda }) {
+  if (d.situacao === 'CONCLUIDA') return <Badge tone="green" icon={CheckCircle2}>respondida</Badge>;
+  if (d.situacao === 'CANCELADA') return <Badge tone="gray">cancelada</Badge>;
+  if (d.atrasada) return <Badge tone="red" icon={AlarmClock}>atrasada</Badge>;
+  return <Badge tone="amber">{d.prazo ? `até ${fmtDate(d.prazo)}` : 'em aberto'}</Badge>;
+}
+
+/** O que o Oráculo não tinha e pediu às áreas (Central de pendências), com a resposta quando chegar. Uma demanda por linha. */
+function Demandas() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const res = useRpc<{ resumo: { abertas: number; atrasadas: number; respondidas_7_dias: number }; demandas: OraculoDemanda[] }>(
+    'oraculo_demandas', {}, { refetchInterval: 60_000, refetchOnWindowFocus: true });
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [cobrando, setCobrando] = useState<string | null>(null);
+  const cobrar = async (d: OraculoDemanda) => {
+    setCobrando(d.id);
+    try {
+      await rpc('oraculo_demanda_cobrar', { numero: d.numero });
+      toast({ title: 'Demanda cobrada', description: `A área vê a cobrança em destaque na Central de pendências (nº ${d.numero}).`, tone: 'success' });
+      qc.invalidateQueries({ queryKey: ['oraculo_demandas'] });
+    } catch (e) {
+      toast({ title: 'Não cobrada', description: (e as Error).message, tone: 'error' });
+    } finally { setCobrando(null); }
+  };
+  const lista = res.data?.demandas ?? [];
+  const r = res.data?.resumo;
+  return (
+    <Section className="mt-0" title="Demandas às áreas"
+      subtitle={r && (r.abertas || r.respondidas_7_dias)
+        ? `${fmtInt(r.abertas)} em aberto${r.atrasadas ? `, ${fmtInt(r.atrasadas)} atrasada${r.atrasadas > 1 ? 's' : ''}` : ''} · ${fmtInt(r.respondidas_7_dias)} respondida${r.respondidas_7_dias === 1 ? '' : 's'} na semana`
+        : 'O que o IARA não tiver, o Oráculo pede à área responsável, com prioridade.'}>
+      {res.isLoading ? <SkeletonList rows={2} /> : res.error ? <ErrorState error={res.error as Error} onRetry={() => res.refetch()} /> : lista.length === 0 ? (
+        <p className="text-[13px] text-muted">Nenhuma demanda ainda. A resposta da área aparece aqui.</p>
+      ) : (
+        <Card className="divide-y divide-line">
+          {lista.slice(0, 8).map((d) => (
+            <div key={d.id}>
+              <button type="button" onClick={() => setAberta(aberta === d.id ? null : d.id)} aria-expanded={aberta === d.id}
+                className={clsx('flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50', d.atrasada && 'border-l-4 border-red-500')}>
+                <div className="min-w-0 flex-1">
+                  <div className="line-clamp-1 text-[13px] font-semibold text-ink">{d.pedido}</div>
+                  <div className="line-clamp-1 text-[12px] text-muted">{d.area}{d.unidade ? ` · ${d.unidade}` : ''} · nº {d.numero}</div>
+                </div>
+                <SituacaoDemanda d={d} />
+              </button>
+              {aberta === d.id && (
+                <div className="space-y-2 bg-slate-50 px-3 py-2.5 text-[13px]">
+                  {d.situacao === 'CONCLUIDA' ? (
+                    <>
+                      <p className="whitespace-pre-line text-ink">{d.resposta}</p>
+                      <p className="text-[12px] text-muted">Respondida por {d.respondida_por ?? 'a área'} em {fmtDateTime(d.respondida_em!)}.</p>
+                    </>
+                  ) : d.situacao === 'CANCELADA' ? (
+                    <p className="text-ink-2">Cancelada{d.motivo_cancelamento ? `: ${d.motivo_cancelamento}` : '.'}</p>
+                  ) : (
+                    <>
+                      <p className="text-muted">Enviada em {fmtDateTime(d.criada_em)}{d.prazo ? ` · prazo ${fmtDateTime(d.prazo)}` : ''}{d.cobrancas ? ` · cobrada ${d.cobrancas} ${d.cobrancas === 1 ? 'vez' : 'vezes'}` : ''}.</p>
+                      <Button size="sm" variant="secondary" icon={Megaphone} loading={cobrando === d.id} onClick={() => cobrar(d)}>Cobrar a área</Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
+    </Section>
   );
 }
 

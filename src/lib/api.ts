@@ -148,9 +148,18 @@ export type OraculoResposta = {
   pergunta: string; canal: 'TEXTO' | 'AUDIO'; transcricao: string | null; modo: 'CLAUDE' | 'REGRAS'; modelo?: string;
   resposta: string; aviso?: string | null; consultas: OraculoConsulta[];
 };
+/** Como o Oráculo trata quem pergunta: pelo gênero do cadastro do usuário ou, sem ele, pela configuração do município. */
+export type OraculoTratamento = { genero: 'FEMININO' | 'MASCULINO' | null; cargo: string | null; pronome: string | null; gabinete: string; demanda: string };
 export type OraculoStatus = {
   claude: boolean; modelo: string | null; audio: boolean;
   historico: { id: string; criado_em: string; pergunta: string; canal: 'TEXTO' | 'AUDIO'; modo: 'CLAUDE' | 'REGRAS'; resposta: string }[];
+  tratamento?: OraculoTratamento;
+};
+/** Demanda do Prefeito a uma área (Central de pendências), com a resposta quando vier. */
+export type OraculoDemanda = {
+  id: string; numero: string; pedido: string; area: string; unidade: string | null; criada_em: string; prazo: string | null;
+  situacao: 'ABERTA' | 'CONCLUIDA' | 'CANCELADA'; atrasada: boolean; respondida_em: string | null; resposta: string | null;
+  respondida_por: string | null; motivo_cancelamento: string | null; cobrancas: number;
 };
 export function oraculoStatus() {
   return request<OraculoStatus>('/oraculo', { method: 'GET' });
