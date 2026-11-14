@@ -54,4 +54,13 @@ begin
   end loop;
 end $$;
 
+-- Oráculo do Prefeito (099.20): a base que o oraculo_leitor lê segue as regras de iara.oraculo_base_coluna_liberada,
+-- inclusive para tabelas e colunas novas. Num banco montado do zero, a função só existe depois da 099.20.
+do $$
+begin
+  if to_regprocedure('iara.oraculo_base_conceder()') is not null then
+    perform iara.oraculo_base_conceder();
+  end if;
+end $$;
+
 commit;

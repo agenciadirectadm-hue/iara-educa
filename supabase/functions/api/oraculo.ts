@@ -160,11 +160,40 @@ export const FERRAMENTAS = [
       },
     },
   },
+  {
+    name: "catalogo_da_base",
+    description: "O mapa de tudo o que existe na base do IARA Educa: as tabelas, as colunas liberadas para o Oráculo e como elas se ligam. Sem parâmetros, " +
+      "lista as tabelas; com busca (palavras), acha onde está uma informação; com tabela, mostra as colunas e as ligações dela. Use antes de " +
+      "consulta_livre. Nunca diga que o IARA não tem uma informação sem procurar aqui.",
+    input_schema: {
+      type: "object",
+      properties: {
+        busca: { type: "string", description: "Palavras do que procura, por exemplo \"diretor endereço\" ou \"ponto servidor\"." },
+        tabela: { type: "string", description: "Nome de uma tabela, para ver as colunas e as ligações." },
+      },
+    },
+  },
+  {
+    name: "consulta_livre",
+    description: "Consulta só de leitura (SELECT ou WITH, PostgreSQL) sobre as tabelas do catálogo, para cruzar quaisquer dados do IARA: a escola com " +
+      "endereço e diretor(a), o Ideb, os problemas, o ponto dos servidores, a frequência dos alunos, a ficha de uma pessoa. Liste as colunas (SELECT * não " +
+      "funciona); agregue no SQL (count, avg, group by) sempre que puder; devolve até 200 linhas. Saúde, deficiência, laudos, casos de proteção, " +
+      "documentos e contatos das famílias não estão liberados. Cada consulta fica registrada na auditoria.",
+    input_schema: {
+      type: "object",
+      properties: {
+        sql: { type: "string", description: "A consulta, um único SELECT ou WITH, sem ponto e vírgula." },
+        finalidade: { type: "string", description: "O que o Prefeito perguntou, em poucas palavras (vai para o registro)." },
+      },
+      required: ["sql", "finalidade"],
+    },
+  },
 ];
 const FUNCAO: Record<string, string> = {
   leitura_executiva: "oraculo_leitura", numeros_do_municipio: "oraculo_dados", unidades_do_municipio: "oraculo_unidades", indicadores_disponiveis: "oraculo_indicadores",
   situacoes_pontuais: "oraculo_situacoes", comparar_unidades: "oraculo_ranking", contar_por_nome: "oraculo_nomes",
   detalhar: "oraculo_detalhar", numero_no_periodo: "oraculo_periodo", cardapio_do_dia: "oraculo_cardapio", calendario_da_rede: "oraculo_calendario",
+  catalogo_da_base: "oraculo_catalogo", consulta_livre: "oraculo_consulta",
 };
 
 const SISTEMA = `Você é o Oráculo do Prefeito no IARA Educa, a plataforma da Secretaria Municipal de Educação de Maringá (PR).
@@ -190,11 +219,27 @@ controle que a Prefeitura tem da rede: a resposta precisa ser imediata, precisa 
 - Se vier "faltando" ou "sem_registro", diga o motivo e o que existe; nunca transforme falta de dado em zero.
 - Se o assunto não estiver em nenhuma ferramenta, veja indicadores_disponiveis: o Oráculo cobre quase toda a operação. Salários, folha e
   orçamento não estão no IARA Educa: diga isso.
+- A base inteira do IARA está ao seu alcance. O que as ferramentas prontas não trazem (endereço e diretor(a) de uma escola, quem é quem, o cruzamento
+  de um assunto com outro, a escola de menor Ideb e os problemas dela, o ponto dos servidores de uma unidade, a frequência dos alunos de uma turma),
+  procure em catalogo_da_base e responda com consulta_livre. Cruze as fontes: a unidade liga tudo (unit_id), o Ideb liga pela coluna inep. Antes de
+  filtrar por um valor (situação, tipo), confira os valores que existem. Nunca diga que o IARA não tem uma informação sem ter procurado no catálogo.
+- Pessoas: quando o Prefeito perguntar por alguém (a diretora, um professor, um aluno), diga o nome e traga a ficha que o IARA tem. "Capivara" ou
+  "ficha" é a ficha funcional ou escolar no IARA (cargo, lotação, tempo de casa, formação, ponto e ausências, treinamentos; para aluno: turma,
+  frequência, notas). O IARA não tem antecedentes criminais nem vida pessoal: diga isso se pedirem. Se a pessoa não tiver ficha no IARA
+  (os diretores das escolas só têm o nome no cadastro da unidade), diga o que existe e o que falta.
+- Fora do alcance do Oráculo: saúde, deficiência, laudos, casos de proteção, documentos e contatos e endereços das famílias. O IARA guarda o
+  telefone das unidades e dos setores da Secretaria, mas não o telefone pessoal de servidores. Se pedirem o celular de alguém, diga que esse dado
+  não está no IARA (fica com a gestão de pessoas da Prefeitura) e ofereça o telefone da unidade, se houver.
+- Impacto e causa: ao relacionar números (ausência de servidores, frequência dos alunos, Ideb), mostre a comparação com a rede e diga o que é
+  relação observada e o que é causa provável. Não afirme causa que os dados não mostram.
 - Responda em português do Brasil, como para ser lido no celular ou ouvido em voz alta: frases curtas, sem tabelas nem markdown. Pode usar "•" numa lista curta.
   Números no padrão brasileiro (1.234; 93,4%).
-- O Oráculo só traz números e situações sem identificar pessoas. Contar quantos têm um nome é permitido (contar_por_nome); dizer
-  quem são, ou dar telefone e endereço, não: explique que o detalhe fica com a Secretaria, na unidade, com os registros de acesso.
-- Este é o ambiente de demonstração: os dados são fictícios (as matrículas oficiais são do Censo Escolar 2025).`;
+- Nomes de pessoas: só quando o Prefeito perguntar por alguém ou pedir os nomes. Em panoramas e listas gerais, prefira números.
+- As mensagens anteriores, quando houver, são a conversa recente do Prefeito com o Oráculo (até 45 minutos). Use-as para entender o que ele retoma:
+  "sim", "desta escola", "e na creche?", "e no ano passado?". Se ele aceitar o que você ofereceu na última resposta, faça o que ofereceu. Os números
+  das respostas anteriores podem ter mudado: consulte as ferramentas de novo em vez de repeti-los. Se a pergunta nova não tiver relação com as anteriores, ignore-as.
+- Não acrescente avisos sobre o ambiente de demonstração nem escreva que os dados são fictícios ou simulados. Quando a ferramenta trouxer a fonte
+  (Censo Escolar, INEP), pode citá-la.`;
 
 async function executar(api: Api, nome: string, entrada: unknown): Promise<unknown> {
   const fn = FUNCAO[nome];
@@ -202,17 +247,41 @@ async function executar(api: Api, nome: string, entrada: unknown): Promise<unkno
   return await api(fn, entrada ?? {});
 }
 
-async function comClaude(api: Api, pergunta: string): Promise<{ resposta: string; consultas: Consulta[]; ferramentas: unknown[] }> {
+// a conversa: as trocas do próprio Prefeito nos últimos 45 minutos (no máximo 6), da mais antiga à mais nova, para o Claude entender
+// "sim", "desta escola", "e na creche?". O histórico vem do banco (api.oraculo_historico, do mais novo ao mais antigo).
+const CONVERSA_MINUTOS = 45;
+const CONVERSA_TROCAS = 6;
+type Troca = { pergunta: string; resposta: string };
+function conversaRecente(historico: unknown): Troca[] {
+  if (!Array.isArray(historico)) return [];
+  const desde = Date.now() - CONVERSA_MINUTOS * 60_000;
+  return (historico as { criado_em?: string; pergunta?: string; resposta?: string | null }[])
+    .filter((h) => h.pergunta && h.resposta && Date.parse(h.criado_em ?? "") >= desde)
+    .slice(0, CONVERSA_TROCAS)
+    .reverse()
+    .map((h) => ({ pergunta: String(h.pergunta).slice(0, 1000), resposta: String(h.resposta).slice(0, 4000) }));
+}
+
+async function comClaude(api: Api, pergunta: string, anteriores: Troca[]): Promise<{ resposta: string; consultas: Consulta[]; ferramentas: unknown[] }> {
   // carregado só quando há chave: sem ela o pacote nem entra na memória da função
   const { default: Anthropic } = await import("npm:@anthropic-ai/sdk@0.137.0");
   const client = new Anthropic({ apiKey: CHAVE, timeout: 60_000, maxRetries: 1 });
-  const messages: { role: "user" | "assistant"; content: unknown }[] = [{ role: "user", content: pergunta }];
+  const messages: { role: "user" | "assistant"; content: unknown }[] = [
+    ...anteriores.flatMap((t): { role: "user" | "assistant"; content: unknown }[] => [
+      { role: "user", content: t.pergunta },
+      { role: "assistant", content: t.resposta },
+    ]),
+    { role: "user", content: pergunta },
+  ];
   const consultas: Consulta[] = [];
   const ferramentas: unknown[] = [];
-  for (let volta = 0; volta < 6; volta++) {
-    // fallbacks "default": se o modelo recusar, a própria API refaz o pedido no modelo indicado pela Anthropic
+  // com a base inteira, uma pergunta pode pedir catálogo, consulta e correção: até 10 voltas
+  for (let volta = 0; volta < 10; volta++) {
+    // fallbacks "default": se o modelo recusar, a própria API refaz o pedido no modelo indicado pela Anthropic.
+    // cache_control: as instruções, as ferramentas e a conversa já enviadas são reaproveitadas de uma volta para a outra (mais rápido e mais barato)
     const r = (await client.beta.messages.create({
       model: MODELO, max_tokens: 8000, system: SISTEMA, tools: FERRAMENTAS, messages,
+      cache_control: { type: "ephemeral" },
       betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
     } as never)) as unknown as { stop_reason: string; content: Bloco[] };
     const texto = r.content.filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n").trim();
@@ -236,13 +305,13 @@ async function comClaude(api: Api, pergunta: string): Promise<{ resposta: string
     }
     messages.push({ role: "user", content: resultados });
   }
-  throw new Error("o Claude não concluiu a resposta em 6 voltas");
+  throw new Error("o Claude não concluiu a resposta em 10 voltas");
 }
 
 /** POST /oraculo { pergunta } ou { audio_base64, audio_tipo } */
 export async function perguntarOraculo(api: Api, corpo: Record<string, unknown>): Promise<Record<string, unknown>> {
-  // a permissão é conferida no banco antes de qualquer custo (transcrição, Claude)
-  await api("oraculo_historico", {});
+  // a permissão é conferida no banco antes de qualquer custo (transcrição, Claude); o histórico também dá a conversa recente
+  const historico = await api("oraculo_historico", {});
   let pergunta = String(corpo.pergunta ?? "").trim().slice(0, 1000);
   let canal = "TEXTO";
   let transcricao: string | null = null;
@@ -259,7 +328,7 @@ export async function perguntarOraculo(api: Api, corpo: Record<string, unknown>)
   let aviso: string | null = null;
   if (claudeDisponivel()) {
     try {
-      const c = await comClaude(api, pergunta);
+      const c = await comClaude(api, pergunta, conversaRecente(historico));
       await api("oraculo_registrar", { pergunta, canal, resposta: c.resposta, ferramentas: c.ferramentas });
       return { pergunta, canal, transcricao, modo: "CLAUDE", modelo: MODELO, resposta: c.resposta, consultas: c.consultas };
     } catch (e) {
@@ -288,6 +357,7 @@ const TITULO: Record<string, string> = {
   leitura_executiva: "Leitura pronta para o Prefeito", numeros_do_municipio: "Números da rede municipal", unidades_do_municipio: "Unidades e regiões", indicadores_disponiveis: "O que o Oráculo sabe",
   situacoes_pontuais: "Situações que pedem atenção", comparar_unidades: "Comparar unidades e regiões", contar_por_nome: "Contar pessoas por nome",
   detalhar: "Motivos, tipos e perfil de um assunto", numero_no_periodo: "Número em um dia ou período", cardapio_do_dia: "Cardápio do dia", calendario_da_rede: "Calendário da rede",
+  catalogo_da_base: "Mapa da base do IARA", consulta_livre: "Consulta livre à base do IARA",
 };
 
 async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
@@ -302,7 +372,7 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
       return ok({
         protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
         capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.4.0" },
+        serverInfo: { name: "iara-educa-oraculo", title: "Oráculo do Prefeito · IARA Educa", version: "1.5.0" },
         instructions: "Oráculo do Prefeito de Maringá (IARA Educa): toda a operação da rede municipal de educação em números — matrículas, " +
           "fila, vagas, frequência, ocorrências, profissionais e ponto, transporte, merenda, almoxarifado, manutenção, biblioteca, desempenho, AEE, " +
           "proteção, atendimento, Bolsa Família e mais — na cidade, numa unidade ou numa região. Para qualquer pergunta sobre a educação no " +
@@ -311,7 +381,11 @@ async function mcpUma(api: Api, m: Rpc): Promise<unknown | null> {
           "Outras ferramentas: numeros_do_municipio (assuntos), detalhar (motivos, tipos, perfil, \"me fale mais\": não repita a contagem " +
           "quando pedirem o porquê), numero_no_periodo (ontem, esta semana, um mês), cardapio_do_dia, calendario_da_rede, situacoes_pontuais " +
           "(o que está acontecendo), comparar_unidades (qual tem mais ou menos), contar_por_nome (estatística de nomes) e indicadores_disponiveis " +
-          "(tudo o que há). Se vier faltando ou sem_registro, diga o motivo: falta de dado não é zero. Só dados agregados: não há quem são as pessoas nem contatos.",
+          "(tudo o que há). Se vier faltando ou sem_registro, diga o motivo: falta de dado não é zero. " +
+          "A base inteira do IARA está ao alcance: o que as ferramentas prontas não trazem (endereço e diretor(a) de uma escola, quem é quem, o cruzamento " +
+          "de um assunto com outro, a ficha de uma pessoa), procure em catalogo_da_base e responda com consulta_livre; nunca diga que o IARA não tem uma " +
+          "informação sem procurar no catálogo. Nomes de pessoas só quando o Prefeito perguntar por alguém. Fora do alcance: saúde, deficiência, laudos, " +
+          "casos de proteção, documentos e contatos das famílias; o IARA não guarda telefone pessoal de servidores (só o das unidades e dos setores).",
       });
     }
     case "ping":
