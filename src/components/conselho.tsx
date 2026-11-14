@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { CheckCheck, FileText, Gavel, RotateCcw, Save, ScrollText } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtDate, fmtInt } from '@/lib/format';
 import { fmtNota, notaTone } from '@/lib/pedagogico';
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Field, Kpi, MarcaSimulado, Section, Segmented, SkeletonList, inputCls } from '@/components/ui';
@@ -269,10 +270,11 @@ export function HistoricoAluno({ studentId }: { studentId: string }) {
 
 export function HistoricoFamilia() {
   const res = useRpc<any[]>('familia_historico', {});
+  const so = useSoDoFilho();
   const toast = useToast();
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const criancas = (res.data ?? []).filter(Boolean);
+  const criancas = so((res.data ?? []).filter(Boolean));
   if (!criancas.length) return <EmptyState title="Nenhuma criança matriculada" />;
   return (
     <div className="space-y-5">

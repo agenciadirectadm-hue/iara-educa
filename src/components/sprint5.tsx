@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { Award, BookOpenCheck, CalendarCheck, ChevronLeft, ChevronRight, House, Save, School, Send } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtDate, fmtInt } from '@/lib/format';
 import { SHIFT } from '@/lib/labels';
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Field, Kpi, Section, SkeletonList, inputCls } from '@/components/ui';
@@ -165,12 +166,14 @@ export function AulasPendencias({ unitId, onUnidade }: { unitId: number | null; 
 
 export function AulasFamilia() {
   const res = useRpc<any[]>('familia_aulas', {});
+  const so = useSoDoFilho();
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) return <EmptyState title="Nenhuma criança matriculada" />;
+  const criancas = so(res.data);
+  if (!criancas.length) return <EmptyState title="Nenhuma criança matriculada" />;
   return (
     <div className="space-y-5">
-      {res.data.map((k) => (
+      {criancas.map((k) => (
         <Section key={k.student_id} title={`O que ${k.primeiro_nome} estudou`} subtitle={k.turma}>
           {!(k.dias as any[]).length && <Card className="p-3 text-[13.5px] text-muted">Ainda sem aulas registradas nos últimos dias.</Card>}
           <div className="space-y-2">
@@ -202,6 +205,7 @@ export { SIT_REM };
 export function RematriculaFamilia() {
   const res = useRpc<any[]>('familia_rematricula', {});
   const tr = useRpc<any>('transferencias_lista', {});
+  const so = useSoDoFilho();
   const qc = useQueryClient();
   const toast = useToast();
   const [sheet, setSheet] = useState<{ r: any; acao: string } | null>(null);
@@ -218,10 +222,12 @@ export function RematriculaFamilia() {
   };
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
+  const rematriculas = so(res.data);
+  const transferencias = so(tr.data?.itens as any[]);
   return (
     <div className="space-y-4">
-      {!res.data?.length && <EmptyState title="Sem rematrícula para confirmar" />}
-      {(res.data ?? []).map((r) => (
+      {!rematriculas.length && <EmptyState title="Sem rematrícula para confirmar" />}
+      {rematriculas.map((r) => (
         <Card key={r.id} className="space-y-2 p-4 text-[14px]">
           <div className="flex flex-wrap items-center gap-2"><b className="font-display text-lg">{r.primeiro_nome} em {r.ano}</b><Badge tone={SIT_REM[r.situacao]?.tone}>{SIT_REM[r.situacao]?.label}</Badge></div>
           <p>{r.situacao === 'CONCLUINTE' ? `${r.primeiro_nome} conclui o 5º ano: o 6º ano é na rede estadual. A escola orienta a matrícula.`
@@ -237,9 +243,9 @@ export function RematriculaFamilia() {
           )}
         </Card>
       ))}
-      {(tr.data?.itens ?? []).length > 0 && (
+      {transferencias.length > 0 && (
         <Section title="Pedidos de transferência">
-          <div className="space-y-2">{(tr.data.itens as any[]).map((t) => (
+          <div className="space-y-2">{transferencias.map((t) => (
             <Card key={t.id} className="p-3 text-[13.5px]"><b>{t.primeiro_nome}</b> → {t.unidade_destino} · <Badge tone={t.situacao === 'EFETIVADA' ? 'green' : t.situacao === 'FILA' ? 'amber' : t.situacao === 'RECUSADA' ? 'red' : 'purple'}>{t.situacao === 'AGUARDANDO_DESTINO' ? 'aguardando a escola' : t.situacao.toLowerCase()}</Badge>
               {t.resposta && <p className="text-muted">{t.resposta}</p>}</Card>))}</div>
         </Section>
@@ -306,11 +312,12 @@ export function TransferenciaSheet({ alvo, onClose }: { alvo: any | null; onClos
 // ------------------------------------------------------------------ Eventos (família)
 export function EventosFamilia() {
   const res = useRpc<any[]>('familia_eventos', {});
+  const so = useSoDoFilho();
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   return (
     <div className="space-y-5">
-      {(res.data ?? []).map((k) => (
+      {so(res.data).map((k) => (
         <Section key={k.student_id} title={`Eventos e certificados · ${k.primeiro_nome}`}>
           {!(k.eventos as any[]).length && <Card className="p-3 text-[13.5px] text-muted">Nenhum evento registrado neste ano.</Card>}
           <div className="space-y-2">

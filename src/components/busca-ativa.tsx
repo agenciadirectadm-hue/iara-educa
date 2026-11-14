@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Check, MessageCircleQuestion, Send, ShieldAlert } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 import type { Tone } from '@/lib/labels';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Meter, Section, Segmented, Simulado, SkeletonList, inputCls } from '@/components/ui';
@@ -43,14 +44,16 @@ export function useRecarregarBA() {
 /** Família: ausências aguardando o motivo, com as opções da mensagem da IARA. */
 export function AusenciasFamilia() {
   const res = useRpc<any[]>('familia_ausencias', {});
+  const so = useSoDoFilho();
   const [alvo, setAlvo] = useState<any | null>(null);
-  if (!res.data?.length) return null;
+  const ausencias = so(res.data);
+  if (!ausencias.length) return null;
   return (
     <Card className="mb-3 p-4 ring-2 ring-amber-200">
       <div className="flex items-center gap-2 font-semibold"><MessageCircleQuestion className="size-5 text-amber-600" />A escola quer saber se está tudo bem</div>
       <p className="mt-1 text-[13px] text-muted">Informe o motivo da ausência para a escola acompanhar e ajudar. Documentos (como atestado) vão em Documentos, na área do responsável.</p>
       <div className="mt-2 divide-y divide-line rounded-2xl ring-1 ring-line">
-        {res.data.map((a) => (
+        {ausencias.map((a) => (
           <div key={a.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-[13.5px]">
             <span className="min-w-0 flex-1"><b>{a.primeiro_nome}</b> não foi à {a.unidade} em {fmtDate(a.data)}</span>
             <Button size="sm" variant="purple" onClick={() => setAlvo(a)}>Informar o motivo</Button>

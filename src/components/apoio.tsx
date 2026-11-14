@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Baby, Check, HeartHandshake, Phone, Send } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 import type { Tone } from '@/lib/labels';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Section, SkeletonList, inputCls } from '@/components/ui';
@@ -35,12 +36,13 @@ export function SituacaoApoio({ s }: { s: string }) {
 // ------------------------------------------------------------------ família
 export function ApoioFamilia() {
   const res = useRpc<any>('familia_apoio', {});
+  const so = useSoDoFilho();
   const qc = useQueryClient();
   const toast = useToast();
   const [pedir, setPedir] = useState(false);
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const d = res.data;
+  const d = { ...res.data, filhos: so(res.data.filhos), casos: so(res.data.casos) };
   const ciente = async (id: string) => {
     try {
       await rpc('familia_apoio_ciente', { id });

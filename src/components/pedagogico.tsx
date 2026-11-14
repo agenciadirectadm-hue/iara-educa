@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Accessibility, Check, FileBadge, Printer, ShieldCheck, Sprout, Undo2 } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 import {
   BIMESTRES, CICLO_ALFA, DIA_AEE_LONGO, LEITURA, MODALIDADE_AEE, MOTIVO_RISCO, NIVEL_ALFA, PRESENCA_AEE, SITUACAO_DECLARACAO, SITUACAO_PLANO,
@@ -203,12 +204,14 @@ export function DeclaracoesAluno({ studentId }: { studentId: string }) {
 
 export function DeclaracoesFamilia() {
   const res = useRpc<any[]>('familia_declaracoes', {});
+  const so = useSoDoFilho();
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) return <Card><EmptyState compact title="Nenhuma criança no cadastro" /></Card>;
+  const criancas = so(res.data);
+  if (!criancas.length) return <Card><EmptyState compact title="Nenhuma criança no cadastro" /></Card>;
   return (
     <div className="space-y-5">
-      {res.data.map((k) => (
+      {criancas.map((k) => (
         <Section key={k.student_id} title={k.primeiro_nome}>
           <DeclaracoesBloco studentId={k.student_id} disponiveis={k.disponiveis} itens={k.itens} familia />
         </Section>
@@ -310,11 +313,13 @@ function RevogarSheet({ d, onClose }: { d: any | null; onClose: () => void }) {
 // ---------------------------------------------------------------- AEE na família
 export function AeeFamilia() {
   const res = useRpc<any[]>('familia_aee', {});
+  const so = useSoDoFilho();
   const toast = useToast();
   const recarregar = useRecarregarPedagogico();
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) {
+  const planos = so(res.data);
+  if (!planos.length) {
     return <Card><EmptyState compact title="Nenhum plano de AEE em andamento" body="O atendimento educacional especializado é para crianças com deficiência, TEA ou altas habilidades. Para pedir avaliação, fale com a escola ou com a IARA." /></Card>;
   }
   const ciente = async (id: string) => {
@@ -328,7 +333,7 @@ export function AeeFamilia() {
   };
   return (
     <div className="space-y-4">
-      {res.data.map((x) => {
+      {planos.map((x) => {
         const p = x.plano;
         return (
           <Card key={p.id} className="p-4">

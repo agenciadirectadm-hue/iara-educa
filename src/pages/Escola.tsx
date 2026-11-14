@@ -8,7 +8,7 @@ import { useRpc } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { fmtDateTime, fmtInt } from '@/lib/format';
 import { MOTIVO_RESTRICAO, SITUACAO_JUSTIFICATIVA, SITUACAO_RESTRICAO, TIPO_AGENDA, TIPO_MURAL, diaCurto, pctTone } from '@/lib/escola';
-import { Badge, Button, Card, EmptyState, ErrorState, Field, Meter, PageHeader, Section, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
+import { Badge, Button, ButtonLink, Card, EmptyState, ErrorState, Field, Meter, PageHeader, Section, Simulado, SkeletonList, Tabs, inputCls } from '@/components/ui';
 import { Sheet, useToast } from '@/components/overlays';
 import { ProximosEventos } from '@/components/escola';
 import { GradeCardapio } from './Nutricao';
@@ -23,14 +23,20 @@ import { AulasFamilia, EventosFamilia, RematriculaFamilia } from '@/components/s
 import { ReunioesFamilia } from '@/components/reunioes';
 import { UniformesFamilia } from '@/components/uniformes';
 import { ApoioFamilia } from '@/components/apoio';
+import { Foto } from '@/components/arquivos';
+import { FilhoEscolhidoProvider, soDoFilho, useSoDoFilho, type FilhoEscolhido } from '@/components/filho';
 
 type Aba = 'uniforme' | 'apoio' | 'reunioes' | 'frequencia' | 'cardapio' | 'avisos' | 'calendario' | 'agenda' | 'ocorrencias' | 'boletim' | 'aee' | 'declaracoes' | 'transporte' | 'historico' | 'biblioteca' | 'medidas' | 'aulas' | 'rematricula' | 'eventos';
 
-/** Vida escolar da família: frequência, cardápio de cada filho, avisos da escola e calendário. Tudo também pela IARA. */
+/** O aviso vale para o filho quando o nome dele está entre os destinatários (avisos da rede inteira vêm sem lista). */
+const avisoDoFilho = (filho: FilhoEscolhido, a: any) => !a.filhos || String(a.filhos).split(/,\s*/).includes(filho.nome);
+
+/** Vida escolar da família, aberta por filho: cada aba mostra só o que é da criança escolhida. Tudo também pela IARA. */
 export default function Escola() {
   const { me } = useSession();
   const [sp, setSp] = useSearchParams();
   const aba = (sp.get('aba') ?? 'avisos') as Aba;
+  const fichas = useRpc<any[]>('familia_fichas', {}, { enabled: !!me?.guardian });
   const avisos = useRpc<any>('familia_avisos', {}, { enabled: !!me?.guardian });
   const agenda = useRpc<any>('familia_agenda', {}, { enabled: !!me?.guardian });
   const ocorr = useRpc<any>('familia_ocorrencias', {}, { enabled: !!me?.guardian });
@@ -41,67 +47,151 @@ export default function Escola() {
   const apoio = useRpc<any>('familia_apoio', {}, { enabled: !!me?.guardian });
   if (me?.scope !== 'GUARDIAN') return <Card><EmptyState title="Área da família" body="Esta página é do portal da família." /></Card>;
   if (!me.guardian) return <Card><EmptyState title="Complete o cadastro da família" body="Depois do cadastro, a vida escolar dos seus filhos aparece aqui." /></Card>;
-  const pend = avisos.data?.pendentes_confirmacao ?? 0;
-  const historico = juntarHistorico(avisos.data?.historico, agenda.data?.historico);
+  if (fichas.isLoading) return <SkeletonList rows={5} />;
+  if (fichas.error) return <ErrorState error={fichas.error} onRetry={() => fichas.refetch()} />;
+  const kids = (fichas.data ?? []) as any[];
+  if (!kids.length) return <Card><EmptyState title="Nenhuma criança no cadastro" body="Inclua a criança em Minha família; depois da matrícula, a vida escolar dela aparece aqui." action={<ButtonLink to="/familia" variant="purple">Minha família</ButtonLink>} /></Card>;
+  // o filho da URL; sem ele, o primeiro matriculado
+  const kid = kids.find((k) => k.student_id === sp.get('filho')) ?? kids.find((k) => k.matricula) ?? kids[0];
+  const filho: FilhoEscolhido = { id: kid.student_id, nome: kid.primeiro_nome };
+  const art = kid.sexo === 'M' ? 'o' : 'a';
+  const ir = (patch: Record<string, string>) => setSp((prev) => {
+    const n = new URLSearchParams(prev);
+    Object.entries(patch).forEach(([k, v]) => n.set(k, v));
+    return n;
+  }, { replace: true });
+  const de = <T,>(lista: T[] | null | undefined, chave?: (x: T) => unknown) => soDoFilho(filho, lista, chave);
+  const porFilhoId = (x: any) => x?.filho_id;
+  // listas e contadores só do filho escolhido
+  const avisosDele = ((avisos.data?.avisos ?? []) as any[]).filter((a) => avisoDoFilho(filho, a));
+  const agendaDele = de(agenda.data?.itens as any[], porFilhoId);
+  const historico = juntarHistorico(((avisos.data?.historico ?? []) as any[]).filter((a) => avisoDoFilho(filho, a)), de(agenda.data?.historico as any[], porFilhoId));
+  const aeeDele = de(aee.data);
+  const uniFilho = de(uni.data?.filhos as any[])[0];
+  const uniPend = de(uni.data?.avisos as any[]).length
+    + ((uniFilho?.anos as any[] | undefined)?.some((a) => (a.necessidades as any[]).some((n) => n.situacao === 'AGUARDANDO_TAMANHO')) ? 1 : 0);
+  const apoioPend = de(apoio.data?.casos as any[]).flatMap((c) => c.orientacoes as any[]).filter((o) => !o.ciente_em).length;
   return (
     <div>
       <PageHeader eyebrow="Portal da família" title={<span className="inline-flex items-center gap-2">Vida escolar<Simulado detail="Frequência, cardápio e avisos de demonstração." /></span>}
-        subtitle="Tudo isto também pela IARA no WhatsApp: pergunte “faltas da Ana”, “o que a Ana estudou hoje”, “rematrícula”, “agenda de hoje”, “cardápio da semana” ou “avisos da escola”."
+        subtitle={`Escolha o filho: cada aba abre só o que é dele. Tudo isto também pela IARA no WhatsApp: pergunte “faltas d${art} ${filho.nome}”, “o que ${art} ${filho.nome} estudou hoje”, “rematrícula”, “agenda de hoje”, “cardápio da semana” ou “avisos da escola”.`}
         actions={<Link to="/iara" className="inline-flex h-10 items-center gap-1.5 rounded-2xl bg-purple-700 px-3 text-[14px] font-semibold text-white"><MessageCircle className="size-4" />Perguntar à IARA</Link>} />
-      <Tabs value={aba} onChange={(v) => setSp({ aba: v }, { replace: true })} items={[
-        { value: 'avisos', label: 'Avisos', count: pend || null },
-        { value: 'agenda', label: 'Agenda', count: agenda.data?.aguardando_ciencia || null },
-        { value: 'ocorrencias', label: 'Ocorrências', count: ocorr.data?.aguardando_ciencia || null },
-        { value: 'reunioes', label: 'Reuniões', count: reun.data?.aguardando || null },
-        { value: 'uniforme', label: 'Uniforme e kit', count: ((uni.data?.pendentes_ciencia ?? 0) + (uni.data?.pendentes_tamanho ?? 0)) || null },
-        { value: 'apoio', label: 'Apoio', count: apoio.data?.pendentes_ciencia || null },
-        { value: 'aulas', label: 'O que estudou' },
-        { value: 'rematricula', label: 'Rematrícula', count: rem.data?.filter((r) => r.situacao === 'PENDENTE').length || null },
-        { value: 'boletim', label: 'Boletim' },
-        { value: 'historico', label: 'Histórico' },
-        { value: 'eventos', label: 'Eventos' },
-        { value: 'biblioteca', label: 'Biblioteca' },
-        { value: 'medidas', label: 'Peso e altura' },
-        ...(aee.data?.length ? [{ value: 'aee' as Aba, label: 'AEE', count: aee.data.filter((x) => !x.plano.familia_ciente_em).length || null }] : []),
-        { value: 'frequencia', label: 'Frequência' },
-        { value: 'cardapio', label: 'Cardápio' },
-        { value: 'declaracoes', label: 'Declarações' },
-        { value: 'transporte', label: 'Transporte' },
-        { value: 'calendario', label: 'Calendário' },
-      ]} />
-      <div className="mt-3">
-        {aba === 'avisos' && <Avisos res={avisos} historico={historico} />}
-        {aba === 'agenda' && <AgendaFamilia res={agenda} historico={historico} />}
-        {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
-        {aba === 'reunioes' && <ReunioesFamilia />}
-        {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
-        {aba === 'boletim' && <BoletimFamilia />}
-        {aba === 'historico' && <HistoricoFamilia />}
-        {aba === 'aulas' && <AulasFamilia />}
-        {aba === 'uniforme' && <UniformesFamilia />}
-        {aba === 'apoio' && <ApoioFamilia />}
-        {aba === 'rematricula' && <RematriculaFamilia />}
-        {aba === 'eventos' && <EventosFamilia />}
-        {aba === 'biblioteca' && <BibliotecaFamilia />}
-        {aba === 'medidas' && <AntropometriaFamilia />}
-        {aba === 'aee' && <AeeFamilia />}
-        {aba === 'declaracoes' && <DeclaracoesFamilia />}
-        {aba === 'transporte' && <TransporteFamilia />}
-        {aba === 'cardapio' && <CardapioFamilia />}
-        {aba === 'calendario' && <ProximosEventos dias={120} limite={30} />}
-      </div>
+      <EscolhaFilho kids={kids} atual={kid.student_id} onEscolher={(id) => ir({ filho: id })} />
+      {!kid.matricula ? <SemMatricula kid={kid} /> : (
+        <FilhoEscolhidoProvider value={filho}>
+          <Tabs value={aba} onChange={(v) => ir({ aba: v })} items={[
+            { value: 'avisos', label: 'Avisos', count: avisosDele.length || null },
+            { value: 'agenda', label: 'Agenda', count: agendaDele.filter((a) => a.exige_ciencia).length || null },
+            { value: 'ocorrencias', label: 'Ocorrências', count: de(ocorr.data?.ocorrencias as any[]).filter((o) => o.aguarda_ciencia).length || null },
+            { value: 'reunioes', label: 'Reuniões', count: de(reun.data?.reunioes as any[]).filter((r) => r.pode_responder).length || null },
+            { value: 'uniforme', label: 'Uniforme e kit', count: uniPend || null },
+            { value: 'apoio', label: 'Apoio', count: apoioPend || null },
+            { value: 'aulas', label: 'O que estudou' },
+            { value: 'rematricula', label: 'Rematrícula', count: de(rem.data).filter((r) => r.situacao === 'PENDENTE').length || null },
+            { value: 'boletim', label: 'Boletim' },
+            { value: 'historico', label: 'Histórico' },
+            { value: 'eventos', label: 'Eventos' },
+            { value: 'biblioteca', label: 'Biblioteca' },
+            { value: 'medidas', label: 'Peso e altura' },
+            ...(aeeDele.length ? [{ value: 'aee' as Aba, label: 'AEE', count: aeeDele.filter((x) => !x.plano.familia_ciente_em).length || null }] : []),
+            { value: 'frequencia', label: 'Frequência' },
+            { value: 'cardapio', label: 'Cardápio' },
+            { value: 'declaracoes', label: 'Declarações' },
+            { value: 'transporte', label: 'Transporte' },
+            { value: 'calendario', label: 'Calendário' },
+          ]} />
+          <div className="mt-3">
+            <VidaEscolarAba aba={aba} avisos={avisos} avisosDele={avisosDele} agenda={agenda} agendaDele={agendaDele} ocorr={ocorr} historico={historico} />
+          </div>
+        </FilhoEscolhidoProvider>
+      )}
     </div>
+  );
+}
+
+/** Um botão por filho, com foto, turma e escola (ou a situação na fila). */
+function EscolhaFilho({ kids, atual, onEscolher }: { kids: any[]; atual: string; onEscolher: (id: string) => void }) {
+  return (
+    <div role="tablist" aria-label="Filho" className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+      {kids.map((k) => {
+        const ativo = k.student_id === atual;
+        const fila = (k.fila as any[])[0];
+        return (
+          <button key={k.student_id} type="button" role="tab" aria-selected={ativo} onClick={() => onEscolher(k.student_id)}
+            className={clsx('flex min-h-[56px] shrink-0 items-center gap-2.5 rounded-2xl py-2 pl-2 pr-4 text-left ring-1 transition',
+              ativo ? 'bg-purple-700 text-white shadow-soft ring-purple-700' : 'bg-white text-ink ring-line hover:ring-purple-200')}>
+            <Foto arquivoId={k.foto_arquivo_id} name={k.nome} seed={k.student_id} size={40} />
+            <span className="min-w-0">
+              <span className="block font-display text-[15px] font-extrabold leading-tight">{k.primeiro_nome}</span>
+              <span className={clsx('block text-[12px] leading-tight', ativo ? 'text-purple-100' : 'text-muted')}>
+                {k.matricula ? `${k.matricula.turma} · ${k.matricula.unidade_curta ?? k.matricula.unidade}` : fila ? `Na fila · ${fila.etapa}` : 'Sem matrícula na rede'}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Filho ainda sem matrícula: a vida escolar começa com a matrícula; mostra onde ele está na fila. */
+function SemMatricula({ kid }: { kid: any }) {
+  const fila = (kid.fila as any[])[0];
+  return (
+    <Card className="p-5">
+      <div className="font-display text-[17px] font-extrabold">{kid.primeiro_nome} ainda não estuda na rede municipal</div>
+      <p className="mt-1 text-[14px] text-ink-2">
+        {fila
+          ? <>Está na fila de {fila.etapa} · {fila.unidade}: <b>{fila.posicao ? `${fila.posicao}º` : fila.situacao === 'OFFERED' ? 'oferta aguardando você' : 'aceite registrado'}</b>{fila.pontos != null ? ` · ${Number(fila.pontos)} pontos` : ''}.</>
+          : 'Não há inscrição na fila neste momento.'}
+        {' '}Frequência, agenda, boletim, cardápio e os avisos da escola dele aparecem aqui a partir da matrícula.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <ButtonLink to={`/familia?filho=${kid.student_id}`} variant="secondary" size="sm">Ver a ficha de {kid.primeiro_nome}</ButtonLink>
+        {!fila && kid.faixa?.ok && <ButtonLink to={`/vagas?aluno=${kid.student_id}`} variant="purple" size="sm">Inscrever na fila</ButtonLink>}
+      </div>
+    </Card>
+  );
+}
+
+function VidaEscolarAba({ aba, avisos, avisosDele, agenda, agendaDele, ocorr, historico }: {
+  aba: Aba; avisos: any; avisosDele: any[]; agenda: any; agendaDele: any[]; ocorr: any; historico: ItemHistorico[];
+}) {
+  return (
+    <>
+      {aba === 'avisos' && <Avisos res={avisos} itens={avisosDele} historico={historico} />}
+      {aba === 'agenda' && <AgendaFamilia res={agenda} itens={agendaDele} historico={historico} />}
+      {aba === 'ocorrencias' && <OcorrenciasFamilia res={ocorr} />}
+      {aba === 'reunioes' && <ReunioesFamilia />}
+      {aba === 'frequencia' && <><AusenciasFamilia /><FrequenciaFamilia /></>}
+      {aba === 'boletim' && <BoletimFamilia />}
+      {aba === 'historico' && <HistoricoFamilia />}
+      {aba === 'aulas' && <AulasFamilia />}
+      {aba === 'uniforme' && <UniformesFamilia />}
+      {aba === 'apoio' && <ApoioFamilia />}
+      {aba === 'rematricula' && <RematriculaFamilia />}
+      {aba === 'eventos' && <EventosFamilia />}
+      {aba === 'biblioteca' && <BibliotecaFamilia />}
+      {aba === 'medidas' && <AntropometriaFamilia />}
+      {aba === 'aee' && <AeeFamilia />}
+      {aba === 'declaracoes' && <DeclaracoesFamilia />}
+      {aba === 'transporte' && <TransporteFamilia />}
+      {aba === 'cardapio' && <CardapioFamilia />}
+      {aba === 'calendario' && <ProximosEventos dias={120} limite={30} />}
+    </>
   );
 }
 
 function BoletimFamilia() {
   const res = useRpc<any[]>('familia_boletim', {});
+  const so = useSoDoFilho();
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) return <Card><EmptyState compact title="Nenhuma criança matriculada" body="Quando houver matrícula, o boletim aparece aqui." /></Card>;
+  const boletins = so(res.data);
+  if (!boletins.length) return <Card><EmptyState compact title="Nenhuma criança matriculada" body="Quando houver matrícula, o boletim aparece aqui." /></Card>;
   return (
     <div className="space-y-6">
-      {res.data.map((b) => (
+      {boletins.map((b) => (
         <Section key={b.student_id} title={b.primeiro_nome}>
           <BoletimView b={b} familia />
         </Section>
@@ -146,7 +236,7 @@ export function VidaEscolarResumo() {
         </Link>
       )}
       {(freq.data ?? []).map((c) => (
-        <Link key={c.student_id} to="/escola?aba=frequencia" className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
+        <Link key={c.student_id} to={`/escola?filho=${c.student_id}&aba=frequencia`} className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-soft ring-1 ring-line/70 hover:ring-purple-200">
           <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white"><CalendarCheck className="size-5" /></span>
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">Frequência de {c.primeiro_nome}</span>
@@ -227,12 +317,11 @@ function HistoricoAvisos({ itens }: { itens: ItemHistorico[] }) {
   );
 }
 
-function Avisos({ res, historico }: { res: any; historico: ItemHistorico[] }) {
+function Avisos({ res, itens, historico }: { res: any; itens: any[]; historico: ItemHistorico[] }) {
   const qc = useQueryClient();
   const toast = useToast();
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const itens = (res.data?.avisos ?? []) as any[];
   const recarregar = () => ['familia_avisos'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   const dar = async (a: any) => {
     try {
@@ -297,10 +386,11 @@ function Avisos({ res, historico }: { res: any; historico: ItemHistorico[] }) {
 
 function FrequenciaFamilia() {
   const res = useRpc<any[]>('familia_frequencia', {});
+  const so = useSoDoFilho();
   const [justificar, setJustificar] = useState<{ kid: any; data: string } | null>(null);
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const kids = res.data ?? [];
+  const kids = so(res.data);
   if (!kids.length) return <Card><EmptyState compact title="Nenhuma criança matriculada" /></Card>;
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -375,13 +465,14 @@ function JustificarSheet({ alvo, onClose }: { alvo: { kid: any; data: string } |
 
 function CardapioFamilia() {
   const res = useRpc<any[]>('familia_cardapio', {});
+  const so = useSoDoFilho();
   const catalogo = useRpc<any>('cardapio', {});
   const [informar, setInformar] = useState<any | null>(null);
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
   return (
     <div className="space-y-4">
-      {(res.data ?? []).map((c) => (
+      {so(res.data).map((c) => (
         <Section key={c.student_id} className="mt-0" title={`Cardápio de ${c.primeiro_nome}`} subtitle={`${c.unidade} · refeições do turno da ${c.turno === 'MANHA' ? 'manhã' : c.turno === 'TARDE' ? 'tarde' : 'noite'}`}
           action={<Button size="sm" variant="secondary" icon={Plus} onClick={() => setInformar(c)}>Informar restrição</Button>}>
           {(c.restricoes as any[]).length > 0 && (
@@ -445,10 +536,11 @@ function InformarRestricao({ kid, catalogo, onClose }: { kid: any | null; catalo
 /** Crianças matriculadas da família (para escolher a quem se refere o bilhete ou a ocorrência). */
 function useFilhos() {
   const f = useRpc<any[]>('familia_frequencia', {});
-  return ((f.data ?? []) as any[]).map((k) => ({ id: k.student_id as string, nome: k.primeiro_nome as string }));
+  const so = useSoDoFilho();
+  return so((f.data ?? []) as any[]).map((k) => ({ id: k.student_id as string, nome: k.primeiro_nome as string }));
 }
 
-function AgendaFamilia({ res, historico }: { res: any; historico: ItemHistorico[] }) {
+function AgendaFamilia({ res, itens, historico }: { res: any; itens: any[]; historico: ItemHistorico[] }) {
   const toast = useToast();
   const recarregar = useRecarregarVidaEscolar();
   const filhos = useFilhos();
@@ -467,7 +559,7 @@ function AgendaFamilia({ res, historico }: { res: any; historico: ItemHistorico[
   return (
     <>
       <div className="mb-3 flex justify-end"><Button variant="purple" icon={Send} onClick={() => setBilhete(true)}>Mandar bilhete para a escola</Button></div>
-      <Card className="overflow-hidden"><AgendaLista itens={res.data?.itens ?? []} familia onCiente={ciente} /></Card>
+      <Card className="overflow-hidden"><AgendaLista itens={itens} familia onCiente={ciente} /></Card>
       <HistoricoAvisos itens={historico} />
       <BilheteSheet open={bilhete} onClose={() => setBilhete(false)} filhos={filhos} />
     </>
@@ -517,11 +609,12 @@ function BilheteSheet({ open, onClose, filhos }: { open: boolean; onClose: () =>
 
 function OcorrenciasFamilia({ res }: { res: any }) {
   const filhos = useFilhos();
+  const so = useSoDoFilho();
   const [aberta, setAberta] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const itens = (res.data?.ocorrencias ?? []) as any[];
+  const itens = so((res.data?.ocorrencias ?? []) as any[]);
   return (
     <>
       <div className="mb-3 flex justify-end"><Button variant="purple" icon={Plus} onClick={() => setNova(true)}>Relatar algo à escola</Button></div>

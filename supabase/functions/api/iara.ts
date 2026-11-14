@@ -25,7 +25,7 @@ export type ConvSnapshot = {
 };
 
 /** Assuntos que exigem o número vinculado na escola (nível 2): dados sensíveis e cadastrais. O resto pede o nível 1. */
-const NIVEL_2 = /^(intent:(aee_plano|ocorrencias|reuniao_registro|transporte|transporte_aviso|declaracao|apoio|medidas|restricao|alterar_dados)|aee_ok:|oc_ok:|oc_rev:|re_ok:|re_man:|api_ok:|fam:atualizar)/;
+const NIVEL_2 = /^(intent:(aee_plano|ocorrencias|reuniao_registro|transporte|transporte_aviso|declaracao|apoio|medidas|restricao|alterar_dados|ficha_crianca)|aee_ok:|oc_ok:|oc_rev:|re_ok:|re_man:|api_ok:|fam:atualizar)/;
 export const nivelExigido = (pending: string): 1 | 2 => (NIVEL_2.test(pending ?? "") ? 2 : 1);
 export type Patch = {
   context?: Ctx;
@@ -327,6 +327,7 @@ function detectIntent(t: string): string {
   if (/((atualizar|trocar|mudar|alterar) (o |meu |minha |os |meus )?(e-?mail|dados|cadastro))|cadunico|bolsa familia|mae solo|crio sozinha/.test(t)) return "atualizar";
   if (/(troquei|mudei|novo|nova|outro) (de |o |meu |minha )?(e-?mail)/.test(t)) return "atualizar";
   if (/(minha familia|dados da familia|composicao familiar)/.test(t)) return "familia";
+  if (/(ficha (da|do|de|dos|das) |(dados|cadastro|informac(ao|oes)) (da|do|dos|das) (minha |meu |minhas |meus )?(filh|crianc))/.test(t)) return "ficha_crianca";
   // vida escolar (Sprint 1)
   if (/(vida escolar|coisas da escola)/.test(t)) return "vida_escolar";
   if (/(plano (do |de )?aee|sala de recursos|atendimento (educacional )?especializado|professora? do aee|dias do aee)/.test(t)) return "aee_plano";
@@ -849,6 +850,8 @@ export class Agent {
       }
       case "minha_escola":
         return await this.minhaEscola(text);
+      case "ficha_crianca":
+        return await this.fichaCrianca(text);
       case "saudacao": {
         if (!this.conv.guardian_id) {
           this.say("Oi! 💜 Eu sou a IARA, da Secretaria Municipal de Educação de Maringá. Ainda não encontrei cadastro para este número — se vocês acabaram de chegar à cidade, faço o cadastro e a inscrição na fila por aqui mesmo.",
@@ -1067,10 +1070,60 @@ export class Agent {
     }
     const TURNO: Record<string, string> = { MANHA: "manhã", TARDE: "tarde", NOITE: "noite", INTEGRAL: "integral" };
     const linhas = lista.map((k) => `${k.first_name} estuda ${naUnidade(k.school.unit)}, turma ${k.school.class}${k.school.shift ? `, turno ${k.school.shift === "INTEGRAL" ? "integral" : `da ${TURNO[k.school.shift] ?? k.school.shift}`}` : ""}.`);
-    const falta = /(que horas|horario|hora de)/.test(t) ? " O horário exato de entrada e saída fica com a secretaria da unidade." : /professora/.test(t) ? " O nome da professora não aparece para mim por aqui; a secretaria da unidade informa." : "";
+    let regentes = "";
+    if (/professora?/.test(t)) {
+      const fichas = ((await this.tool<any[]>("get_child_file", "familia_fichas", {}).catch(() => [])) ?? []) as any[];
+      regentes = lista.map((k) => {
+        const m = fichas.find((f) => f.student_id === k.id)?.matricula;
+        return m?.regente ? ` A professora regente da turma de ${k.first_name} é ${m.regente}.` : "";
+      }).join("");
+    }
+    const falta = /(que horas|horario|hora de)/.test(t) ? " O horário exato de entrada e saída fica com a secretaria da unidade."
+      : /professora?/.test(t) && !regentes ? " Não tenho o nome da professora neste momento; a secretaria da unidade confirma." : "";
     const fone = falta ? await this.telefoneDaEscola(citada ?? lista[0]) : "";
-    this.say(linhas.join("\n") + falta + (fone ? ` ${fone.trim()}` : ""), {
+    this.say(linhas.join("\n") + regentes + falta + (fone ? ` ${fone.trim()}` : ""), {
       quick_replies: falta ? [{ label: "Falar com a secretaria", action: "handoff:A família pediu informação à unidade" }, { label: "Agora não", action: "nothing" }] : undefined,
+    });
+  }
+
+  /** A ficha da criança, a mesma de "Minha família" no portal: escola ou fila, professora, transporte, alimentação, documentos e quem pode buscar. */
+  private async fichaCrianca(text: string): Promise<void> {
+    if (!this.needGuardian("intent:ficha_crianca")) return;
+    const t = expandir(norm(text));
+    const fichas = ((await this.tool<any[]>("get_child_file", "familia_fichas", {})) ?? []) as any[];
+    if (!fichas.length) return this.say("Ainda não há criança no seu cadastro. Quer incluir agora?", { quick_replies: [MENU[7]] });
+    const citada = fichas.find((f) => temNome(t, f.primeiro_nome));
+    const TURNO: Record<string, string> = { MANHA: "manhã", TARDE: "tarde", NOITE: "noite", INTEGRAL: "integral" };
+    const PAR: Record<string, string> = { MAE: "mãe", PAI: "pai", AVO: "avó/avô", RESPONSAVEL_LEGAL: "responsável legal", PADRASTO: "padrasto/madrasta", TIA: "tia/tio" };
+    const data = (iso?: string | null) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—");
+    const blocos = (citada ? [citada] : fichas).slice(0, 3).map((f) => {
+      const m = f.matricula;
+      const q = (f.fila ?? [])[0];
+      const fem = f.sexo === "F";
+      const linhas = [`*${f.nome}* · ${f.idade}, ${fem ? "nascida" : "nascido"} em ${data(f.nascimento)}`];
+      if (m) {
+        linhas.push(`• Escola: ${m.unidade} · ${m.turma} · ${m.turno === "INTEGRAL" ? "integral" : `${TURNO[m.turno] ?? m.turno}`}${m.sala ? ` · ${m.sala}` : ""}`);
+        if (m.regente) linhas.push(`• Professora regente: ${m.regente}`);
+      } else if (q) {
+        linhas.push(`• Fila de ${q.etapa} ${naUnidade(q.unidade)}: ${q.posicao ? `${q.posicao}º` : "oferta em andamento"}${q.pontos != null ? `, ${Number(q.pontos)} pontos` : ""}`);
+      } else {
+        linhas.push("• Sem matrícula e sem inscrição na fila neste momento");
+      }
+      const r = f.transporte?.rota;
+      if (r) linhas.push(`• Transporte: rota ${r.codigo}, ponto ${r.ponto ?? "—"}${r.ida ? `, ida ${String(r.ida).slice(0, 5)}` : ""}${r.volta ? `, volta ${String(r.volta).slice(0, 5)}` : ""}`);
+      else if (f.transporte?.precisa) linhas.push("• Transporte: pedido em análise");
+      const rest = ((f.restricoes ?? []) as any[]).map((x) => String(x.descricao).split(" (")[0].toLowerCase());
+      linhas.push(`• Restrição alimentar: ${rest.length ? rest.join(", ") : "nenhuma informada"}`);
+      const d = f.documentos ?? {};
+      const docs = [d.validados ? `${d.validados} conferido(s)` : "", d.em_conferencia ? `${d.em_conferencia} em conferência` : "", d.recusados ? `${d.recusados} recusado(s)` : ""].filter(Boolean);
+      linhas.push(`• Documentos: ${docs.length ? docs.join(", ") : "nenhum enviado"}`);
+      const buscam = ((f.responsaveis ?? []) as any[]).filter((x) => x.pode_buscar).map((x) => `${x.eu ? "você" : String(x.nome).split(" ")[0]} (${PAR[x.parentesco] ?? String(x.parentesco ?? "").toLowerCase()})`);
+      if (buscam.length) linhas.push(`• Pode buscar: ${buscam.join(", ")}`);
+      if ((f.pendencias ?? []).length) linhas.push(`• Falta no cadastro: ${(f.pendencias as string[]).join(", ")}`);
+      return linhas.join("\n");
+    });
+    this.say(`${blocos.join("\n\n")}\n\nA ficha completa está no portal, em Minha família. Algum dado errado? Eu encaminho a correção.`, {
+      quick_replies: [{ label: "Corrigir dados da criança", action: "intent:alterar_dados" }, { label: "Vida escolar", action: "intent:vida_escolar" }, { label: "Agora não", action: "nothing" }],
     });
   }
 

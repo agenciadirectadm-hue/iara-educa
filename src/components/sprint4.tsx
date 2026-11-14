@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { AlertTriangle, ArrowRightLeft, BookMarked, CheckCheck, ClipboardCheck, PackageX, RotateCcw, Ruler, Save, Search, Upload, Wrench } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useDebounced, useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtBRL, fmtDate, fmtDateTime, fmtInt } from '@/lib/format';
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Field, Kpi, MarcaSimulado, Section, Segmented, SkeletonList, inputCls } from '@/components/ui';
 import { Sheet, useToast } from '@/components/overlays';
@@ -13,6 +14,7 @@ import { TCabecalho, TCelula, TLinha, Tabela } from '@/components/tabela';
 // ------------------------------------------------------------------ Biblioteca (família)
 export function BibliotecaFamilia() {
   const res = useRpc<any[]>('familia_biblioteca', {});
+  const so = useSoDoFilho();
   const qc = useQueryClient();
   const toast = useToast();
   const [busca, setBusca] = useState<{ student_id: string; nome: string } | null>(null);
@@ -27,10 +29,11 @@ export function BibliotecaFamilia() {
   };
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) return <EmptyState title="Nenhuma criança matriculada" />;
+  const criancas = so(res.data);
+  if (!criancas.length) return <EmptyState title="Nenhuma criança matriculada" />;
   return (
     <div className="space-y-5">
-      {res.data.map((k) => (
+      {criancas.map((k) => (
         <Section key={k.student_id} title={`Biblioteca · ${k.primeiro_nome}`} subtitle={`${k.unidade ?? ''} · empréstimo de ${k.prazo_dias} dias${k.prazo_dias === 7 ? ' (sacola literária)' : ''}`}
           action={<Button size="sm" variant="secondary" icon={Search} onClick={() => setBusca({ student_id: k.student_id, nome: k.primeiro_nome })}>Procurar e reservar</Button>}>
           <div className="space-y-2">
@@ -209,10 +212,12 @@ export function AntropometriaAluno({ studentId }: { studentId: string }) {
 
 export function AntropometriaFamilia() {
   const res = useRpc<any[]>('familia_antropometria', {});
+  const so = useSoDoFilho();
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) return <EmptyState title="Nenhuma criança matriculada" />;
-  return <div className="space-y-5">{res.data.map((d) => <Section key={d.student_id} title={`Peso e altura · ${d.primeiro_nome}`}><AntropometriaView d={d} familia /></Section>)}</div>;
+  const criancas = so(res.data);
+  if (!criancas.length) return <EmptyState title="Nenhuma criança matriculada" />;
+  return <div className="space-y-5">{criancas.map((d) => <Section key={d.student_id} title={`Peso e altura · ${d.primeiro_nome}`}><AntropometriaView d={d} familia /></Section>)}</div>;
 }
 
 /** Painel da nutrição/unidade: cobertura do semestre, distribuição e quem acompanhar; importação da tabela oficial. */

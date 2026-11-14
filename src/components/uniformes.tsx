@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { BellRing, Check, CheckCheck, ClipboardList, Map as MapIcon, Package, PackageCheck, Ruler, Shirt, Timer, Users } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { fmtBRL, fmtDate, fmtDateTime, fmtInt } from '@/lib/format';
 import type { Tone } from '@/lib/labels';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Kpi, MarcaSimulado, Section, Segmented, SkeletonList, inputCls } from '@/components/ui';
@@ -116,6 +117,7 @@ export function CodigoRetirada({ codigo, unidade, prazo }: { codigo: string; uni
 // ------------------------------------------------------------------ família
 export function UniformesFamilia() {
   const res = useRpc<any>('familia_uniformes', {});
+  const so = useSoDoFilho();
   const qc = useQueryClient();
   const toast = useToast();
   const [salvando, setSalvando] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export function UniformesFamilia() {
   const recarregar = () => qc.invalidateQueries({ queryKey: ['familia_uniformes'] });
   if (res.isLoading) return <SkeletonList rows={4} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const d = res.data;
+  const d = { ...res.data, filhos: so(res.data.filhos), avisos: so(res.data.avisos), historico: so(res.data.historico) };
   const salvar = async (student_id: string, ano: number, v: any) => {
     setSalvando(`${student_id}:${ano}`);
     try {

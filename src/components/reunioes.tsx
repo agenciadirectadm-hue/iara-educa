@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { AlertTriangle, Check, CheckCheck, ClipboardPlus, FastForward, Lock, MessageSquareText, Send, ShieldAlert, Siren } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useRpc } from '@/lib/hooks';
+import { useSoDoFilho } from '@/components/filho';
 import { useSession } from '@/lib/session';
 import { fmtDateTime } from '@/lib/format';
 import type { Tone } from '@/lib/labels';
@@ -477,10 +478,11 @@ export function useReunioesAluno(studentId: string | undefined, habilitado: bool
 
 export function ReunioesFamilia() {
   const res = useRpc<any>('familia_reunioes', {});
+  const so = useSoDoFilho();
   const [abertaId, setAbertaId] = useState<string | null>(null);
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  const itens = (res.data?.reunioes ?? []) as any[];
+  const itens = so((res.data?.reunioes ?? []) as any[]);
   const aberta = itens.find((r) => r.id === abertaId) ?? null;
   if (!itens.length) return <Card><EmptyState compact title="Nenhum registro de reunião" body="Quando a escola registrar uma reunião com você, ela aparece aqui e pela IARA, para você validar." /></Card>;
   return (

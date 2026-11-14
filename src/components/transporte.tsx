@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Bus, Clock, MapPin, ShieldAlert, UserRound } from 'lucide-react';
 import { rpc } from '@/lib/api';
 import { useNow, useRpc } from '@/lib/hooks';
+import { useFilhoEscolhido, useSoDoFilho } from '@/components/filho';
 import type { Tone } from '@/lib/labels';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Segmented, Skeleton, SkeletonList, inputCls } from '@/components/ui';
 import { Sheet, useToast } from '@/components/overlays';
@@ -63,15 +64,18 @@ export function EstadoViagem({ e, compacto }: { e: any; compacto?: boolean }) {
 export function TransporteFamilia() {
   useNow(30_000);
   const res = useRpc<any[]>('familia_transporte', {}, { refetchInterval: 30_000 });
+  const so = useSoDoFilho();
+  const filho = useFilhoEscolhido();
   const [aviso, setAviso] = useState<any | null>(null);
   if (res.isLoading) return <SkeletonList rows={3} />;
   if (res.error) return <ErrorState error={res.error} onRetry={() => res.refetch()} />;
-  if (!res.data?.length) {
-    return <Card><EmptyState compact title="Suas crianças não usam o transporte escolar" body="Para pedir, use Protocolos → Transporte escolar ou diga à IARA “pedir transporte escolar”." /></Card>;
+  const criancas = so(res.data);
+  if (!criancas.length) {
+    return <Card><EmptyState compact title={filho ? `${filho.nome} não usa o transporte escolar` : 'Suas crianças não usam o transporte escolar'} body="Para pedir, use Protocolos → Transporte escolar ou diga à IARA “pedir transporte escolar”." /></Card>;
   }
   return (
     <div className="space-y-4">
-      {res.data.map((k) => {
+      {criancas.map((k) => {
         const r = k.rota;
         if (!r) return <Card key={k.student_id} className="p-4"><b>{k.primeiro_nome}</b>: pedido de transporte em análise pela Gerência de Transporte Escolar.</Card>;
         const p = r.meu_ponto ?? {};

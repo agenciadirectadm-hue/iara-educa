@@ -7,7 +7,7 @@ import { DOC_MAX_BYTES, abrirArquivo, enviarArquivo, prepararFoto, useArquivoUrl
 import { Avatar, Button, Field, inputCls } from '@/components/ui';
 import { Sheet, useToast } from '@/components/overlays';
 
-const RECARREGAR = ['aluno_documentos', 'familia_documentos', 'validacoes_pendentes', 'pessoal_ficha', 'student_detail', 'familia_frequencia'];
+const RECARREGAR = ['aluno_documentos', 'familia_documentos', 'familia_fichas', 'validacoes_pendentes', 'pessoal_ficha', 'student_detail', 'familia_frequencia'];
 export function useRecarregarArquivos() {
   const qc = useQueryClient();
   return () => RECARREGAR.forEach((k) => qc.invalidateQueries({ queryKey: [k] }));

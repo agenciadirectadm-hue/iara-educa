@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
@@ -15,6 +15,7 @@ import { Sheet, useConfirm, useToast } from '@/components/overlays';
 import { IaraBubble } from '@/components/iara';
 import { WhatsAppCard } from '@/components/whatsapp';
 import { VidaEscolarResumo } from './Escola';
+import { AcoesFicha, FichaFilho } from '@/components/ficha-filho';
 
 const REL_CHILD = [['MAE', 'Mãe'], ['PAI', 'Pai'], ['AVO', 'Avó / avô'], ['RESPONSAVEL_LEGAL', 'Responsável legal']] as const;
 const REL_ADULT = [['PAI', 'Pai'], ['MAE', 'Mãe'], ['AVO', 'Avó / avô'], ['PADRASTO', 'Padrasto / madrasta'], ['COMPANHEIRO', 'Companheiro(a)'], ['RESPONSAVEL_LEGAL', 'Responsável legal (guarda)'], ['OUTRO', 'Outro']] as const;
@@ -23,9 +24,6 @@ export const LEVEL: Record<string, { label: string; tone: 'green' | 'blue' | 'pu
   IARA: { label: 'A IARA resolve', tone: 'green' },
   UNIDADE: { label: 'Unidade decide', tone: 'blue' },
   SECRETARIA: { label: 'SEDUC decide', tone: 'purple' },
-};
-const STUDENT_STATUS: Record<string, string> = {
-  MATRICULADO: 'Matriculada(o)', AGUARDANDO_VAGA: 'Aguardando vaga', SEM_VINCULO: 'Sem vaga na rede', TRANSFERENCIA: 'Em transferência', INATIVO: 'Inativa(o)',
 };
 
 type Place = { label: string; lat: number; lng: number; kind: string };
@@ -166,12 +164,22 @@ export function FamilyOnboarding() {
 export default function Family() {
   const { me } = useSession();
   const res = useRpc<any>('family_overview', {}, { enabled: me?.scope === 'GUARDIAN' });
+  const fichas = useRpc<any[]>('familia_fichas', {}, { enabled: !!me?.guardian });
+  const freq = useRpc<any[]>('familia_frequencia', {}, { enabled: !!me?.guardian });
+  const [sp] = useSearchParams();
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [service, setService] = useState<string | null>(null);
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const refresh = () => ['family_overview', 'citizen_home', 'search_vacancies'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  const refresh = () => ['family_overview', 'familia_fichas', 'citizen_home', 'search_vacancies'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  // vindo de outra tela com ?filho=, abre a página já na ficha dele
+  const alvo = sp.get('filho');
+  const prontas = !!fichas.data;
+  useEffect(() => {
+    if (alvo && prontas) document.getElementById(`filho-${alvo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [alvo, prontas]);
+  const freqPorFilho = new Map(((freq.data ?? []) as any[]).map((c) => [c.student_id as string, c]));
 
   if (me?.scope !== 'GUARDIAN') {
     return <Card><EmptyState title="Área do responsável" body="Esta página é do portal da família. Servidores acessam os cadastros pela ficha do responsável." /></Card>;
@@ -233,32 +241,18 @@ export default function Family() {
         </div>
       </Section>
 
-      <Section title={`Crianças (${kids.length})`}>
+      <Section title={`Crianças (${kids.length})`} subtitle="A ficha de cada filho como está na rede. Para corrigir algum dado, use Documentos e dados ou peça à IARA.">
         {kids.length ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {kids.map((k) => {
-              const q = (k.queue ?? [])[0];
-              return (
-                <Card key={k.id} className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-display text-[16px] font-extrabold leading-tight">{k.name}</div>
-                      <div className="text-[12.5px] text-muted">{k.age} · {REL_NAME[k.relationship] ?? k.relationship?.toLowerCase()}</div>
-                    </div>
-                    <Badge tone={k.school ? 'green' : q ? 'purple' : 'gray'}>{STUDENT_STATUS[k.status] ?? k.status}</Badge>
-                  </div>
-                  {k.school && <p className="mt-2 text-[13px] text-ink-2">Estuda {k.school.unit} · {k.school.class} · {SHIFT[k.school.shift] ?? k.school.shift}</p>}
-                  {q && <p className="mt-2 text-[13px] text-ink-2">Fila de {q.grade} · {q.unit}: <b>{q.position ? `${q.position}º` : q.status === 'OFFERED' ? 'oferta aguardando você' : 'aceite registrado'}</b>{q.score != null ? ` · ${Number(q.score)} pontos` : ''}</p>}
-                  {!k.school && !q && <p className="mt-2 text-[13px] text-muted">{k.grade_rule?.ok ? `Faixa pela data de corte: ${k.grade_rule.grade_name}.` : k.grade_rule?.explanation ?? ''}</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {!k.school && !q && k.grade_rule?.ok && <ButtonLink to={`/vagas?aluno=${k.id}`} size="sm" variant="purple" icon={Search}>Inscrever na fila</ButtonLink>}
-                    {k.school && !q && <ButtonLink to={`/vagas?aluno=${k.id}`} size="sm" variant="secondary" icon={ArrowRightLeft}>Pedir transferência</ButtonLink>}
-                    {q?.status === 'WAITING' && <Button size="sm" variant="ghost" onClick={() => withdraw(q, k)}>Desistir da fila</Button>}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+          fichas.isLoading ? <SkeletonList rows={3} />
+            : fichas.error ? <ErrorState error={fichas.error} onRetry={() => fichas.refetch()} />
+              : (
+                <div className="space-y-4">
+                  {((fichas.data ?? []) as any[]).map((f) => (
+                    <FichaFilho key={f.student_id} f={f} freq={freqPorFilho.get(f.student_id)}
+                      acoes={<AcoesFicha f={f} kid={kids.find((k) => k.id === f.student_id)} onDesistir={withdraw} />} />
+                  ))}
+                </div>
+              )
         ) : <Card><EmptyState compact title="Nenhuma criança no cadastro" body="Inclua a criança para pedir vaga." action={<Button variant="purple" icon={Baby} onClick={() => setSheet('child')}>Incluir criança</Button>} /></Card>}
       </Section>
 
