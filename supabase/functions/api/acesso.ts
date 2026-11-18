@@ -38,6 +38,10 @@ export async function emitirPasse(horas = 12): Promise<string> {
   return `${corpo}.${await assinatura(corpo)}`;
 }
 
+/** Parte aleatória do passe (v1.<prazo>.<aleatório>.<assinatura>): liga, no registro de entradas, a senha aos perfis abertos
+ * depois na mesma aba. Sem a assinatura, não abre nada. */
+export const idDoPasse = (passe: string | null) => (passe ?? "").split(".")[2] || null;
+
 export async function passeValido(passe: string | null): Promise<boolean> {
   if (!acessoAtivo()) return true;
   const p = (passe ?? "").split(".");

@@ -28,11 +28,21 @@ import {
 import { PROVEDOR, distanciasComPrazo, distanciasComRotas, rota, rotasDaFila } from "./rotas.ts";
 import { claudeDisponivel, mcp, perguntarOraculo, statusOraculo } from "./oraculo.ts";
 import { pontoBiometria } from "./ponto.ts";
-import { acessoAtivo, emitirPasse, passeValido, senhaConfere } from "./acesso.ts";
+import { acessoAtivo, emitirPasse, idDoPasse, passeValido, senhaConfere } from "./acesso.ts";
 
 /** Sem sessão, com a senha de acesso ligada: só a verificação pública de declarações e certificados (QR code) e os números da entrada. */
 const RPC_SEM_SENHA = new Set(["declaracao_verificar", "declaracao_ver", "certificado_ver", "bootstrap"]);
 const semPasse = (req: Request) => passeValido(req.headers.get("x-iara-acesso"));
+
+type Entrada = { evento: string; passe?: string | null; perfil?: string | null; detalhe?: string | null; user_id?: string | null };
+/** Registro de entradas no portal (099.22): o banco põe a localização aproximada do IP. Falha aqui não atrapalha quem entra. */
+function registrarEntrada(meta: RequestMeta, e: Entrada): Promise<void> {
+  const job = sql`select iara.acesso_registrar(${sql.json({ ...e, ip: meta.ip, aparelho: meta.ua } as never)}::jsonb)`
+    .then(() => undefined)
+    .catch((err) => console.error("registro de entrada", err?.message));
+  (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(job);
+  return job;
+}
 
 // CORS restrito (SEC-AT-03): só o portal publicado, o ambiente local e os domínios de CORS_ORIGINS (produção).
 // A ponte do WhatsApp fala de servidor para servidor (sem Origin) e não depende disto.
@@ -212,19 +222,26 @@ Deno.serve(async (req: Request) => {
       if (!acessoAtivo()) return json({ ok: true, ativo: false, passe: null });
       // só as tentativas de senha contam: a senha é pedida a cada abertura, e uma repartição inteira pode sair pelo mesmo IP
       if (await excedeu([[`acesso:${meta.ip}`, 30, 600]])) {
+        await registrarEntrada(meta, { evento: "TENTATIVAS_DEMAIS" });
         return json({ error: "Muitas tentativas. Aguarde alguns minutos e tente de novo.", code: "RATE_LIMIT" }, 429, { "retry-after": "60" });
       }
       const body = await req.json().catch(() => ({}));
       const senha = String(body?.senha ?? "").slice(0, 200);
       if (!senha || !(await senhaConfere(senha))) {
+        await registrarEntrada(meta, { evento: "SENHA_ERRADA" });
         await new Promise((r) => setTimeout(r, 700));
         return json({ error: "Senha incorreta.", code: "ACESSO_NEGADO" }, 401);
       }
-      return json({ ok: true, ativo: true, passe: await emitirPasse() });
+      const passe = await emitirPasse();
+      await registrarEntrada(meta, { evento: "SENHA_CERTA", passe: idDoPasse(passe) });
+      return json({ ok: true, ativo: true, passe });
     }
 
     if (path === "/session" && req.method === "POST") {
-      if (!(await semPasse(req))) return json({ error: "Este portal pede a senha de acesso.", code: "ACESSO_NECESSARIO" }, 401);
+      if (!(await semPasse(req))) {
+        await registrarEntrada(meta, { evento: "BARRADO" });
+        return json({ error: "Este portal pede a senha de acesso.", code: "ACESSO_NECESSARIO" }, 401);
+      }
       const body = await req.json().catch(() => ({}));
       const persona = String(body?.persona ?? "");
       const unitId = body?.unit_id != null ? Number(body.unit_id) : null;
@@ -233,6 +250,10 @@ Deno.serve(async (req: Request) => {
       const created = await asSystem(null, meta, (tx) => tx`select iara.session_create(${persona}, ${unitId}, ${hash}, ${meta.ua}) as r`);
       const userId = (created[0]?.r as { user_id: string }).user_id;
       const me = await callApi(userId, meta, "me", {});
+      registrarEntrada(meta, {
+        evento: "PERFIL_ABERTO", perfil: persona, detalhe: (me as { unit?: { name?: string } } | null)?.unit?.name ?? null,
+        passe: acessoAtivo() ? idDoPasse(req.headers.get("x-iara-acesso")) : null,
+      });
       return json({ token, me });
     }
 
@@ -388,6 +409,9 @@ Deno.serve(async (req: Request) => {
       }
       const corpo = await req.json().catch(() => undefined);
       if (corpo === undefined) return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "JSON inválido." } }, 400);
+      // registro de entradas: cada consulta pela conexão permanente conta (uma linha por conexão e por hora)
+      const chamadas = (Array.isArray(corpo) ? corpo : [corpo]) as { method?: string }[];
+      if (chave && chamadas.some((c) => c?.method === "tools/call")) registrarEntrada(meta, { evento: "ORACULO_MCP", user_id: userId });
       const r = await mcp((fn: string, a: unknown) => callApi(userId, meta, fn, a), corpo);
       return r == null ? new Response(null, { status: 202, headers: { ...cors(req), ...SEGURANCA } }) : json(r);
     }

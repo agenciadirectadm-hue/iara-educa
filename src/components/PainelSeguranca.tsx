@@ -31,7 +31,7 @@ export function PainelSeguranca() {
   const limites = Object.entries(d.limites_excedidos ?? {});
   return (
     <Section title={<span className="inline-flex items-center gap-2"><ShieldCheck className="size-5 text-purple-700" />Segurança nas últimas {d.periodo_horas} h</span>}
-      action={<Link to="/auditoria" className="text-sm font-semibold text-purple-700">Trilha de auditoria</Link>}>
+      action={<span className="flex gap-3"><Link to="/entradas" className="text-sm font-semibold text-purple-700">Entradas no portal</Link><Link to="/auditoria" className="text-sm font-semibold text-purple-700">Trilha de auditoria</Link></span>}>
       <Card className="p-4 text-[14px]">
         <div className={d.auditoria.integra ? 'flex items-start gap-2 text-green-800' : 'flex items-start gap-2 text-red-800'}>
           <Lock className="mt-0.5 size-4 shrink-0" />

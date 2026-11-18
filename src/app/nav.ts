@@ -1,4 +1,4 @@
-import { Clapperboard, MonitorPlay, ListTodo, HeartHandshake, Shirt, TrendingUp, Accessibility, Users2, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
+import { LogIn, Clapperboard, MonitorPlay, ListTodo, HeartHandshake, Shirt, TrendingUp, Accessibility, Users2, Handshake, ThumbsDown, Apple, ArrowRightLeft, Award, Backpack, Bus, Calculator, ChartLine, DoorOpen, Gavel, LibraryBig, LifeBuoy, Network, NotebookPen, ScanQrCode, SearchCheck, Warehouse, BadgeCheck, Boxes, FolderOpen, ShieldAlert, BookOpen, Building2, CalendarCheck, CalendarDays, ChartColumn, ChefHat, CircleHelp, ClipboardCheck, ClipboardList, Clock, Contact, Database, FileCheck, FileSearch, GraduationCap, HandCoins, House, IdCard, Inbox, ListChecks, ListOrdered, Map as MapIcon, Megaphone, MessageCircle, Route, Scale, School, ScrollText, Search, ShieldCheck, Smartphone, Sparkles, Users, Wrench } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Me } from '@/lib/types';
 
@@ -31,6 +31,8 @@ const I = {
   ofertas: { to: '/ofertas', label: 'Ofertas', icon: FileCheck, grupo: 'matricula' },
   iara: { to: '/iara', label: 'Conversas', icon: Inbox, grupo: 'atendimento' },
   auditoria: { to: '/auditoria', label: 'Auditoria', icon: ShieldCheck, grupo: 'controle' },
+  // registro de entradas no portal: só o titular abre (senha do titular)
+  entradas: { to: '/entradas', label: 'Entradas no portal', icon: LogIn, grupo: 'controle' },
   qualidade: { to: '/qualidade', label: 'Qualidade de dados', icon: Database, grupo: 'controle' },
   regras: { to: '/regras', label: 'Regras e critérios', icon: ScrollText, grupo: 'controle' },
   ajuda: { to: '/ajuda', label: 'Ajuda e fontes', icon: CircleHelp, grupo: 'ajuda' },
@@ -126,7 +128,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [I.orgaos, I.recusas, I.distancias, I.mapa, I.indicadores, I.qualidade, I.iaraflix, I.ajuda],
       };
     case 'INOVACAO':
-      return { primary: [I.inicio, I.unidades, I.pendencias, I.qualidade, I.mapa, I.auditoria], more: [I.whatsapp, I.calendario, I.eventos, I.nutricao, I.uniformes, I.ideb, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.iaraflix, I.suporte, I.ajuda] };
+      return { primary: [I.inicio, I.unidades, I.pendencias, I.qualidade, I.mapa, I.auditoria], more: [I.entradas, I.whatsapp, I.calendario, I.eventos, I.nutricao, I.uniformes, I.ideb, I.manutencao, I.gestao, I.pessoal, I.frequencia, I.indicadores, I.regras, I.iaraflix, I.suporte, I.ajuda] };
     case 'ANALISTA_CENTRAL':
     case 'ATENDIMENTO':
       return {
@@ -235,7 +237,7 @@ export function navFor(me: Me | null): { primary: NavItem[]; more: NavItem[] } {
         more: [I.regras, I.qualidade, I.iaraflix, I.ajuda],
       };
     case 'COMERCIAL':
-      return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [I.iaraflix] };
+      return { primary: [{ ...I.inicio, label: 'Simulador de preços', icon: Calculator }, I.unidades, I.mapa, I.ajuda], more: [I.entradas, I.iaraflix] };
     case 'MANUTENCAO':
       return {
         primary: [I.inicio, I.pendencias, I.unidades, { ...I.manutencao, label: 'Chamados' }, I.materiais, I.mapa],

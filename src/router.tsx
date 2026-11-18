@@ -84,6 +84,7 @@ const Verificar = lazy(() => import('./pages/Declaracao').then((m) => ({ default
 const Transporte = lazy(() => import('./pages/Transporte'));
 const Rota = lazy(() => import('./pages/Rota'));
 const SimuladorPrecos = lazy(() => import('./pages/SimuladorPrecos'));
+const EntradasPortal = lazy(() => import('./pages/EntradasPortal'));
 const PublicosPrefeito = lazy(() => import('./pages/PublicosPrefeito'));
 const Oraculo = lazy(() => import('./pages/Oraculo'));
 const MeuPonto = lazy(() => import('./pages/MeuPonto'));
@@ -278,6 +279,7 @@ export const router = createHashRouter([
       { path: '/canal-whatsapp', element: <RequireSession>{S(<CanalWhatsApp />)}</RequireSession> },
       { path: '/indicadores', element: <RequireSession>{S(<Indicators />)}</RequireSession> },
       { path: '/auditoria', element: <RequireSession>{S(<Audit />)}</RequireSession> },
+      { path: '/entradas', element: <RequireSession>{S(<EntradasPortal />)}</RequireSession>, handle: { wide: true } },
       { path: '/qualidade', element: S(<Quality />) },
       { path: '/regras', element: S(<Rules />) },
       { path: '/controle', element: <RequireSession>{S(<PainelControle />)}</RequireSession>, handle: { wide: true } },

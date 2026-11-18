@@ -115,6 +115,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   LOGIN_DEMO: 'Entrada no sistema', RULE_VERSION: 'Nova versão de regras', PRIORITY_DECISION: 'Prioridade sob análise (laudo)',
   FAMILY_REGISTERED: 'Cadastro de família', FAMILY_MEMBER_ADDED: 'Novo membro da família', FAMILY_UPDATED: 'Atualização de dados da família',
   ADDRESS_CHANGED: 'Mudança de endereço', QUEUE_SELF_REGISTER: 'Inscrição na fila on-line', QUEUE_WITHDRAWN: 'Desistência da fila', DEMO_SEED: 'Base de demonstração', DEMO_RESET: 'Reinício do cenário', DEMO_TIMESHIFT: 'Atualização temporal (demo)', WHATSAPP_CANAL: 'WhatsApp da IARA ligado/desligado', DEMO_PURGE: 'Limpeza da demonstração',
+  ENTRADAS_CONSULTA: 'Registro de entradas aberto pelo titular', ENTRADAS_SENHA_ERRADA: 'Senha do titular errada (registro de entradas)',
 };
 export const ENTITY: Record<string, string> = {
   students: 'Aluno', guardians: 'Responsável', addresses: 'Endereço', student_guardians: 'Vínculo', enrollments: 'Matrícula', classes: 'Turma',
