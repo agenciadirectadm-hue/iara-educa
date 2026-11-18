@@ -25,10 +25,34 @@ function Pedir([string]$rotulo) {
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
 }
 
+function Aceito([string]$t) {
+  try { Invoke-RestMethod -Uri $api -Headers @{ Authorization = "Bearer $t" } | Out-Null; $true } catch { $false }
+}
+
 # a variável do Windows vem antes: um terminal aberto antes da troca do token ainda guarda o antigo
 $token = [Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN', 'User')
 if (-not $token) { $token = $env:SUPABASE_ACCESS_TOKEN }
-if (-not $token) { Write-Host "Falta a variavel SUPABASE_ACCESS_TOKEN do Windows. Nada foi alterado." -ForegroundColor Red; exit 1 }
+if ($token -and -not (Aceito $token)) {
+  Write-Host "O Supabase recusou o token da variavel SUPABASE_ACCESS_TOKEN (cancelado ou vencido)." -ForegroundColor Yellow
+  $token = $null
+}
+# sem token valido: a pessoa copia um token novo e tecla so Enter (nao cola), como em scripts/aplicar.mjs
+for ($i = 1; $i -le 3 -and -not $token; $i++) {
+  Write-Host ""
+  Write-Host "Gere um token em supabase.com/dashboard/account/tokens, copie (Ctrl+C) e tecle SO Enter aqui - nao cole." -ForegroundColor Cyan
+  Read-Host -AsSecureString | Out-Null   # se a pessoa colar mesmo assim, nada aparece na tela
+  $t = [regex]::Match("$(Get-Clipboard -Raw)", 'sbp_[0-9A-Za-z_]+').Value
+  if (-not $t) { Write-Host "A area de transferencia nao tem um texto comecando com sbp_." -ForegroundColor Yellow; continue }
+  if (-not (Aceito $t)) { Write-Host "O Supabase recusou este token." -ForegroundColor Yellow; continue }
+  $token = $t
+  Set-Clipboard -Value ' '
+  Write-Host "Token aceito. Area de transferencia limpa." -ForegroundColor Green
+  if ((Read-Host "Guardar este token na variavel SUPABASE_ACCESS_TOKEN do Windows, para os outros scripts? (S/N)") -match '^[sS]') {
+    [Environment]::SetEnvironmentVariable('SUPABASE_ACCESS_TOKEN', $token, 'User')
+    Write-Host "Guardado. Terminais abertos antes disto ainda veem o token antigo." -ForegroundColor Green
+  }
+}
+if (-not $token) { Write-Host "Sem token valido do Supabase. Nada foi alterado." -ForegroundColor Red; exit 1 }
 $cab = @{ Authorization = "Bearer $token" }
 
 function DerrubarSessoes {
